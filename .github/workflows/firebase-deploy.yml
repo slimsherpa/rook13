@@ -28,15 +28,8 @@ jobs:
           echo "REPLICATE_API_KEY=dummy_key" >> .env.local
           echo "DEEPGRAM_API_KEY=dummy_key" >> .env.local
       
-      - name: Run enhanced build script
-        run: node enhanced-build.js
-      
-      - name: Copy firebase-deploy directory to public-deploy if needed
-        run: |
-          if [ -d "firebase-deploy" ] && [ ! -f "public-deploy/index.html" ]; then
-            echo "Copying from firebase-deploy to public-deploy..."
-            cp -r firebase-deploy/* public-deploy/ || true
-          fi
+      - name: Run Firebase build script
+        run: node build-firebase.js
       
       - name: Deploy to Firebase
         uses: FirebaseExtended/action-hosting-deploy@v0
