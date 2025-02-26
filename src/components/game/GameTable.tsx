@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useGameStore } from '@/lib/store/gameStore';
-import { Seat, VALID_BIDS, Suit, Card as CardType, GameState } from '@/lib/types/game';
+import { Seat, VALID_BIDS, Suit, Card as CardType, GameState, Player } from '@/lib/types/game';
 import { decideBotBid, decideBotTrump, decideBotCard } from '@/lib/utils/botUtils';
 import { determineTrickWinner, calculatePoints } from '@/lib/utils/cardUtils';
 import { getNextSeat } from '@/lib/utils/seatUtils';
@@ -25,6 +25,16 @@ type CompletedTrick = {
     cards: Record<Seat, CardType>;
     playOrder: Seat[];
     winner: Seat;
+    handScores?: {
+        A: number;
+        B: number;
+    };
+};
+
+// Define a type for dragged card
+type DraggedCardInfo = {
+    index: number;
+    card: CardType;
 };
 
 // Add new player name positions - bring them closer to center
@@ -93,29 +103,32 @@ export default function GameTable() {
     const isHumanTurn = currentPlayer?.type === 'human';
     const isHumanDealer = game.dealer ? game.players[game.dealer]?.type === 'human' : false;
 
-    // State declarations
-    const [selectedWidowCards, setSelectedWidowCards] = useState<CardType[]>([]);
-    const [draggedCard, setDraggedCard] = useState<{ index: number; card: CardType } | null>(null);
-    const [lastTrick, setLastTrick] = useState<{
-        cards: Record<Seat, CardType | null>;
-        winner: Seat | null;
-        handScores: { A: number; B: number };
-        playOrder: Seat[];
-    }>({
-        cards: { A1: null, B1: null, A2: null, B2: null },
-        winner: null,
-        handScores: { A: 0, B: 0 },
-        playOrder: []
-    });
-    const [isGoDownFlipped, setIsGoDownFlipped] = useState(false);
+    // Move all useState hooks to the top level
+    const [isScoreCardOpen, setIsScoreCardOpen] = useState(false);
+    const [isHandRecapOpen, setIsHandRecapOpen] = useState(false);
+    const [selectedGoDownCards, setSelectedGoDownCards] = useState<CardType[]>([]);
     const [completedTricks, setCompletedTricks] = useState<CompletedTrick[]>([]);
+    const [lastTrick, setLastTrick] = useState<CompletedTrick | null>(null);
+    const [handScores, setHandScores] = useState<HandScore[]>([]);
+    const [draggedCardIndex, setDraggedCardIndex] = useState<number | null>(null);
+    const [draggedCard, setDraggedCard] = useState<DraggedCardInfo | null>(null);
+    const [showLastTrick, setShowLastTrick] = useState(false);
+    const [showGoDown, setShowGoDown] = useState(false);
     const [showHandRecap, setShowHandRecap] = useState(false);
     const [isDealing, setIsDealing] = useState(false);
     const [dealtSeats, setDealtSeats] = useState<Set<Seat>>(new Set());
-    const [showScoreCard, setShowScoreCard] = useState(false);
-    const [handScores, setHandScores] = useState<HandScore[]>([]);
+    const [selectedWidowCards, setSelectedWidowCards] = useState<CardType[]>([]);
+    const [isGoDownFlipped, setIsGoDownFlipped] = useState(false);
     const [readyForNextHand, setReadyForNextHand] = useState(false);
+    const [showScoreCard, setShowScoreCard] = useState(false);
+    
+    // Initialize other state variables even if they might not be used
+    const [humanSeat] = useState<Seat>('A1');
+    const [humanPlayer, setHumanPlayer] = useState<Player | null>(null);
 
+    // Bot turn handling effect
+    const isBotTurn = game && game.currentTurn && currentPlayer && currentPlayer.type === 'bot' && !game.trickComplete;
+    
     const handleTrickComplete = (cards: Record<Seat, CardType>, winner: Seat) => {
         // Calculate points from this trick
         const trickPoints = calculatePoints(Object.values(cards));
@@ -123,15 +136,16 @@ export default function GameTable() {
         // Add points to the winning team's score
         const winningTeam = winner.charAt(0) as 'A' | 'B';
         const updatedHandScores = {
-            A: winningTeam === 'A' ? lastTrick.handScores.A + trickPoints : lastTrick.handScores.A,
-            B: winningTeam === 'B' ? lastTrick.handScores.B + trickPoints : lastTrick.handScores.B
+            A: lastTrick?.handScores?.A || 0 + (winningTeam === 'A' ? trickPoints : 0),
+            B: lastTrick?.handScores?.B || 0 + (winningTeam === 'B' ? trickPoints : 0)
         };
 
         // Save the completed trick
         const newCompletedTricks = [...completedTricks, {
             cards,
             playOrder: game?.playOrder || [],
-            winner
+            winner,
+            handScores: updatedHandScores
         }];
         setCompletedTricks(newCompletedTricks);
 
@@ -164,8 +178,13 @@ export default function GameTable() {
         setSelectedWidowCards([]);
         setDraggedCard(null);
         setLastTrick({
-            cards: { A1: null, B1: null, A2: null, B2: null },
-            winner: null,
+            cards: { 
+                A1: { suit: 'Red', number: 0, points: 0 } as CardType, 
+                B1: { suit: 'Red', number: 0, points: 0 } as CardType, 
+                A2: { suit: 'Red', number: 0, points: 0 } as CardType, 
+                B2: { suit: 'Red', number: 0, points: 0 } as CardType 
+            },
+            winner: 'A1',
             handScores: { A: 0, B: 0 },
             playOrder: []
         });
@@ -192,15 +211,9 @@ export default function GameTable() {
         startNewHand(); // This will deal cards and move to bidding phase
         setIsDealing(false);
     };
-
+    
     useEffect(() => {
-        // Only run for bot turns
-        if (!game || !game.currentTurn || !currentPlayer || currentPlayer.type !== 'bot') return;
-        
-        // Don't make moves while a trick is completing
-        if (game.trickComplete) {
-            return;
-        }
+        if (!isBotTurn) return;
 
         // Add a small delay to make bot moves feel more natural
         const timer = setTimeout(async () => {
@@ -300,12 +313,15 @@ export default function GameTable() {
         return () => clearTimeout(timer);
     }, [game?.currentTurn, game?.phase, game?.trickCards]);
 
+    // Hand recap effect
+    const shouldCalculateHandRecap = game && showHandRecap && game.bidWinner && game.currentBid && game.dealer;
+    
     useEffect(() => {
-        if (!game || !showHandRecap || !game.bidWinner || !game.currentBid || !game.dealer) return;
+        if (!shouldCalculateHandRecap) return;
 
-        const dealer = game.dealer;
-        const bidWinner = game.bidWinner;
-        const currentBid = game.currentBid;
+        const dealer = game.dealer!;
+        const bidWinner = game.bidWinner!;
+        const currentBid = game.currentBid!;
 
         // Calculate team points
         const teamPoints = completedTricks.reduce((acc, trick) => {
@@ -375,35 +391,43 @@ export default function GameTable() {
         });
     }, [showHandRecap, game?.bidWinner, game?.currentBid, game?.dealer, game?.goDown, completedTricks]);
 
+    // Last trick update effect
+    // Check if completedTricks exists and has items
+    const hasCompletedTricks = completedTricks && completedTricks.length > 0;
+    
     useEffect(() => {
-        if (game?.tricks && Array.isArray(game.tricks) && game.tricks.length > 0) {
-            const currentTrick = game.tricks[game.tricks.length - 1];
-            if (currentTrick) {
-                setLastTrick({
-                    cards: currentTrick.cards || { A1: null, B1: null, A2: null, B2: null },
-                    winner: currentTrick.winner || null,
-                    handScores: game.scores,
-                    playOrder: game.playOrder || []
-                });
-            }
+        if (!hasCompletedTricks) return;
+        
+        // Use the completedTricks array instead of game.tricks
+        const currentTrick = completedTricks[completedTricks.length - 1];
+        
+        if (currentTrick) {
+            setLastTrick({
+                cards: currentTrick.cards || { A1: null, B1: null, A2: null, B2: null },
+                winner: currentTrick.winner || null,
+                handScores: game?.scores || { A: 0, B: 0 },
+                playOrder: game?.playOrder || []
+            });
         }
-    }, [game?.tricks, handScores, game?.playOrder]);
+    }, [showHandRecap, game?.bidWinner, game?.currentBid, game?.dealer, game?.goDown, completedTricks]);
 
+    // Trick completion effect
+    const hasCompletedTrick = game?.trickComplete && game.trickWinner && game.trickCards;
+    
     useEffect(() => {
-        // Check if there's a completed trick that needs to be handled
-        if (game?.trickComplete && game.trickWinner && game.trickCards) {
-            // Cast is safe because we know all cards are played when trick is complete
-            const cards = game.trickCards as Record<Seat, CardType>;
-            
-            // Set a timeout to handle the trick completion after 3 seconds
-            const timer = setTimeout(() => {
-                handleTrickComplete(cards, game.trickWinner!);
-            }, 3000);
+        if (!hasCompletedTrick) return;
+        
+        // Cast is safe because we know all cards are played when trick is complete
+        const cards = game.trickCards as Record<Seat, CardType>;
+        
+        // Set a timeout to handle the trick completion after 3 seconds
+        const timer = setTimeout(() => {
+            handleTrickComplete(cards, game.trickWinner!);
+        }, 3000);
 
-            // Cleanup timeout if component unmounts or game state changes
-            return () => clearTimeout(timer);
-        }
-    }, [game?.trickComplete, game?.trickWinner]);
+        // Cleanup timeout if component unmounts or game state changes
+        return () => clearTimeout(timer);
+    }, [game?.trickComplete, game?.trickWinner, game?.trickCards]);
 
     const handleWidowCardSelect = (card: CardType) => {
         if (selectedWidowCards.some(c => c.suit === card.suit && c.number === card.number)) {
@@ -781,12 +805,16 @@ export default function GameTable() {
         setReadyForNextHand(true);
         setCompletedTricks([]);
         setLastTrick({
-            cards: { A1: null, B1: null, A2: null, B2: null },
-            winner: null,
+            cards: { 
+                A1: { suit: 'Red', number: 0, points: 0 } as CardType, 
+                B1: { suit: 'Red', number: 0, points: 0 } as CardType, 
+                A2: { suit: 'Red', number: 0, points: 0 } as CardType, 
+                B2: { suit: 'Red', number: 0, points: 0 } as CardType 
+            },
+            winner: 'A1',
             handScores: { A: 0, B: 0 },
             playOrder: []
         });
-        startNextHandWithNewDealer(); // Move this here instead of in handleDealNextHand
     };
 
     const handleDealNextHand = () => {
@@ -871,14 +899,16 @@ export default function GameTable() {
             )}
 
             {/* Last trick display */}
-            <LastTrickDisplay 
-                lastTrick={lastTrick.cards}
-                winner={lastTrick.winner}
-                players={game.players}
-                tricks={game.tricks}
-                handScores={lastTrick.handScores}
-                playOrder={lastTrick.playOrder}
-            />
+            {lastTrick && showLastTrick && (
+                <LastTrickDisplay 
+                    lastTrick={lastTrick.cards}
+                    winner={lastTrick.winner}
+                    players={game.players}
+                    tricks={game.tricks}
+                    handScores={lastTrick.handScores || { A: 0, B: 0 }}
+                    playOrder={lastTrick.playOrder}
+                />
+            )}
 
             {/* Game table */}
             <div className="h-full w-full flex items-center justify-center">
