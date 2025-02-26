@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter, Orbitron } from 'next/font/google'
 import './globals.css'
+import { AuthProvider } from '@/lib/contexts/AuthContext'
 
 const inter = Inter({ subsets: ['latin'] })
 const orbitron = Orbitron({ 
@@ -26,8 +27,13 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
           rel="stylesheet"
         />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </head>
-      <body className={`${inter.className} ${orbitron.variable}`}>{children}</body>
+      <body className={`${inter.className} ${orbitron.variable}`}>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   )
 }

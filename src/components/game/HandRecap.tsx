@@ -178,7 +178,7 @@ export default function HandRecap({ isOpen, onClose, tricks, goDown, players, bi
                                                     ? 'bg-yellow-500/20 text-yellow-200 font-medium shadow-[0_0_8px_rgba(234,179,8,0.2)]' 
                                                     : 'text-white/80'}
                                             `}>
-                                                {players[seat]?.name}
+                                                {players[seat]?.name ? players[seat].name.split(' ')[0] : ''}
                                             </div>
 
                                             {/* Card with scale matching Last Trick */}

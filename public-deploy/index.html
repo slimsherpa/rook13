@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rook13 Card Game</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Orbitron:wght@400;700&display=swap">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+    <style>
+        :root {
+            --primary-bg: #1a365d;
+            --secondary-bg: #2a466d;
+            --accent-color: #4299e1;
+            --text-color: #f0f0f0;
+            --card-bg: white;
+            --card-text: #1a365d;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        header {
+            background-color: var(--secondary-bg);
+            padding: 60px 0;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1, h2, h3 {
+            font-family: 'Orbitron', sans-serif;
+        }
+        
+        h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: var(--text-color);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .tagline {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            color: var(--text-color);
+            opacity: 0.9;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            color: var(--card-text);
+            padding: 40px;
+            border-radius: 10px;
+            margin: 2rem 0;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card h2 {
+            color: var(--primary-bg);
+            margin-bottom: 1rem;
+        }
+        
+        .card p {
+            margin-bottom: 1rem;
+        }
+        
+        .card ul {
+            margin-left: 2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin: 40px 0;
+        }
+        
+        .feature {
+            flex: 1;
+            min-width: 300px;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 8px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .feature:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        .feature h3 {
+            color: var(--text-color);
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+        
+        .screenshots {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+        
+        .screenshot {
+            background-color: var(--secondary-bg);
+            height: 200px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-color);
+            font-weight: bold;
+            transition: transform 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .screenshot:hover {
+            transform: scale(1.05);
+        }
+        
+        .rules {
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 30px;
+            border-radius: 8px;
+            margin: 40px 0;
+        }
+        
+        .rules h3 {
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+        }
+        
+        .rules ol {
+            margin-left: 2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .rules li {
+            margin-bottom: 0.5rem;
+        }
+        
+        .cta {
+            text-align: center;
+            margin: 60px 0;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background-color: var(--accent-color);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-decoration: none;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            border: none;
+        }
+        
+        .cta-button:hover {
+            background-color: #3182ce;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .auth-container {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 10px;
+            margin: 40px 0;
+            text-align: center;
+        }
+        
+        .auth-container h3 {
+            margin-bottom: 1.5rem;
+            color: var(--accent-color);
+        }
+        
+        .auth-status {
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+        }
+        
+        .user-info {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+        
+        .user-info p {
+            margin-bottom: 0.5rem;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--text-color);
+            opacity: 0.7;
+            background-color: var(--secondary-bg);
+            margin-top: 60px;
+        }
+        
+        /* Countdown Timer Styles */
+        .countdown-container {
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 40px 0;
+            text-align: center;
+        }
+        
+        .countdown-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+        }
+        
+        .countdown {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        
+        .countdown-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .countdown-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: bold;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 10px 15px;
+            border-radius: 8px;
+            min-width: 80px;
+        }
+        
+        .countdown-label {
+            font-size: 0.9rem;
+            margin-top: 5px;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+        
+        /* Newsletter Styles */
+        .newsletter {
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 30px;
+            border-radius: 10px;
+            margin: 40px 0;
+            text-align: center;
+        }
+        
+        .newsletter h3 {
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+        }
+        
+        .newsletter p {
+            margin-bottom: 1.5rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .newsletter-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .newsletter-input {
+            flex: 1;
+            min-width: 250px;
+            padding: 12px 15px;
+            border-radius: 30px;
+            border: none;
+            font-size: 1rem;
+        }
+        
+        .newsletter-button {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 30px;
+            font-size: 1rem;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        
+        .newsletter-button:hover {
+            background-color: #3182ce;
+        }
+        
+        .newsletter-message {
+            margin-top: 15px;
+            font-weight: bold;
+            min-height: 24px;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 3rem;
+            }
+            
+            .tagline {
+                font-size: 1.2rem;
+            }
+            
+            .feature {
+                min-width: 100%;
+            }
+            
+            .countdown {
+                flex-wrap: wrap;
+            }
+            
+            .countdown-value {
+                font-size: 2rem;
+                min-width: 60px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>ROOK13</h1>
+            <p class="tagline">A modern implementation of the classic trick-taking card game</p>
+        </div>
+    </header>
+    
+    <div class="container">
+        <!-- Countdown Timer -->
+        <div class="countdown-container">
+            <h3 class="countdown-title">Game Launch Countdown</h3>
+            <div class="countdown">
+                <div class="countdown-item">
+                    <div id="countdown-days" class="countdown-value">00</div>
+                    <div class="countdown-label">Days</div>
+                </div>
+                <div class="countdown-item">
+                    <div id="countdown-hours" class="countdown-value">00</div>
+                    <div class="countdown-label">Hours</div>
+                </div>
+                <div class="countdown-item">
+                    <div id="countdown-minutes" class="countdown-value">00</div>
+                    <div class="countdown-label">Minutes</div>
+                </div>
+                <div class="countdown-item">
+                    <div id="countdown-seconds" class="countdown-value">00</div>
+                    <div class="countdown-label">Seconds</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Coming Soon!</h2>
+            <p>We're working on deploying the full game. Check back soon for the complete experience.</p>
+            <p>Rook13 is a digital adaptation of the classic Rook card game, featuring:</p>
+            <ul>
+                <li>Play against AI opponents with adaptive strategies</li>
+                <li>Beautiful, intuitive interface designed for modern devices</li>
+                <li>Track your scores and progress across multiple games</li>
+                <li>Learn the game with helpful tutorials and tips</li>
+            </ul>
+        </div>
+        
+        <!-- Newsletter Signup -->
+        <div class="newsletter">
+            <h3>Stay Updated</h3>
+            <p>Sign up for our newsletter to be the first to know when Rook13 launches and receive exclusive updates and offers.</p>
+            <form id="newsletter-form" class="newsletter-form">
+                <input type="email" id="newsletter-email" class="newsletter-input" placeholder="Your email address" required>
+                <button type="submit" class="newsletter-button">Subscribe</button>
+            </form>
+            <div id="newsletter-message" class="newsletter-message"></div>
+        </div>
+        
+        <div class="auth-container">
+            <h3>Sign In to Play</h3>
+            <div id="auth-status" class="auth-status">
+                Checking authentication status...
+            </div>
+            <div id="user-info" class="user-info" style="display: none;">
+                <p><strong>Name:</strong> <span id="user-name"></span></p>
+                <p><strong>Email:</strong> <span id="user-email"></span></p>
+            </div>
+            <button id="sign-in-button" class="cta-button" style="display: none;">
+                Sign In with Google
+            </button>
+            <button id="sign-out-button" class="cta-button" style="display: none; background-color: #e53e3e;">
+                Sign Out
+            </button>
+        </div>
+        
+        <h2>Game Features</h2>
+        <div class="features">
+            <div class="feature">
+                <h3>Team-Based Gameplay</h3>
+                <p>Form partnerships and work together to win tricks and meet your bid. Coordinate with your partner to maximize your team's score.</p>
+            </div>
+            <div class="feature">
+                <h3>Strategic Bidding</h3>
+                <p>Evaluate your hand and place strategic bids to maximize your team's score. Decide whether to go for a high bid or pass to your partner.</p>
+            </div>
+            <div class="feature">
+                <h3>Intelligent AI</h3>
+                <p>Challenge yourself against computer opponents that adapt to your play style. The AI will learn from your strategies and adjust accordingly.</p>
+            </div>
+            <div class="feature">
+                <h3>Beautiful Interface</h3>
+                <p>Enjoy a visually stunning game experience with smooth animations and intuitive controls designed for both desktop and mobile devices.</p>
+            </div>
+        </div>
+        
+        <h2>How to Play</h2>
+        <div class="rules">
+            <h3>Basic Rules</h3>
+            <p>Rook is a trick-taking card game where players bid on how many points they think they can win in a hand. The highest bidder chooses the trump suit and sets aside their weakest cards in the "nest" or "widow."</p>
+            
+            <h3>Game Flow</h3>
+            <ol>
+                <li><strong>Deal:</strong> Each player receives 9 cards, with 4 cards set aside as the "widow".</li>
+                <li><strong>Bidding:</strong> Players bid on how many points they think they can win, or pass.</li>
+                <li><strong>Widow:</strong> The highest bidder takes the widow and discards 4 cards.</li>
+                <li><strong>Trump Selection:</strong> The highest bidder selects a trump suit.</li>
+                <li><strong>Trick Play:</strong> Players take turns playing cards, following suit if possible.</li>
+                <li><strong>Scoring:</strong> Teams earn points by capturing valuable cards in tricks, with bonuses for meeting bids.</li>
+            </ol>
+            
+            <h3>Scoring</h3>
+            <p>Points are earned from capturing valuable cards:</p>
+            <ul>
+                <li>5's are worth 5 points each</li>
+                <li>10's and 13's (Kings) are worth 10 points each</li>
+                <li>Teams that win 5 or more tricks receive a 20-point bonus</li>
+                <li>The team that wins the last trick gets the points in the "widow"</li>
+            </ul>
+            
+            <p>If the bidding team meets or exceeds their bid, they score the points they captured. If they fail to meet their bid, they lose the amount of their bid.</p>
+        </div>
+        
+        <h2>Game Screenshots</h2>
+        <div class="screenshots">
+            <div class="screenshot">Game Table View</div>
+            <div class="screenshot">Bidding Interface</div>
+            <div class="screenshot">Score Card</div>
+            <div class="screenshot">Hand Recap</div>
+        </div>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Rook13 | A Next.js Application</p>
+            <p>Built with React, TypeScript, and Firebase</p>
+        </div>
+    </footer>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCQOm9D3zWMTsi8GPsoSng3sxTUc2tEAUM",
+            authDomain: "rook13-01.firebaseapp.com",
+            projectId: "rook13-01",
+            storageBucket: "rook13-01.firebasestorage.app",
+            messagingSenderId: "325993848338",
+            appId: "1:325993848338:web:adec6fc444c99aa72802cb",
+            measurementId: "G-NWD5T9KRPM"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        
+        // DOM elements
+        const authStatus = document.getElementById('auth-status');
+        const userInfo = document.getElementById('user-info');
+        const userName = document.getElementById('user-name');
+        const userEmail = document.getElementById('user-email');
+        const signInButton = document.getElementById('sign-in-button');
+        const signOutButton = document.getElementById('sign-out-button');
+        
+        // Newsletter elements
+        const newsletterForm = document.getElementById('newsletter-form');
+        const newsletterEmail = document.getElementById('newsletter-email');
+        const newsletterMessage = document.getElementById('newsletter-message');
+        
+        // Sign in with Google
+        function signInWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            firebase.auth().signInWithPopup(provider)
+                .catch(error => {
+                    console.error('Error signing in:', error);
+                    authStatus.textContent = 'Error signing in. Please try again.';
+                });
+        }
+        
+        // Sign out
+        function signOut() {
+            firebase.auth().signOut()
+                .catch(error => {
+                    console.error('Error signing out:', error);
+                });
+        }
+        
+        // Auth state change listener
+        firebase.auth().onAuthStateChanged(user => {
+            if (user) {
+                // User is signed in
+                authStatus.textContent = 'You are signed in!';
+                userInfo.style.display = 'block';
+                userName.textContent = user.displayName || 'N/A';
+                userEmail.textContent = user.email || 'N/A';
+                signInButton.style.display = 'none';
+                signOutButton.style.display = 'inline-block';
+            } else {
+                // User is signed out
+                authStatus.textContent = 'Please sign in to play Rook13';
+                userInfo.style.display = 'none';
+                signInButton.style.display = 'inline-block';
+                signOutButton.style.display = 'none';
+            }
+        });
+        
+        // Event listeners
+        signInButton.addEventListener('click', signInWithGoogle);
+        signOutButton.addEventListener('click', signOut);
+        
+        // Newsletter form submission
+        newsletterForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const email = newsletterEmail.value.trim();
+            
+            if (email) {
+                // Add email to Firestore collection
+                db.collection('newsletter').add({
+                    email: email,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then(() => {
+                    newsletterMessage.textContent = 'Thank you for subscribing!';
+                    newsletterMessage.style.color = '#4ade80'; // Green color
+                    newsletterEmail.value = '';
+                })
+                .catch(error => {
+                    console.error('Error adding email:', error);
+                    newsletterMessage.textContent = 'Error subscribing. Please try again.';
+                    newsletterMessage.style.color = '#f87171'; // Red color
+                });
+            }
+        });
+        
+        // Countdown Timer
+        function updateCountdown() {
+            // Set the launch date (2 months from now)
+            const now = new Date();
+            const launchDate = new Date(now);
+            launchDate.setMonth(now.getMonth() + 2);
+            
+            // Calculate time remaining
+            const timeRemaining = launchDate - now;
+            
+            // Calculate days, hours, minutes, seconds
+            const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
+            
+            // Update the DOM
+            document.getElementById('countdown-days').textContent = days.toString().padStart(2, '0');
+            document.getElementById('countdown-hours').textContent = hours.toString().padStart(2, '0');
+            document.getElementById('countdown-minutes').textContent = minutes.toString().padStart(2, '0');
+            document.getElementById('countdown-seconds').textContent = seconds.toString().padStart(2, '0');
+        }
+        
+        // Update countdown every second
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+    </script>
+</body>
+</html> 

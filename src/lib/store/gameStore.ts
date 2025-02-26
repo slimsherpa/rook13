@@ -42,13 +42,23 @@ const createInitialGameState = (humanPlayer: Player): GameState => {
     };
 };
 
-const createBot = (seat: Seat): Player => ({
-    id: uuidv4(),
-    name: `Bot ${seat}`,
-    type: 'bot',
-    seat,
-    ready: true,
-});
+const createBot = (seat: Seat): Player => {
+    // Custom names for each bot based on seat
+    const botNames: Record<Seat, string> = {
+        'A1': 'Bot A1', // This shouldn't be used as A1 is the human player
+        'B1': 'Lefty',
+        'A2': 'Partner',
+        'B2': 'Righty'
+    };
+    
+    return {
+        id: uuidv4(),
+        name: botNames[seat],
+        type: 'bot',
+        seat,
+        ready: true,
+    };
+};
 
 export const useGameStore = create<GameStore>()((set) => ({
     game: null,

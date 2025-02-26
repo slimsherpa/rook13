@@ -1,34 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { useGameStore } from '@/lib/store/gameStore';
 import { Player, Seat } from '@/lib/types/game';
 import { v4 as uuidv4 } from 'uuid';
 import GameTable from '../game/GameTable';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 export default function Lobby() {
-    const [playerName, setPlayerName] = useState('');
     const { game, createGame, addBot, setPlayerReady } = useGameStore();
+    const { user, loading, signInWithGoogle } = useAuth();
 
-    const handleStartGame = () => {
-        if (!playerName.trim()) return;
+    // When user logs in, automatically create a game with their profile info
+    useEffect(() => {
+        if (user && !game) {
+            const humanPlayer: Player = {
+                id: user.uid,
+                name: user.displayName || 'Player',
+                type: 'human',
+                ready: false,
+            };
 
-        const humanPlayer: Player = {
-            id: uuidv4(),
-            name: playerName,
-            type: 'human',
-            ready: false,
-        };
-
-        createGame(humanPlayer);
-        
-        // Automatically add bots to other seats
-        const botSeats: Seat[] = ['B1', 'A2', 'B2'];
-        botSeats.forEach(seat => addBot(seat));
-        
-        // Set human player as ready
-        setPlayerReady('A1');
-    };
+            createGame(humanPlayer);
+            
+            // Automatically add bots to other seats
+            const botSeats: Seat[] = ['B1', 'A2', 'B2'];
+            botSeats.forEach(seat => addBot(seat));
+            
+            // Set human player as ready
+            setPlayerReady('A1');
+        }
+    }, [user, game, createGame, addBot, setPlayerReady]);
 
     // Show game table when game is active
     if (game?.status === 'active') {
@@ -40,31 +42,38 @@ export default function Lobby() {
             <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
                 <h1 className="text-3xl font-bold text-center mb-6">Rook13</h1>
                 
-                {!game ? (
+                {loading ? (
+                    <div className="text-center py-4">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="mt-4 text-gray-600">Loading...</p>
+                    </div>
+                ) : !user ? (
                     <div className="space-y-4">
-                        <div>
-                            <label htmlFor="playerName" className="block text-sm font-medium text-gray-700 mb-1">
-                                Your Name
-                            </label>
-                            <input
-                                type="text"
-                                id="playerName"
-                                value={playerName}
-                                onChange={(e) => setPlayerName(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Enter your name"
-                            />
-                        </div>
+                        <p className="text-gray-600 text-center mb-4">
+                            Sign in with your Google account to start playing Rook13
+                        </p>
                         <button
-                            onClick={handleStartGame}
-                            disabled={!playerName.trim()}
-                            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                            onClick={signInWithGoogle}
+                            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                         >
-                            Start Game with Bots
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/>
+                            </svg>
+                            Sign in with Google
                         </button>
+                    </div>
+                ) : !game ? (
+                    <div className="text-center py-4">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="mt-4 text-gray-600">Setting up your game...</p>
                     </div>
                 ) : (
                     <div className="space-y-4">
+                        <div className="bg-blue-50 p-4 rounded-lg mb-4">
+                            <p className="text-blue-800 font-medium">Welcome, {user.displayName}!</p>
+                            <p className="text-blue-600 text-sm">{user.email}</p>
+                        </div>
+                        
                         <h2 className="text-xl font-semibold">Players</h2>
                         <div className="space-y-2">
                             {Object.entries(game.players).map(([seat, player]) => (

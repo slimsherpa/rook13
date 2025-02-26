@@ -79,7 +79,7 @@ export default function LastTrickDisplay({
                                     ? 'bg-green-600 text-white font-orbitron' 
                                     : 'bg-gray-700/80 text-white font-orbitron'}
                             `}>
-                                {players[seat]?.name || '-'}
+                                {players[seat]?.name ? players[seat]?.name.split(' ')[0] : '-'}
                             </div>
 
                             {/* Card */}
@@ -106,7 +106,7 @@ export default function LastTrickDisplay({
                                 stars
                             </span>
                             <span className="font-orbitron font-bold text-white">
-                                {players[winner]?.name} won {trickPoints} points!
+                                {players[winner]?.name ? players[winner].name.split(' ')[0] : ''} won {trickPoints} points!
                             </span>
                         </div>
                     </div>

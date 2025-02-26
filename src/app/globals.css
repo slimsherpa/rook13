@@ -31,3 +31,63 @@ body {
     text-wrap: balance;
   }
 }
+
+/* Cyberpunk Animation Effects */
+@keyframes glitch {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-5px, 5px); }
+  40% { transform: translate(-5px, -5px); }
+  60% { transform: translate(5px, 5px); }
+  80% { transform: translate(5px, -5px); }
+}
+
+.animate-glitch {
+  animation: glitch 0.2s ease-in-out;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(0%); }
+  100% { transform: translateY(100%); }
+}
+
+.animate-scanline {
+  animation: scanline 8s linear infinite;
+}
+
+@keyframes circuit {
+  0% { stroke-dasharray: 0 100; opacity: 0.2; }
+  50% { opacity: 1; }
+  100% { stroke-dasharray: 100 0; opacity: 0.2; }
+}
+
+.animate-circuit-1 {
+  animation: circuit 2s infinite;
+}
+
+.animate-circuit-2 {
+  animation: circuit 3s infinite 0.5s;
+}
+
+/* Cyberpunk Text Effects */
+.cyberpunk-text {
+  font-family: var(--font-orbitron);
+  text-shadow: 0 0 5px rgba(0, 240, 255, 0.8);
+  letter-spacing: 2px;
+}
+
+.cyberpunk-glow {
+  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.8));
+}
+
+/* Cyberpunk UI Elements */
+.cyberpunk-border {
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+}
+
+.cyberpunk-panel {
+  background-color: rgba(15, 36, 71, 0.5);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+}

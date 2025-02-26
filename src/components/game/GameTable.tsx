@@ -119,7 +119,6 @@ export default function GameTable() {
     const [dealtSeats, setDealtSeats] = useState<Set<Seat>>(new Set());
     const [selectedWidowCards, setSelectedWidowCards] = useState<CardType[]>([]);
     const [isGoDownFlipped, setIsGoDownFlipped] = useState(false);
-    const [readyForNextHand, setReadyForNextHand] = useState(false);
     const [showScoreCard, setShowScoreCard] = useState(false);
     
     // Initialize other state variables even if they might not be used
@@ -136,8 +135,8 @@ export default function GameTable() {
         // Add points to the winning team's score
         const winningTeam = winner.charAt(0) as 'A' | 'B';
         const updatedHandScores = {
-            A: lastTrick?.handScores?.A || 0 + (winningTeam === 'A' ? trickPoints : 0),
-            B: lastTrick?.handScores?.B || 0 + (winningTeam === 'B' ? trickPoints : 0)
+            A: (lastTrick?.handScores?.A || 0) + (winningTeam === 'A' ? trickPoints : 0),
+            B: (lastTrick?.handScores?.B || 0) + (winningTeam === 'B' ? trickPoints : 0)
         };
 
         // Save the completed trick
@@ -156,7 +155,10 @@ export default function GameTable() {
             handScores: updatedHandScores,
             playOrder: game?.playOrder || []
         });
-
+        
+        // Show the last trick display and keep it visible until the hand is completed
+        setShowLastTrick(true);
+        
         // Show hand recap if this was the 9th trick
         if (newCompletedTricks.length === 9) {
             setShowHandRecap(true);
@@ -179,14 +181,14 @@ export default function GameTable() {
         setDraggedCard(null);
         setLastTrick({
             cards: { 
-                A1: { suit: 'Red', number: 0, points: 0 } as CardType, 
-                B1: { suit: 'Red', number: 0, points: 0 } as CardType, 
-                A2: { suit: 'Red', number: 0, points: 0 } as CardType, 
-                B2: { suit: 'Red', number: 0, points: 0 } as CardType 
+                A1: { suit: 'Black', number: 0, points: 0 } as CardType, 
+                B1: { suit: 'Black', number: 0, points: 0 } as CardType, 
+                A2: { suit: 'Black', number: 0, points: 0 } as CardType, 
+                B2: { suit: 'Black', number: 0, points: 0 } as CardType 
             },
             winner: 'A1',
             handScores: { A: 0, B: 0 },
-            playOrder: []
+            playOrder: ['A1', 'B1', 'A2', 'B2']
         });
         setCompletedTricks([]);
         setShowHandRecap(false);
@@ -405,8 +407,8 @@ export default function GameTable() {
             setLastTrick({
                 cards: currentTrick.cards || { A1: null, B1: null, A2: null, B2: null },
                 winner: currentTrick.winner || null,
-                handScores: game?.scores || { A: 0, B: 0 },
-                playOrder: game?.playOrder || []
+                handScores: currentTrick.handScores || { A: 0, B: 0 },
+                playOrder: currentTrick.playOrder || []
             });
         }
     }, [showHandRecap, game?.bidWinner, game?.currentBid, game?.dealer, game?.goDown, completedTricks]);
@@ -802,25 +804,24 @@ export default function GameTable() {
     const handleStartNextHand = () => {
         console.log('Starting next hand...');
         setShowHandRecap(false);
-        setReadyForNextHand(true);
+        setShowLastTrick(false);
+        
+        // Call startNextHandWithNewDealer directly instead of setting readyForNextHand
+        startNextHandWithNewDealer();
+        
+        // Reset local state
         setCompletedTricks([]);
         setLastTrick({
             cards: { 
-                A1: { suit: 'Red', number: 0, points: 0 } as CardType, 
-                B1: { suit: 'Red', number: 0, points: 0 } as CardType, 
-                A2: { suit: 'Red', number: 0, points: 0 } as CardType, 
-                B2: { suit: 'Red', number: 0, points: 0 } as CardType 
+                A1: { suit: 'Black', number: 0, points: 0 } as CardType, 
+                B1: { suit: 'Black', number: 0, points: 0 } as CardType, 
+                A2: { suit: 'Black', number: 0, points: 0 } as CardType, 
+                B2: { suit: 'Black', number: 0, points: 0 } as CardType 
             },
             winner: 'A1',
             handScores: { A: 0, B: 0 },
-            playOrder: []
+            playOrder: ['A1', 'B1', 'A2', 'B2']
         });
-    };
-
-    const handleDealNextHand = () => {
-        console.log('Dealing next hand...');
-        setReadyForNextHand(false);
-        startNewHand(); // Change to startNewHand instead of startNextHandWithNewDealer
     };
 
     // Add secret card sorting function
@@ -1007,7 +1008,7 @@ export default function GameTable() {
                                     text-[48px] font-orbitron font-bold text-green-900
                                     px-4 py-2 rounded-xl
                                 `}>
-                                    {player.name}
+                                    {player.name.split(' ')[0]}
                                     {/* Dealer Indicator */}
                                     {game.dealer === seat && (
                                         <div className={`${dealerIndicatorPositions[seat as Seat]}`}>
@@ -1068,14 +1069,14 @@ export default function GameTable() {
                     {renderGoDown()}
 
                     {/* Start Next Hand Button - Update this section */}
-                    {readyForNextHand && game.phase === 'dealing' && (
+                    {game.phase === 'dealing' && game.currentTurn === game.dealer && (
                         <button
-                            onClick={handleDealNextHand}
+                            onClick={handleDealCards}
                             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 
                                      bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg
                                      shadow-lg transform transition-all duration-200 hover:scale-105 animate-bounce"
                         >
-                            Start Next Hand
+                            Deal Cards
                         </button>
                     )}
                 </div>
