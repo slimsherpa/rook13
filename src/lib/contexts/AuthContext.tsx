@@ -1,7 +1,15 @@
 "use client";
 
 import React, { createContext, useEffect, useState } from "react";
-import { signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { 
+  signInWithRedirect, 
+  signInWithPopup,
+  getRedirectResult,
+  GoogleAuthProvider, 
+  signOut as firebaseSignOut, 
+  setPersistence, 
+  browserLocalPersistence 
+} from "firebase/auth";
 import { User } from "firebase/auth";
 import { auth } from "../firebase/firebase";
 
@@ -24,6 +32,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check for redirect result when the component mounts
+    const checkRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          // User successfully signed in with redirect
+          console.log("Redirect sign-in successful");
+        }
+      } catch (error: any) {
+        console.error("Error with redirect sign-in", error);
+      }
+    };
+
+    checkRedirectResult();
+
+    // Set up auth state listener
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setUser(user);
       setLoading(false);
@@ -35,22 +59,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     try {
+      // Set persistence to LOCAL to persist the user session
       await setPersistence(auth, browserLocalPersistence);
+      
+      // Add scopes
       provider.addScope('profile');
       provider.addScope('email');
+      
+      // Set custom parameters
       provider.setCustomParameters({
         prompt: 'select_account'
       });
-      await signInWithPopup(auth, provider);
+      
+      // Use redirect method instead of popup for better compatibility with static sites
+      await signInWithRedirect(auth, provider);
+      
+      // Note: The redirect will navigate away from the page, so code after this won't execute
+      // until the user returns to the site after authentication
     } catch (error: any) {
-      console.error("Error signing in with Google", error);
-      if (error.code === 'auth/popup-closed-by-user') {
-        console.log("Sign-in popup was closed by the user");
-      } else if (error.code === 'auth/cancelled-popup-request') {
-        console.log("Sign-in popup request was cancelled");
-      } else {
-        console.error("Authentication error:", error.message);
-      }
+      console.error("Error initiating Google sign-in", error);
     }
   };
 
