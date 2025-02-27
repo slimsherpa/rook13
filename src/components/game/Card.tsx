@@ -81,7 +81,7 @@ export default function Card({ card, onClick, disabled, selected, selectable, fa
                   selectable ? 'cursor-pointer' : ''}
                 ${colorClasses}
                 ${dimmed ? 'opacity-60 grayscale-[30%]' : ''}
-                transition-all duration-200
+                transition-all duration-300 ease-in-out
             `}
         >
             {/* Glow effect wrapper */}
@@ -111,7 +111,12 @@ export default function Card({ card, onClick, disabled, selected, selectable, fa
                     {points > 0 && (
                         <span className={`
                             font-bold text-lg
-                            ${isTrump ? `text-${suit.toLowerCase()}-600` : 'text-white'}
+                            ${isTrump ? (
+                                suit === 'Red' ? 'text-red-600' :
+                                suit === 'Yellow' ? 'text-yellow-600' :
+                                suit === 'Black' ? 'text-gray-900' :
+                                'text-green-600'
+                            ) : 'text-white'}
                         `}>
                             {points}
                         </span>

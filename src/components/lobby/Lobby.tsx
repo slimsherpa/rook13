@@ -6,6 +6,7 @@ import { Player, Seat } from '@/lib/types/game';
 import { v4 as uuidv4 } from 'uuid';
 import GameTable from '../game/GameTable';
 import { useAuth } from '@/lib/hooks/useAuth';
+import LoadingSpinner from '../LoadingSpinner';
 
 export default function Lobby() {
     const { game, createGame, addBot, setPlayerReady } = useGameStore();
@@ -43,9 +44,8 @@ export default function Lobby() {
                 <h1 className="text-3xl font-bold text-center mb-6">Rook13</h1>
                 
                 {loading ? (
-                    <div className="text-center py-4">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                        <p className="mt-4 text-gray-600">Loading...</p>
+                    <div className="text-center py-8">
+                        <LoadingSpinner size="md" variant="green" />
                     </div>
                 ) : !user ? (
                     <div className="space-y-4">
@@ -64,8 +64,7 @@ export default function Lobby() {
                     </div>
                 ) : !game ? (
                     <div className="text-center py-4">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                        <p className="mt-4 text-gray-600">Setting up your game...</p>
+                        <LoadingSpinner size="md" variant="green" text="Setting up your game..." />
                     </div>
                 ) : (
                     <div className="space-y-4">

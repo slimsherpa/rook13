@@ -8,7 +8,9 @@ import {
   GoogleAuthProvider, 
   signOut as firebaseSignOut, 
   setPersistence, 
-  browserLocalPersistence 
+  browserLocalPersistence,
+  onAuthStateChanged,
+  inMemoryPersistence
 } from "firebase/auth";
 import { User } from "firebase/auth";
 import { auth } from "../firebase/firebase";
@@ -30,36 +32,56 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialCheckDone, setInitialCheckDone] = useState(false);
 
+  // Handle redirect result and auth state changes
   useEffect(() => {
-    // Check for redirect result when the component mounts
+    console.log("AuthProvider: Setting up auth state listener");
+    
+    // First, check for redirect result
     const checkRedirectResult = async () => {
       try {
+        console.log("Checking for redirect result...");
         const result = await getRedirectResult(auth);
+        
         if (result) {
-          // User successfully signed in with redirect
-          console.log("Redirect sign-in successful");
+          console.log("Redirect sign-in successful", result.user.displayName);
+          setUser(result.user);
+        } else {
+          console.log("No redirect result found");
         }
       } catch (error: any) {
-        console.error("Error with redirect sign-in", error);
+        console.error("Error with redirect sign-in", error.code, error.message);
+      } finally {
+        setInitialCheckDone(true);
       }
     };
 
     checkRedirectResult();
-
-    // Set up auth state listener
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUser(user);
-      setLoading(false);
+    
+    // Then set up the auth state listener
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      console.log("Auth state changed:", currentUser ? `User: ${currentUser.displayName}` : "No user");
+      setUser(currentUser);
+      
+      if (initialCheckDone || !currentUser) {
+        setLoading(false);
+      }
     });
 
-    return () => unsubscribe();
-  }, []);
+    return () => {
+      console.log("Cleaning up auth state listener");
+      unsubscribe();
+    };
+  }, [initialCheckDone]);
 
   const signInWithGoogle = async () => {
+    console.log("Initiating Google sign-in");
     const provider = new GoogleAuthProvider();
+    
     try {
       // Set persistence to LOCAL to persist the user session
+      console.log("Setting persistence to LOCAL");
       await setPersistence(auth, browserLocalPersistence);
       
       // Add scopes
@@ -71,21 +93,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         prompt: 'select_account'
       });
       
-      // Use redirect method instead of popup for better compatibility with static sites
-      await signInWithRedirect(auth, provider);
-      
-      // Note: The redirect will navigate away from the page, so code after this won't execute
-      // until the user returns to the site after authentication
+      // Try popup first, fall back to redirect
+      try {
+        console.log("Attempting sign-in with popup");
+        const result = await signInWithPopup(auth, provider);
+        console.log("Popup sign-in successful", result.user.displayName);
+        return;
+      } catch (popupError: any) {
+        console.log("Popup failed, falling back to redirect", popupError.code);
+        
+        // If popup fails, use redirect
+        if (popupError.code === 'auth/popup-blocked' || 
+            popupError.code === 'auth/popup-closed-by-user' ||
+            popupError.code === 'auth/cancelled-popup-request') {
+          console.log("Using redirect method instead");
+          await signInWithRedirect(auth, provider);
+        } else {
+          throw popupError;
+        }
+      }
     } catch (error: any) {
-      console.error("Error initiating Google sign-in", error);
+      console.error("Error during Google sign-in:", error.code, error.message);
+      throw error;
     }
   };
 
   const signOutUser = async () => {
     try {
+      console.log("Signing out user");
       await firebaseSignOut(auth);
-    } catch (error) {
-      console.error("Error signing out", error);
+      console.log("User signed out successfully");
+    } catch (error: any) {
+      console.error("Error signing out:", error.code, error.message);
     }
   };
 

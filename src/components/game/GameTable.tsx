@@ -11,6 +11,7 @@ import TrickDisplay from './TrickDisplay';
 import LastTrickDisplay from './LastTrickDisplay';
 import HandRecap from './HandRecap';
 import ScoreCard from './ScoreCard';
+import TableCenterIcon from './TableCenterIcon';
 import { useGameUI } from '@/lib/hooks/useGameUI';
 
 // Add new type for trick state
@@ -120,6 +121,7 @@ export default function GameTable() {
     const [selectedWidowCards, setSelectedWidowCards] = useState<CardType[]>([]);
     const [isGoDownFlipped, setIsGoDownFlipped] = useState(false);
     const [showScoreCard, setShowScoreCard] = useState(false);
+    const [toast, setToast] = useState<{message: string, visible: boolean}>({message: '', visible: false});
     
     // Initialize other state variables even if they might not be used
     const [humanSeat] = useState<Seat>('A1');
@@ -531,7 +533,7 @@ export default function GameTable() {
         return (
             <div className="space-y-2">
                 {/* Cards */}
-                <div className="flex gap-2 p-4 relative justify-center">
+                <div className={`flex gap-2 p-4 relative justify-center player-hand-${seat}`}>
                     {player.hand.map((card, index) => {
                         const isPlayed = playedCard && 
                             playedCard.suit === card.suit && 
@@ -546,12 +548,18 @@ export default function GameTable() {
                             <div
                                 key={`${card.suit}-${card.number}`}
                                 className={`
-                                    transition-all duration-200
+                                    card-element
+                                    transition-all duration-300 ease-in-out
                                     ${isPlayed ? 'opacity-0' : 'opacity-100'}
                                     ${isHumanPlayer ? 'cursor-grab active:cursor-grabbing' : ''}
                                     ${draggedCard?.card === card ? 'opacity-50' : ''}
                                     relative
+                                    transform hover:scale-105 hover:-translate-y-1
+                                    transition-delay-${index % 5 * 50}
                                 `}
+                                style={{
+                                    transitionDelay: `${index * 20}ms`
+                                }}
                                 draggable={isHumanPlayer}
                                 onDragStart={(e) => {
                                     handleDragStart(index, card);
@@ -766,7 +774,7 @@ export default function GameTable() {
                 `}>
                     {/* Label */}
                     <div className="text-white/80 font-orbitron text-sm px-2">
-                        Go Down Cards
+                        Go Down
                     </div>
                     {/* Cards */}
                     <div className="flex gap-1">
@@ -840,15 +848,65 @@ export default function GameTable() {
             cards.sort((a, b) => b.number - a.number);
         });
 
-        // Sort suits by length (descending)
-        const sortedSuits = Object.entries(cardsBySuit)
-            .sort(([, cardsA], [, cardsB]) => cardsB.length - cardsA.length);
+        // Calculate power of each suit (sum of card values)
+        const suitPower: Record<string, number> = {};
+        Object.entries(cardsBySuit).forEach(([suit, cards]) => {
+            suitPower[suit] = cards.reduce((sum, card) => sum + card.number, 0);
+        });
+
+        // Sort suits by length (descending) and then by power (descending)
+        let sortedSuits = Object.entries(cardsBySuit)
+            .sort(([suitA, cardsA], [suitB, cardsB]) => {
+                // If lengths are different, sort by length
+                if (cardsA.length !== cardsB.length) {
+                    return cardsB.length - cardsA.length;
+                }
+                // If lengths are the same, sort by power
+                return suitPower[suitB] - suitPower[suitA];
+            });
+
+        // If trump is declared, move trump suit to the beginning
+        if (game.trump) {
+            sortedSuits = [
+                ...sortedSuits.filter(([suit]) => suit === game.trump),
+                ...sortedSuits.filter(([suit]) => suit !== game.trump)
+            ];
+        }
 
         // Flatten the sorted cards
         const sortedHand = sortedSuits.flatMap(([, cards]) => cards);
 
-        // Update the player's hand
-        updatePlayerHand('A1', sortedHand);
+        // Verify we have the same number of cards
+        if (sortedHand.length !== game.players.A1.hand.length) {
+            console.error("Card count mismatch after sorting", {
+                original: game.players.A1.hand.length,
+                sorted: sortedHand.length
+            });
+            return; // Don't proceed if card count doesn't match
+        }
+        
+        // Add animation class to all cards
+        const cardElements = document.querySelectorAll('.player-hand-A1 .card-element');
+        cardElements.forEach((card, index) => {
+            // Add staggered animation by setting different delays
+            card.classList.add('animate-sorting');
+            (card as HTMLElement).style.animationDelay = `${index * 30}ms`;
+        });
+        
+        // Wait a short time before updating the hand to allow animation to start
+        setTimeout(() => {
+            // Update with the sorted hand
+            updatePlayerHand('A1', sortedHand);
+            
+            // Remove animation class after sorting is complete
+            setTimeout(() => {
+                const updatedCardElements = document.querySelectorAll('.player-hand-A1 .card-element');
+                updatedCardElements.forEach(card => {
+                    card.classList.remove('animate-sorting');
+                    (card as HTMLElement).style.animationDelay = '';
+                });
+            }, 800);
+        }, 600);
     };
 
     return (
@@ -857,18 +915,30 @@ export default function GameTable() {
             <div className="fixed top-0 left-0 p-8 space-y-4 z-40">
                 {/* ROOK title - add click handler */}
                 <div 
-                    onClick={handleSecretSort}
-                    className="font-orbitron text-[48px] font-bold text-white cursor-pointer hover:text-white/90 transition-colors"
+                    onClick={() => {
+                        // Add visual feedback
+                        const element = document.getElementById('rook-title');
+                        if (element) {
+                            element.classList.add('animate-pulse');
+                            setTimeout(() => {
+                                element.classList.remove('animate-pulse');
+                            }, 1000);
+                        }
+                        handleSecretSort();
+                    }}
+                    id="rook-title"
+                    className="font-orbitron text-[48px] font-bold text-white cursor-pointer hover:text-white/90 transition-colors relative group"
                 >
                     ROOK
+                    <span className="absolute -bottom-2 left-0 w-0 h-1 bg-white group-hover:w-full transition-all duration-300"></span>
                 </div>
 
-                {/* Game info - now clickable */}
+                {/* Game info - now clickable with standard font */}
                 <div 
                     onClick={() => setShowScoreCard(true)}
-                    className="text-white cursor-pointer hover:text-white/90 transition-colors font-orbitron"
+                    className="text-white cursor-pointer hover:text-white/90 transition-colors"
                 >
-                    <div className="text-2xl">Score:</div>
+                    <div className="text-2xl font-semibold">Score:</div>
                     <div className="text-xl">
                         Team A: {handScores.length > 0 ? handScores[handScores.length - 1].teamATotal : 0}
                     </div>
@@ -896,6 +966,7 @@ export default function GameTable() {
                     players={game.players}
                     bidWinner={game.bidWinner!}
                     currentBid={game.currentBid!}
+                    handScores={handScores}
                 />
             )}
 
@@ -916,6 +987,9 @@ export default function GameTable() {
                 <div className="relative w-full max-w-[1000px] aspect-square flex items-center justify-center mx-auto">
                     {/* Dark green circle */}
                     <div className="absolute w-[50%] aspect-square rounded-full bg-green-900 z-0">
+                        {/* Center icon */}
+                        <TableCenterIcon size={480} opacity={0.4} />
+                        
                         {/* Turn Indicators - one for each position */}
                         <div className="absolute top-[-60px] left-1/2 -translate-x-1/2">
                             <div className={`
@@ -1073,17 +1147,18 @@ export default function GameTable() {
                         <button
                             onClick={handleDealCards}
                             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 
-                                     bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg
-                                     shadow-lg transform transition-all duration-200 hover:scale-105 animate-bounce"
+                                     bg-green-600 text-white rounded-xl font-orbitron 
+                                     shadow-lg transition-colors flex items-center gap-3 text-xl
+                                     hover:bg-green-700 px-8 py-4"
                         >
+                            <span className="material-symbols-outlined text-3xl">style</span>
                             Deal Cards
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* Render deal button and bidding UI at the bottom of the screen */}
-            {renderDealButton()}
+            {/* Render bidding UI at the bottom of the screen */}
             {renderBiddingUI()}
             {renderPhaseUI()}
         </div>

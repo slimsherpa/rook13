@@ -9,6 +9,7 @@ export default function LandingPage() {
     const [pulseEffect, setPulseEffect] = useState(false);
     const [scanlineEffect, setScanlineEffect] = useState(false);
     const [signingIn, setSigningIn] = useState(false);
+    const [authError, setAuthError] = useState<string | null>(null);
     const router = useRouter();
 
     // Trigger pulse effect periodically
@@ -32,22 +33,44 @@ export default function LandingPage() {
 
     const handleSignIn = async () => {
         if (signingIn) return; // Prevent multiple clicks
+        
         setSigningIn(true);
+        setAuthError(null);
+        
         try {
+            console.log("LandingPage: Initiating sign-in");
             await signInWithGoogle();
-        } catch (error) {
-            console.error("Failed to sign in:", error);
+            console.log("LandingPage: Sign-in function completed");
+        } catch (error: any) {
+            console.error("LandingPage: Failed to sign in:", error);
+            setAuthError(error.message || "Failed to sign in. Please try again.");
         } finally {
-            setSigningIn(false);
+            // Keep the signing in state for a bit to prevent rapid clicking
+            setTimeout(() => {
+                setSigningIn(false);
+            }, 2000);
         }
     };
 
     // Redirect to game if user is already logged in
     useEffect(() => {
+        console.log("LandingPage: Auth state changed", { 
+            user: user ? `${user.displayName} (${user.uid})` : 'null', 
+            loading: authLoading 
+        });
+        
         if (user && !authLoading) {
+            console.log("LandingPage: Redirecting to game page");
             router.push('/game');
         }
     }, [user, authLoading, router]);
+
+    // Show auth error if any
+    useEffect(() => {
+        if (authError) {
+            console.error("Authentication error:", authError);
+        }
+    }, [authError]);
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-navy-950 via-navy-900 to-navy-800 text-white overflow-hidden">
@@ -97,26 +120,41 @@ export default function LandingPage() {
                         <span className="inline-block animate-pulse-slow filter drop-shadow-[0_0_5px_rgba(0,240,255,0.8)]">ENTER THE GAME</span>
                     </h2>
                     
-                    {authLoading || signingIn ? (
-                        <div className="flex justify-center py-6">
+                    {authLoading ? (
+                        <div className="flex flex-col items-center justify-center py-6">
                             <div className="animate-spin h-12 w-12 border-t-2 border-b-2 border-blue-400 rounded-full"></div>
+                            <p className="mt-4 text-blue-300">Checking authentication...</p>
+                        </div>
+                    ) : signingIn ? (
+                        <div className="flex flex-col items-center justify-center py-6">
+                            <div className="animate-spin h-12 w-12 border-t-2 border-b-2 border-blue-400 rounded-full"></div>
+                            <p className="mt-4 text-blue-300">Signing in...</p>
                         </div>
                     ) : !user ? (
-                        <button
-                            onClick={handleSignIn}
-                            disabled={signingIn}
-                            className="w-full bg-gradient-to-r from-blue-600 to-blue-400 text-white py-3 px-6 rounded-md hover:from-blue-500 hover:to-blue-300 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-3 shadow-[0_0_10px_rgba(0,240,255,0.5)] disabled:opacity-70 disabled:cursor-not-allowed"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/>
-                            </svg>
-                            {signingIn ? 'Signing in...' : 'Sign in with Google'}
-                        </button>
+                        <div className="space-y-4">
+                            <button
+                                onClick={handleSignIn}
+                                disabled={signingIn}
+                                className="w-full bg-gradient-to-r from-blue-600 to-blue-400 text-white py-3 px-6 rounded-md hover:from-blue-500 hover:to-blue-300 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-3 shadow-[0_0_10px_rgba(0,240,255,0.5)] disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/>
+                                </svg>
+                                Sign in with Google
+                            </button>
+                            
+                            {authError && (
+                                <div className="bg-red-500/20 border border-red-500/30 p-3 rounded-md text-red-200 text-sm">
+                                    <p className="font-semibold mb-1">Authentication Error</p>
+                                    <p>{authError}</p>
+                                </div>
+                            )}
+                        </div>
                     ) : (
                         <div className="text-center">
                             <p className="text-blue-300 mb-4">Welcome back, <span className="font-bold">{user.displayName}</span></p>
                             <button
-                                onClick={() => window.location.href = '/game'}
+                                onClick={() => router.push('/game')}
                                 className="bg-gradient-to-r from-green-600 to-green-400 text-white py-3 px-6 rounded-md hover:from-green-500 hover:to-green-300 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-3 shadow-[0_0_10px_rgba(0,255,128,0.5)]"
                             >
                                 <span className="material-symbols-outlined">

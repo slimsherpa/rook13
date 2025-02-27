@@ -10,7 +10,11 @@ const deployDir = 'public-deploy';
 function safeExec(command, options = {}) {
   try {
     console.log(`Executing: ${command}`);
-    return execSync(command, { stdio: 'inherit', ...options });
+    return execSync(command, { 
+      stdio: 'inherit', 
+      ...options,
+      env: { ...process.env, NODE_ENV: 'production', ...options.env }
+    });
   } catch (error) {
     console.error(`Command failed: ${command}`);
     console.error(error.message);
@@ -105,6 +109,8 @@ async function build() {
   // 2. Build the Next.js app
   try {
     console.log('Building Next.js app...');
+    // Explicitly set NODE_ENV to production for the build
+    process.env.NODE_ENV = 'production';
     safeExec('npm run build');
     
     if (fs.existsSync(buildDir)) {
