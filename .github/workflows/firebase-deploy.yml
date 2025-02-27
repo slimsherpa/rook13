@@ -28,8 +28,23 @@ jobs:
           echo "REPLICATE_API_KEY=dummy_key" >> .env.local
           echo "DEEPGRAM_API_KEY=dummy_key" >> .env.local
       
-      - name: Run Firebase build script
-        run: node build-firebase.js
+      - name: Build
+        env:
+          NODE_ENV: production
+        run: |
+          # Temporarily move API directory
+          mv src/app/api src/app/_api_backup || true
+          # Run build
+          npm run build
+          # Move API directory back
+          mv src/app/_api_backup src/app/api || true
+          
+      - name: Prepare deployment
+        run: |
+          # Ensure public-deploy exists
+          mkdir -p public-deploy
+          # Copy build output
+          cp -r out/* public-deploy/
       
       - name: Deploy to Firebase
         uses: FirebaseExtended/action-hosting-deploy@v0
