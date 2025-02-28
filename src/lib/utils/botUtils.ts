@@ -1,120 +1,162 @@
 import { Card, Player, Seat, Suit, VALID_BIDS } from '../types/game';
 import { calculatePoints } from './cardUtils';
 
+// Helper function to calculate suit power
+const calculateSuitPower = (cards: Card[]): number => {
+    return cards.reduce((sum, card) => sum + card.number, 0);
+};
+
+// Helper function to find best trump suit
+const findBestTrumpSuit = (hand: Card[]): Suit => {
+    // Group cards by suit
+    const cardsBySuit = hand.reduce((acc, card) => {
+        if (!acc[card.suit]) acc[card.suit] = [];
+        acc[card.suit].push(card);
+        return acc;
+    }, {} as Record<Suit, Card[]>);
+
+    // Calculate power and length for each suit
+    const suitMetrics = Object.entries(cardsBySuit).map(([suit, cards]) => ({
+        suit: suit as Suit,
+        length: cards.length,
+        power: calculateSuitPower(cards)
+    }));
+
+    // Sort by length first, then by power
+    suitMetrics.sort((a, b) => {
+        if (a.length !== b.length) return b.length - a.length;
+        return b.power - a.power;
+    });
+
+    return suitMetrics[0].suit;
+};
+
+// Helper function to select Go Down cards
+const selectGoDownCards = (hand: Card[], trumpSuit: Suit): Card[] => {
+    // Group cards by suit
+    const cardsBySuit = hand.reduce((acc, card) => {
+        if (!acc[card.suit]) acc[card.suit] = [];
+        acc[card.suit].push(card);
+        return acc;
+    }, {} as Record<Suit, Card[]>);
+
+    // Sort cards in each suit by value (ascending)
+    Object.values(cardsBySuit).forEach(cards => {
+        cards.sort((a, b) => a.number - b.number);
+    });
+
+    // Remove trump suit from consideration
+    delete cardsBySuit[trumpSuit];
+
+    // Select the 4 weakest cards from non-trump suits
+    const goDownCards: Card[] = [];
+    
+    // First, take the weakest cards from the shortest suits
+    const nonTrumpSuits = Object.entries(cardsBySuit)
+        .sort(([, cardsA], [, cardsB]) => cardsA.length - cardsB.length);
+
+    for (const [, cards] of nonTrumpSuits) {
+        // Take weakest cards from this suit
+        while (cards.length > 0 && goDownCards.length < 4) {
+            goDownCards.push(cards.shift()!);
+        }
+        if (goDownCards.length === 4) break;
+    }
+
+    return goDownCards;
+};
+
 // Enhanced bot bidding strategy based on hand strength and partner's actions
 export const decideBotBid = (
     hand: Card[],
-    currentBid: number | undefined,
+    currentBid: number | null,
     passes: number,
     currentTurn: Seat,
     dealer: Seat,
-    players: Record<Seat, Player | null>,
+    players: Record<Seat, { type: 'human' | 'bot'; name: string; hand?: Card[]; bid?: number | 'pass' }>,
     previousBids: Record<Seat, number | 'pass'>
 ): number | 'pass' => {
-    // If we're the last bidder (3 passes), we must bid minimum
-    if (passes === 3) {
-        return currentBid || VALID_BIDS[0];
+    // If we've already passed in a previous round, we must pass again
+    if (previousBids[currentTurn] === 'pass') {
+        return 'pass';
     }
 
-    // Calculate total points in hand
-    const points = calculatePoints(hand);
-    
-    // Count high cards (10 and above) and cards of the same suit
-    const suitCounts = hand.reduce((counts, card) => {
-        counts[card.suit] = (counts[card.suit] || 0) + 1;
-        return counts;
-    }, {} as Record<Suit, number>);
+    // If we're the last bidder (3 passes) we MUST bid minimum 65
+    if (passes === 3) {
+        return VALID_BIDS[0]; // 65
+    }
 
-    const highCards = hand.filter(card => card.number >= 10).length;
-    const maxSuitCount = Math.max(...Object.values(suitCounts));
+    // Find the best trump suit first
+    const trumpSuit = findBestTrumpSuit(hand);
+    const trumpCards = hand.filter(card => card.suit === trumpSuit);
     
-    // Calculate hand strength (0-100)
-    let handStrength = 0;
-    handStrength += points * 2; // Points are important
-    handStrength += highCards * 5; // High cards are valuable
-    handStrength += maxSuitCount * 8; // Having many cards of one suit is very good
+    // Calculate hand strength based on trump suit and remaining cards
+    const goDownCards = selectGoDownCards(hand, trumpSuit);
+    const playingCards = hand.filter(card => 
+        !goDownCards.some(gc => gc.suit === card.suit && gc.number === card.number)
+    );
 
-    // Find our partner's seat
+    // Calculate points and power
+    const trumpPoints = trumpCards.reduce((sum, card) => sum + (card.points || 0), 0);
+    const trumpPower = calculateSuitPower(trumpCards);
+    const totalPoints = playingCards.reduce((sum, card) => sum + (card.points || 0), 0);
+    
+    // Calculate hand strength considering:
+    // 1. Trump length (most important)
+    // 2. Trump points
+    // 3. Trump power (high cards)
+    // 4. Total points in hand
+    let handStrength = 
+        (trumpCards.length * 10) +  // Length of trump suit (10 points per card)
+        (trumpPoints * 3) +         // Points in trump (3 points per point card)
+        (trumpPower / 2) +          // Power of trump cards
+        totalPoints;                 // Points in other suits
+
+    // Find our partner's seat and their bid
     const seats: Seat[] = ['A1', 'B1', 'A2', 'B2'];
     const currentIndex = seats.indexOf(currentTurn);
-    if (currentIndex === -1) return 'pass'; // Safety check for invalid current turn
-    
     const partnerSeat = seats[(currentIndex + 2) % 4];
-    const rightOpponentSeat = seats[(currentIndex + 3) % 4];
+    const partnerBid = previousBids[partnerSeat];
 
-    // Consider partner's bid with safety checks
-    const partnerBid = previousBids && partnerSeat ? previousBids[partnerSeat] : undefined;
-    if (partnerBid && typeof partnerBid === 'number' && partnerBid > 80) {
-        // Partner bid high, increase our confidence if we have a strong hand
-        handStrength += 10;
-    }
-
-    // Consider position relative to dealer
-    const dealerIndex = seats.indexOf(dealer);
-    const ourIndex = seats.indexOf(currentTurn);
-    const positionAfterDealer = (ourIndex - dealerIndex + 4) % 4;
-
-    // If right opponent is leading, be more cautious
-    if (rightOpponentSeat === dealer) {
-        handStrength -= 5;
-    }
-
-    // If we're leading, be more aggressive
-    if (dealer === currentTurn) {
-        handStrength += 5;
-    }
-
-    // If current bid is too high for our hand strength, pass
-    if (currentBid) {
-        const bidTooHigh = currentBid > (handStrength * 0.85);
-        if (bidTooHigh && passes < 3) {
-            return 'pass';
-        }
+    // If partner made a real bid (not pass), be more aggressive
+    if (typeof partnerBid === 'number') {
+        handStrength += 15;
     }
 
     // Determine bid based on hand strength
-    if (!currentBid) {
-        if (handStrength >= 90) return 90;
-        if (handStrength >= 80) return 80;
-        if (handStrength >= 70) return 70;
-        return 65;
+    let bidIndex = -1;
+    if (handStrength >= 120) bidIndex = 11;      // Bid 120
+    else if (handStrength >= 110) bidIndex = 9;  // Bid 110
+    else if (handStrength >= 100) bidIndex = 7;  // Bid 100
+    else if (handStrength >= 90) bidIndex = 5;   // Bid 90
+    else if (handStrength >= 80) bidIndex = 3;   // Bid 80
+    else if (handStrength >= 70) bidIndex = 1;   // Bid 70
+    else if (handStrength >= 65) bidIndex = 0;   // Bid 65
+
+    // If we have a valid bid index
+    if (bidIndex >= 0) {
+        // If there's a current bid, we need to bid higher
+        if (currentBid) {
+            // Find the next valid bid above the current bid
+            const nextBidIndex = VALID_BIDS.findIndex(bid => bid > currentBid);
+            // If we can't or shouldn't bid higher, pass
+            if (nextBidIndex === -1 || nextBidIndex > bidIndex) {
+                return 'pass';
+            }
+            // Return the next valid bid
+            return VALID_BIDS[nextBidIndex];
+        }
+        // No current bid, return our calculated bid
+        return VALID_BIDS[bidIndex];
     }
 
-    // If we have a strong hand, consider raising
-    if (handStrength > currentBid + 10) {
-        const nextBid = VALID_BIDS.find(bid => bid > currentBid);
-        return nextBid || 'pass';
-    }
-
+    // Hand too weak to bid
     return 'pass';
 };
 
 // Enhanced bot trump selection strategy
 export const decideBotTrump = (hand: Card[]): Suit => {
-    // Count cards and points of each suit
-    const suitInfo = hand.reduce((info, card) => {
-        if (!info[card.suit]) {
-            info[card.suit] = { count: 0, points: 0, highCards: 0 };
-        }
-        info[card.suit].count++;
-        info[card.suit].points += card.points;
-        if (card.number >= 10) info[card.suit].highCards++;
-        return info;
-    }, {} as Record<Suit, { count: number; points: number; highCards: number }>);
-    
-    // Find suit with best combination of length and strength
-    let bestSuit: Suit = 'Red';
-    let bestScore = -1;
-    
-    Object.entries(suitInfo).forEach(([suit, info]) => {
-        const score = (info.count * 10) + (info.points * 2) + (info.highCards * 3);
-        if (score > bestScore) {
-            bestScore = score;
-            bestSuit = suit as Suit;
-        }
-    });
-    
-    return bestSuit;
+    return findBestTrumpSuit(hand);
 };
 
 // Enhanced bot card playing strategy

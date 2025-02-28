@@ -6,6 +6,7 @@ import Card from './Card';
 interface TrickDisplayProps {
     game: GameState;
     onTrickComplete?: (cards: Record<Seat, CardType>, winner: Seat) => void;
+    botSpeed?: number;
 }
 
 type TrickPhase = 
@@ -14,7 +15,7 @@ type TrickPhase =
     | { state: 'showing_completed_trick'; cards: Record<Seat, CardType>; winner: Seat }
     | { state: 'clearing' };
 
-export default function TrickDisplay({ game, onTrickComplete }: TrickDisplayProps) {
+export default function TrickDisplay({ game, onTrickComplete, botSpeed = 1 }: TrickDisplayProps) {
     const [phase, setPhase] = useState<TrickPhase>({ state: 'empty' });
     const clearTimeoutRef = useRef<NodeJS.Timeout>();
 
@@ -64,7 +65,9 @@ export default function TrickDisplay({ game, onTrickComplete }: TrickDisplayProp
                 winner
             });
 
-            // Schedule clearing after delay
+            // Schedule clearing after delay based on bot speed
+            // At fast speeds, show trick very briefly
+            // At slow speeds, give more time to see the winning card
             if (clearTimeoutRef.current) {
                 clearTimeout(clearTimeoutRef.current);
             }
@@ -76,7 +79,7 @@ export default function TrickDisplay({ game, onTrickComplete }: TrickDisplayProp
                     onTrickComplete(cards, winner);
                 }
                 setPhase({ state: 'clearing' });
-            }, 3000);
+            }, botSpeed >= 1 ? botSpeed * 2000 : botSpeed * 500);
         } else {
             // Still collecting cards
             console.log('TrickDisplay: Still collecting cards');
@@ -85,7 +88,7 @@ export default function TrickDisplay({ game, onTrickComplete }: TrickDisplayProp
                 cards: game.trickCards
             });
         }
-    }, [game.trickCards, game.trickComplete, game.trickWinner]);
+    }, [game.trickCards, game.trickComplete, game.trickWinner, botSpeed]);
 
     const renderPlayedCard = (seat: Seat, card: CardType, isWinner: boolean = false) => {
         // Simple positioning - each card closest to its player

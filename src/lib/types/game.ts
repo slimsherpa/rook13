@@ -56,6 +56,7 @@ export interface GameState {
         B: number;
     };
     created: Date;
+    godMode?: boolean;  // Whether God Mode is enabled, showing all cards face up
 }
 
 // Constants for game rules

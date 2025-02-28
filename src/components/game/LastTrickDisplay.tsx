@@ -1,16 +1,18 @@
 'use client';
 
-import { Card as CardType, Seat, GameState } from '@/lib/types/game';
-import Card from './Card';
+import React from 'react';
+import type { Card as CardType, Seat, Player } from '@/lib/types/game';
+import CardComponent from './Card';
 import { calculatePoints } from '@/lib/utils/cardUtils';
 
 interface LastTrickDisplayProps {
-    lastTrick: Record<Seat, CardType | null>;
+    lastTrick: Record<Seat, CardType>;
     winner: Seat | null;
-    players: GameState['players'];
+    players: Record<Seat, Player | null>;
     tricks: { A: number; B: number };
     handScores: { A: number; B: number };
     playOrder: Seat[];
+    botSpeed?: number;
 }
 
 // Helper function to get the next seat in clockwise order
@@ -26,7 +28,8 @@ export default function LastTrickDisplay({
     players, 
     tricks, 
     handScores,
-    playOrder 
+    playOrder,
+    botSpeed = 1 
 }: LastTrickDisplayProps) {
     // Calculate points in the trick
     const trickPoints = calculatePoints(Object.values(lastTrick).filter((card): card is CardType => card !== null));
@@ -85,7 +88,7 @@ export default function LastTrickDisplay({
                             {/* Card */}
                             <div className="transform scale-[0.85] origin-top">
                                 {lastTrick[seat] ? (
-                                    <Card 
+                                    <CardComponent 
                                         card={lastTrick[seat]!} 
                                         disabled={true}
                                         highlight={winner === seat}

@@ -18,6 +18,7 @@ interface GameStore {
     clearTrick: (winner: Seat) => void;
     resetGame: () => void;
     updatePlayerHand: (seat: Seat, newHand: Card[]) => void;
+    toggleGodMode: () => void;
 }
 
 const createInitialGameState = (humanPlayer: Player): GameState => {
@@ -39,6 +40,7 @@ const createInitialGameState = (humanPlayer: Player): GameState => {
         scores: { A: 0, B: 0 },
         created: new Date(),
         dealer: firstDealer,
+        godMode: false, // Initialize God Mode as disabled
     };
 };
 
@@ -589,6 +591,19 @@ export const useGameStore = create<GameStore>()((set) => ({
                             hand: newHand,
                         },
                     },
+                },
+            };
+        });
+    },
+
+    toggleGodMode: () => {
+        set((state) => {
+            if (!state.game) return state;
+            
+            return {
+                game: {
+                    ...state.game,
+                    godMode: !state.game.godMode,
                 },
             };
         });

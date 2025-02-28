@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useGameStore } from '@/lib/store/gameStore';
-import type { Seat, Suit, Player, GameState } from '@/lib/types/game';
+import type { Seat, Suit, Player, GameState, Card } from '@/lib/types/game';
 import type { Card as CardType } from '@/lib/types/game';
 import { VALID_BIDS } from '@/lib/types/game';
 import { decideBotBid, decideBotTrump, decideBotCard } from '@/lib/utils/botUtils';
@@ -15,6 +15,7 @@ import HandRecap from './HandRecap';
 import ScoreCard from './ScoreCard';
 import TableCenterIcon from './TableCenterIcon';
 import { useGameUI } from '@/lib/hooks/useGameUI';
+import GameControls from './GameControls';
 
 // Add new type for trick state
 type TrickState = {
@@ -119,6 +120,14 @@ const handleCardPlay = async (
     playedCards.push(card);
 };
 
+// Add hand positions for each seat
+const handPositions: Record<Seat, string> = {
+    'A1': 'transform-gpu',
+    'B1': 'transform-gpu origin-center -rotate-90',
+    'A2': 'transform-gpu rotate-180',
+    'B2': 'transform-gpu origin-center rotate-90'
+};
+
 export default function GameTable({
     hands,
     setHands,
@@ -173,6 +182,7 @@ export default function GameTable({
     // Initialize other state variables even if they might not be used
     const [humanSeat] = useState<Seat>('A1');
     const [humanPlayer, setHumanPlayer] = useState<Player | null>(null);
+    const [botSpeed, setBotSpeed] = useState<number>(1); // Default to 1 second
 
     // Bot turn handling effect
     const isBotTurn = game && game.currentTurn && currentPlayer && currentPlayer.type === 'bot' && !game.trickComplete;
@@ -216,6 +226,126 @@ export default function GameTable({
         clearTrick(winner);
     };
 
+    // Add new effect for auto-passing
+    useEffect(() => {
+        if (!game || !game.currentTurn || !currentPlayer) return;
+        
+        // Only handle during bidding phase
+        if (game.phase !== 'bidding') return;
+
+        // If it's a human player's turn and they've already passed
+        if (currentPlayer.type === 'human' && game.players[game.currentTurn]?.bid === 'pass') {
+            // Small delay to prevent rapid state updates
+            const timer = setTimeout(() => {
+                placeBid(game.currentTurn!, 'pass');
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [game?.currentTurn, game?.phase]);
+
+    // Bot turn handling effect
+    useEffect(() => {
+        if (!isBotTurn) return;
+
+        // Add a small delay to make bot moves feel more natural
+        // At 0.01 speed, this will be 10ms. At 5 speed, this will be 5000ms
+        const timer = setTimeout(async () => {
+            // Recheck conditions in case they changed during the timeout
+            if (!game || !game.currentTurn || !currentPlayer || currentPlayer.type !== 'bot' || game.trickComplete) return;
+
+            // Check if all players have played all their cards
+            const allCardsPlayed = Object.values(game.players).every(p => !p?.hand || p.hand.length === 0);
+            if (allCardsPlayed && game.phase === 'playing') {
+                setShowHandRecap(true);
+                return;
+            }
+            
+            switch (game.phase) {
+                case 'dealing': {
+                    // If bot is dealer, handle dealing with animation
+                    if (game.currentTurn === game.dealer) {
+                        await handleDealCards();
+                    }
+                    break;
+                }
+                case 'bidding':
+                case 'widow':
+                case 'trump': {
+                    // For these phases, execute immediately at fast speeds
+                    // At slow speeds, add a small delay for visual clarity
+                    if (botSpeed >= 1) {
+                        await new Promise(resolve => setTimeout(resolve, botSpeed * 200));
+                    }
+                    
+                    if (game.phase === 'bidding') {
+                        if (!currentPlayer.hand) return;
+                        
+                        // If current player has already passed, automatically pass again
+                        if (game.players[game.currentTurn!]?.bid === 'pass') {
+                            placeBid(game.currentTurn!, 'pass');
+                            return;
+                        }
+
+                        const passes = Object.values(game.players).filter(p => p?.bid === 'pass').length;
+                        const previousBids = Object.entries(game.players).reduce((bids, [seat, player]) => {
+                            if (player?.bid) bids[seat as Seat] = player.bid;
+                            return bids;
+                        }, {} as Record<Seat, number | 'pass'>);
+                        const currentBid = game.currentBid ?? null;  // Convert undefined to null
+                        // Filter out null values from players
+                        const validPlayers = Object.entries(game.players).reduce((acc, [seat, player]) => {
+                            if (player) acc[seat as Seat] = player;
+                            return acc;
+                        }, {} as Record<Seat, { type: 'human' | 'bot'; name: string; hand?: CardType[]; bid?: number | 'pass' }>);
+                        const botBid = decideBotBid(currentPlayer.hand, currentBid, passes, game.currentTurn, game.dealer || 'A1', validPlayers, previousBids);
+                        placeBid(game.currentTurn, botBid);
+                    } else if (game.phase === 'widow') {
+                        if (!currentPlayer.hand) return;
+                        const sortedHand = [...currentPlayer.hand].sort((a, b) => (a.points === b.points) ? a.number - b.number : a.points - b.points);
+                        selectGoDown(sortedHand.slice(0, 4));
+                    } else if (game.phase === 'trump') {
+                        if (!currentPlayer.hand) return;
+                        const trumpSuit = decideBotTrump(currentPlayer.hand);
+                        selectTrump(trumpSuit);
+                    }
+                    break;
+                }
+                case 'playing': {
+                    if (!currentPlayer.hand || currentPlayer.hand.length === 0) return;
+                    
+                    // For playing cards, use a shorter delay at fast speeds
+                    if (botSpeed >= 1) {
+                        await new Promise(resolve => setTimeout(resolve, botSpeed * 300));
+                    } else {
+                        await new Promise(resolve => setTimeout(resolve, botSpeed * 50));
+                    }
+                    
+                    const trickCards = game.trickCards || { A1: null, B1: null, A2: null, B2: null };
+                    const leadSeat = game.playOrder?.[0];
+                    const leadCard = leadSeat ? trickCards[leadSeat] : null;
+                    const leadSuit = leadCard?.suit || null;
+                    const playedCards = Object.values(trickCards).filter((c): c is CardType => c !== null);
+
+                    let remainingCards = [...currentPlayer.hand];
+                    let cardToPlay: CardType;
+                    while (remainingCards.length > 0) {
+                        try {
+                            cardToPlay = decideBotCard(remainingCards, leadSuit, game.trump || null, playedCards, trickCards, game.currentTurn, game.trickLeader || game.currentTurn);
+                            playCardAction(game.currentTurn, cardToPlay);
+                            break;
+                        } catch (error) {
+                            remainingCards = remainingCards.filter(c => !(c.suit === cardToPlay.suit && c.number === cardToPlay.number));
+                        }
+                    }
+                    break;
+                }
+            }
+        }, botSpeed * 1000);
+
+        return () => clearTimeout(timer);
+    }, [game?.currentTurn, game?.phase, game?.trickCards]);
+
+    // Update handleDealCards function
     const handleDealCards = async () => {
         if (!game || game.phase !== 'dealing' || game.currentTurn !== game.dealer) return;
         
@@ -242,7 +372,6 @@ export default function GameTable({
         setShowHandRecap(false);
         setIsGoDownFlipped(false);
         
-        // Deal to each seat in clockwise order, starting after the dealer
         const dealOrder: Seat[] = ['A1', 'B1', 'A2', 'B2'];
         const startIdx = dealOrder.indexOf(game.dealer!);
         const orderedSeats = [
@@ -250,132 +379,73 @@ export default function GameTable({
             ...dealOrder.slice(0, (startIdx + 1) % 4)
         ];
 
-        // Deal to each player with a delay
+        // Adjust dealing speed based on bot speed
+        // At fast speeds (< 1), deal very quickly with minimum delay
+        // At slow speeds (>= 1), use longer delays for visual clarity
+        const dealDelay = botSpeed >= 1 ? Math.max(botSpeed * 200, 50) : Math.max(botSpeed * 50, 10);
+        
         for (const seat of orderedSeats) {
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise(resolve => setTimeout(resolve, dealDelay));
             setDealtSeats(prev => new Set([...Array.from(prev), seat]));
         }
 
         // Small delay before starting the game
-        await new Promise(resolve => setTimeout(resolve, 300));
-        startNewHand(); // This will deal cards and move to bidding phase
+        await new Promise(resolve => setTimeout(resolve, dealDelay));
+        startNewHand();
         setIsDealing(false);
     };
+
+    // Update trick completion effect
+    const hasCompletedTrick = game?.trickComplete && game.trickWinner && game.trickCards;
     
     useEffect(() => {
-        if (!isBotTurn) return;
-
-        // Add a small delay to make bot moves feel more natural
-        const timer = setTimeout(async () => {
-            // Recheck conditions in case they changed during the timeout
-            if (!game || !game.currentTurn || !currentPlayer || currentPlayer.type !== 'bot' || game.trickComplete) return;
-
-            // Check if all players have played all their cards
-            const allCardsPlayed = Object.values(game.players).every(p => !p?.hand || p.hand.length === 0);
-            if (allCardsPlayed && game.phase === 'playing') {
-                setShowHandRecap(true);
-                return;
-            }
-            
-            switch (game.phase) {
-                case 'dealing': {
-                    // If bot is dealer, handle dealing with animation
-                    if (game.currentTurn === game.dealer) {
-                        await handleDealCards();
-                    }
-                    break;
-                }
-                case 'bidding': {
-                    if (!currentPlayer.hand) return; // Need hand for bidding
-                    // Count passes
-                    const passes = Object.values(game.players).filter(
-                        (p) => p?.bid === 'pass'
-                    ).length;
-
-                    const previousBids = Object.entries(game.players).reduce((bids, [seat, player]) => {
-                        if (player?.bid) {
-                            bids[seat as Seat] = player.bid;
-                        }
-                        return bids;
-                    }, {} as Record<Seat, number | 'pass'>);
-
-                    const botBid = decideBotBid(
-                        currentPlayer.hand,
-                        game.currentBid,
-                        passes,
-                        game.currentTurn,
-                        game.dealer || 'A1',
-                        game.players,
-                        previousBids
-                    );
-                    placeBid(game.currentTurn, botBid);
-                    break;
-                }
-                case 'widow': {
-                    if (!currentPlayer.hand) return; // Need hand for widow selection
-                    // Bot selects lowest 4 cards for go-down
-                    const sortedHand = [...currentPlayer.hand].sort((a, b) => 
-                        (a.points === b.points) ? a.number - b.number : a.points - b.points
-                    );
-                    selectGoDown(sortedHand.slice(0, 4));
-                    break;
-                }
-                case 'trump': {
-                    if (!currentPlayer.hand) return; // Need hand for trump selection
-                    const trumpSuit = decideBotTrump(currentPlayer.hand);
-                    selectTrump(trumpSuit);
-                    break;
-                }
-                case 'playing': {
-                    if (!currentPlayer.hand || currentPlayer.hand.length === 0) return; // Need cards to play
-                    // Get lead suit from played cards
-                    const trickCards = game.trickCards || {
-                        A1: null,
-                        B1: null,
-                        A2: null,
-                        B2: null,
-                    };
-                    
-                    // Get lead suit from the first card played in the trick
-                    const leadSeat = game.playOrder?.[0];
-                    const leadCard = leadSeat ? trickCards[leadSeat] : null;
-                    const leadSuit = leadCard?.suit || null;
-
-                    // Get played cards for this trick
-                    const playedCards = Object.values(trickCards)
-                        .filter((c): c is CardType => c !== null);
-
-                    // Try to play cards until one works
-                    let remainingCards = [...currentPlayer.hand];
-                    let cardToPlay: CardType;
-                    while (remainingCards.length > 0) {
-                        try {
-                            cardToPlay = decideBotCard(
-                                remainingCards,
-                                leadSuit,
-                                game.trump || null,
-                                playedCards,
-                                trickCards,
-                                game.currentTurn,
-                                game.trickLeader || game.currentTurn
-                            );
-                            playCardAction(game.currentTurn, cardToPlay);
-                            break; // If successful, exit the loop
-                        } catch (error) {
-                            console.log('Failed to play card, trying another one');
-                            // Remove the failed card from remaining options
-                            remainingCards = remainingCards.filter(c => 
-                                !(c.suit === cardToPlay.suit && c.number === cardToPlay.number)
-                            );
-                        }
-                    }
-                    break;
-                }
-            }
-        }, 1000);
+        if (!hasCompletedTrick) return;
+        
+        const cards = game.trickCards as Record<Seat, CardType>;
+        
+        // Adjust trick completion delay based on bot speed
+        // At fast speeds, show trick very briefly
+        // At slow speeds, give more time to see the winning card
+        const trickDelay = botSpeed >= 1 ? botSpeed * 2000 : botSpeed * 500;
+        
+        const timer = setTimeout(() => {
+            handleTrickComplete(cards, game.trickWinner!);
+        }, trickDelay);
 
         return () => clearTimeout(timer);
-    }, [game?.currentTurn, game?.phase, game?.trickCards]);
+    }, [game?.trickComplete, game?.trickWinner, game?.trickCards]);
+
+    // Update handleGoDownClick function
+    const handleGoDownClick = () => {
+        if (!game?.goDown) return;
+        
+        setIsGoDownFlipped(true);
+        // Adjust flip back delay based on bot speed
+        const flipDelay = botSpeed >= 1 ? botSpeed * 1500 : botSpeed * 300;
+        setTimeout(() => setIsGoDownFlipped(false), flipDelay);
+    };
+
+    const handleStartNextHand = () => {
+        console.log('Starting next hand...');
+        setShowHandRecap(false);
+        setShowLastTrick(false);
+        
+        // Call startNextHandWithNewDealer directly instead of setting readyForNextHand
+        startNextHandWithNewDealer();
+        
+        // Reset local state
+        setCompletedTricks([]);
+        setLastTrick({
+            cards: { 
+                A1: { suit: 'Black' as Suit, number: 0, points: 0 },
+                B1: { suit: 'Black' as Suit, number: 0, points: 0 },
+                A2: { suit: 'Black' as Suit, number: 0, points: 0 },
+                B2: { suit: 'Black' as Suit, number: 0, points: 0 }
+            },
+            winner: 'A1',
+            playOrder: ['A1', 'B1', 'A2', 'B2']
+        });
+    };
 
     // Hand recap effect
     const shouldCalculateHandRecap = game && showHandRecap && game.bidWinner && game.currentBid && game.dealer;
@@ -475,24 +545,6 @@ export default function GameTable({
         }
     }, [showHandRecap, game?.bidWinner, game?.currentBid, game?.dealer, game?.goDown, completedTricks]);
 
-    // Trick completion effect
-    const hasCompletedTrick = game?.trickComplete && game.trickWinner && game.trickCards;
-    
-    useEffect(() => {
-        if (!hasCompletedTrick) return;
-        
-        // Cast is safe because we know all cards are played when trick is complete
-        const cards = game.trickCards as Record<Seat, CardType>;
-        
-        // Set a timeout to handle the trick completion after 3 seconds
-        const timer = setTimeout(() => {
-            handleTrickComplete(cards, game.trickWinner!);
-        }, 3000);
-
-        // Cleanup timeout if component unmounts or game state changes
-        return () => clearTimeout(timer);
-    }, [game?.trickComplete, game?.trickWinner, game?.trickCards]);
-
     const handleWidowCardSelect = (card: CardType) => {
         if (selectedWidowCards.some(c => c.suit === card.suit && c.number === card.number)) {
             setSelectedWidowCards(selectedWidowCards.filter(
@@ -564,8 +616,8 @@ export default function GameTable({
 
         const isCurrentPlayer = seat === game?.currentTurn;
         const isHumanPlayer = player.type === 'human';
-        // Only show face up cards if it's the human player's hand
-        const isFaceUp = isHumanPlayer;
+        // Show face up cards if it's the human player's hand OR if God Mode is on
+        const isFaceUp = isHumanPlayer || game.godMode;
         const isWidowPhase = game?.phase === 'widow' && isCurrentPlayer && isHumanTurn;
         const isPlayingPhase = game?.phase === 'playing';
 
@@ -586,9 +638,9 @@ export default function GameTable({
         const playedCard = trickCards[seat];
 
         return (
-            <div className="space-y-2">
+            <div className={`${handPositions[seat]} flex flex-col items-center`}>
                 {/* Cards */}
-                <div className={`flex gap-2 p-4 relative justify-center player-hand-${seat}`}>
+                <div className="flex gap-2 relative">
                     {player.hand.map((card, index) => {
                         const isPlayed = playedCard && 
                             playedCard.suit === card.suit && 
@@ -616,42 +668,10 @@ export default function GameTable({
                                     transitionDelay: `${index * 20}ms`
                                 }}
                                 draggable={isHumanPlayer}
-                                onDragStart={(e) => {
-                                    handleDragStart(index, card);
-                                }}
-                                onDragOver={(e) => {
-                                    e.preventDefault();
-                                    e.dataTransfer.dropEffect = 'move';
-                                    
-                                    // Clear all existing highlights
-                                    const cards = e.currentTarget.parentElement?.children;
-                                    if (cards) {
-                                        Array.from(cards).forEach((card) => {
-                                            card.classList.remove('border-blue-400');
-                                        });
-                                    }
-
-                                    // Show a simple highlight on the drop target
-                                    e.currentTarget.classList.add('border-blue-400');
-                                }}
-                                onDragLeave={(e) => {
-                                    e.currentTarget.classList.remove('border-blue-400');
-                                }}
-                                onDragEnd={(e) => {
-                                    // Clear all highlights
-                                    const cards = e.currentTarget.parentElement?.children;
-                                    if (cards) {
-                                        Array.from(cards).forEach((card) => {
-                                            card.classList.remove('border-blue-400');
-                                        });
-                                    }
-                                    setDraggedCard(null);
-                                }}
+                                onDragStart={(e) => handleDragStart(index, card)}
+                                onDragOver={handleDragOver}
                                 onDrop={(e) => {
                                     e.preventDefault();
-                                    e.currentTarget.classList.remove('border-blue-400');
-                                    
-                                    // Simple drop logic - always drop at the target index
                                     handleDrop(index, seat);
                                 }}
                             >
@@ -708,14 +728,12 @@ export default function GameTable({
     const renderBiddingUI = () => {
         if (!gameUI.canShowBiddingUI) return null;
 
-        console.log('Rendering bidding UI:', {
-            phase: gameUI.phase,
-            currentTurn: gameUI.currentTurn,
-            isHumanTurn: gameUI.isHumanTurn,
-            canShow: gameUI.canShowBiddingUI
-        });
+        // If player has already passed in a previous round, they cannot bid again
+        if (game.players[game.currentTurn!]?.bid === 'pass') return null;
 
-        const minBid = game.currentBid ? game.currentBid + 5 : 65;
+        // Convert undefined to null and calculate minimum bid
+        const currentBid = game.currentBid ?? null;
+        const minBid = currentBid !== null ? currentBid + 5 : 65;
 
         return (
             <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 bg-white p-4 rounded-lg shadow-lg">
@@ -840,7 +858,7 @@ export default function GameTable({
                                 `}
                             >
                                 <CardComponent
-                                    card={isGoDownFlipped ? card : { suit: 'Black', number: 0, points: 0 }}
+                                    card={isGoDownFlipped || game.godMode ? card : { suit: 'Black', number: 0, points: 0 }}
                                     disabled={true}
                                     selectable={isHumanBidWinner}
                                 />
@@ -850,37 +868,6 @@ export default function GameTable({
                 </div>
             </div>
         );
-    };
-
-    // Update the handleGoDownClick function
-    const handleGoDownClick = () => {
-        if (!game?.goDown) return;
-        
-        setIsGoDownFlipped(true);
-        // Auto-flip back after 2 seconds
-        setTimeout(() => setIsGoDownFlipped(false), 2000);
-    };
-
-    const handleStartNextHand = () => {
-        console.log('Starting next hand...');
-        setShowHandRecap(false);
-        setShowLastTrick(false);
-        
-        // Call startNextHandWithNewDealer directly instead of setting readyForNextHand
-        startNextHandWithNewDealer();
-        
-        // Reset local state
-        setCompletedTricks([]);
-        setLastTrick({
-            cards: { 
-                A1: { suit: 'Black' as Suit, number: 0, points: 0 },
-                B1: { suit: 'Black' as Suit, number: 0, points: 0 },
-                A2: { suit: 'Black' as Suit, number: 0, points: 0 },
-                B2: { suit: 'Black' as Suit, number: 0, points: 0 }
-            },
-            winner: 'A1',
-            playOrder: ['A1', 'B1', 'A2', 'B2']
-        });
     };
 
     // Add secret card sorting function
@@ -1034,6 +1021,17 @@ export default function GameTable({
         }
     };
 
+    // Add bot speed effect
+    useEffect(() => {
+        if (isBotTurn) {
+            const botPlayTimeout = setTimeout(() => {
+                handleBotPlay(game.currentTurn!);
+            }, botSpeed * 1000);
+
+            return () => clearTimeout(botPlayTimeout);
+        }
+    }, [isBotTurn, game?.currentTurn, botSpeed]);
+
     return (
         <div className="h-screen w-screen overflow-hidden bg-green-800">
             {/* ROOK title and game info - now fixed */}
@@ -1104,6 +1102,7 @@ export default function GameTable({
                     tricks={game.tricks}
                     handScores={lastTrick.handScores || { A: 0, B: 0 }}
                     playOrder={lastTrick.playOrder}
+                    botSpeed={botSpeed}
                 />
             )}
 
@@ -1224,7 +1223,7 @@ export default function GameTable({
                     ))}
 
                     {/* Top player (A2) */}
-                    <div className="absolute top-[80px] left-1/2 -translate-x-1/2">
+                    <div className="absolute top-[100px] left-1/2 -translate-x-1/2">
                         <div className="flex flex-col items-center gap-2">
                             <div className="flex gap-1 scale-[0.8]">
                                 {renderPlayerHand('A2')}
@@ -1233,25 +1232,25 @@ export default function GameTable({
                     </div>
 
                     {/* Left player (B1) */}
-                    <div className="absolute left-[45px] top-1/2 -translate-y-1/2 w-[20%]">
+                    <div className="absolute left-[55px] top-1/2 -translate-y-1/2 w-[20%]">
                         <div className="flex justify-center">
-                            <div className="transform -rotate-90 origin-center flex gap-1 scale-[0.8]">
+                            <div className="flex gap-1 scale-[0.8]">
                                 {renderPlayerHand('B1')}
                             </div>
                         </div>
                     </div>
 
                     {/* Right player (B2) */}
-                    <div className="absolute right-[45px] top-1/2 -translate-y-1/2 w-[20%]">
+                    <div className="absolute right-[55px] top-1/2 -translate-y-1/2 w-[20%]">
                         <div className="flex justify-center">
-                            <div className="transform rotate-90 origin-center flex gap-1 scale-[0.8]">
+                            <div className="flex gap-1 scale-[0.8]">
                                 {renderPlayerHand('B2')}
                             </div>
                         </div>
                     </div>
 
                     {/* Bottom player (A1) */}
-                    <div className="absolute bottom-[80px] left-1/2 -translate-x-1/2">
+                    <div className="absolute bottom-[100px] left-1/2 -translate-x-1/2">
                         <div className="flex flex-col items-center gap-2">
                             <div className="flex gap-1 scale-[0.8]">
                                 {renderPlayerHand('A1')}
@@ -1286,6 +1285,12 @@ export default function GameTable({
             {/* Render bidding UI at the bottom of the screen */}
             {renderBiddingUI()}
             {renderPhaseUI()}
+
+            {/* Add GameControls */}
+            <GameControls 
+                botSpeed={botSpeed}
+                onBotSpeedChange={setBotSpeed}
+            />
         </div>
     );
 }

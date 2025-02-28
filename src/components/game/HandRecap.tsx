@@ -3,6 +3,7 @@ import Card from './Card';
 import { calculatePoints } from '@/lib/utils/cardUtils';
 import { useGameStore } from '@/lib/store/gameStore';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface HandScore {
     dealer: Seat;
@@ -39,13 +40,21 @@ export default function HandRecap({
     currentBid,
     handScores = []
 }: HandRecapProps) {
-    const { game } = useGameStore();
+    const { game, resetGame } = useGameStore();
     const [confetti, setConfetti] = useState(false);
+    const router = useRouter();
 
     const handleClose = () => {
         onClose();
-        // The game state should already be in 'dealing' phase with the new dealer
-        // Just need to close the modal and let the game continue
+    };
+
+    const handleReturnToLobby = () => {
+        // Reset the game state first
+        resetGame();
+        // Navigate to the game page which contains the lobby
+        router.push('/game');
+        // Force a hard refresh to ensure clean state
+        router.refresh();
     };
 
     if (!isOpen) return null;
@@ -112,12 +121,15 @@ export default function HandRecap({
                 {/* Header */}
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-orbitron font-bold text-white">Hand Recap</h2>
-                    <button 
-                        onClick={handleClose}
-                        className="text-white/80 hover:text-white"
-                    >
-                        <span className="material-symbols-outlined">close</span>
-                    </button>
+                    {/* Only show close button if game is not over */}
+                    {!winningTeam && (
+                        <button 
+                            onClick={handleClose}
+                            className="text-white/80 hover:text-white"
+                        >
+                            <span className="material-symbols-outlined">close</span>
+                        </button>
+                    )}
                 </div>
 
                 {/* Scrollable content with modern scrollbar */}
@@ -196,6 +208,19 @@ export default function HandRecap({
                                     ))}
                                 </div>
                             )}
+
+                            {/* Return to Lobby Button */}
+                            <button
+                                onClick={handleReturnToLobby}
+                                className="mt-6 px-8 py-3 bg-yellow-500 hover:bg-yellow-400 
+                                         text-black font-orbitron font-bold rounded-xl 
+                                         shadow-lg transform transition-all duration-200 
+                                         hover:scale-105 relative z-10
+                                         flex items-center justify-center gap-2 mx-auto"
+                            >
+                                <span className="material-symbols-outlined">home</span>
+                                Return to Lobby
+                            </button>
                         </div>
                     )}
                     
