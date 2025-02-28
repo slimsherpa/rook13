@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useGameStore } from '@/lib/store/gameStore';
-import { Seat, VALID_BIDS, Suit, Card as CardType, GameState, Player } from '@/lib/types/game';
+import type { Seat, Suit, Player, GameState } from '@/lib/types/game';
+import type { Card as CardType } from '@/lib/types/game';
+import { VALID_BIDS } from '@/lib/types/game';
 import { decideBotBid, decideBotTrump, decideBotCard } from '@/lib/utils/botUtils';
 import { determineTrickWinner, calculatePoints } from '@/lib/utils/cardUtils';
 import { getNextSeat } from '@/lib/utils/seatUtils';
-import Card from './Card';
+import CardComponent from './Card';
 import TrickDisplay from './TrickDisplay';
 import LastTrickDisplay from './LastTrickDisplay';
 import HandRecap from './HandRecap';
@@ -81,7 +83,52 @@ interface HandScore {
     teamBTotal: number;
 }
 
-export default function GameTable() {
+interface GameTableProps {
+    hands: Record<Seat, CardType[]>;
+    setHands: (hands: Record<Seat, CardType[]>) => void;
+    trickCards: Record<Seat, CardType | null>;
+    setTrickCards: (cards: Record<Seat, CardType | null>) => void;
+    playedCards: CardType[];
+    trump: Suit | null;
+    trickLeader: Seat;
+    isBot: (seat: Seat) => boolean;
+}
+
+const handleCardPlay = async (
+    seat: Seat,
+    card: CardType,
+    hands: Record<Seat, CardType[]>,
+    setHands: (hands: Record<Seat, CardType[]>) => void,
+    trickCards: Record<Seat, CardType | null>,
+    setTrickCards: (cards: Record<Seat, CardType | null>) => void,
+    playedCards: CardType[]
+) => {
+    // Remove card from hand
+    const newHands = { ...hands };
+    newHands[seat] = hands[seat].filter(c => 
+        c.suit !== card.suit || c.number !== card.number
+    );
+    setHands(newHands);
+
+    // Add card to trick
+    const newTrickCards = { ...trickCards };
+    newTrickCards[seat] = card;
+    setTrickCards(newTrickCards);
+
+    // Add to played cards
+    playedCards.push(card);
+};
+
+export default function GameTable({
+    hands,
+    setHands,
+    trickCards,
+    setTrickCards,
+    playedCards,
+    trump,
+    trickLeader,
+    isBot
+}: GameTableProps) {
     const { 
         game, 
         placeBid, 
@@ -183,13 +230,12 @@ export default function GameTable() {
         setDraggedCard(null);
         setLastTrick({
             cards: { 
-                A1: { suit: 'Black', number: 0, points: 0 } as CardType, 
-                B1: { suit: 'Black', number: 0, points: 0 } as CardType, 
-                A2: { suit: 'Black', number: 0, points: 0 } as CardType, 
-                B2: { suit: 'Black', number: 0, points: 0 } as CardType 
+                A1: { suit: 'Black' as Suit, number: 0, points: 0 },
+                B1: { suit: 'Black' as Suit, number: 0, points: 0 },
+                A2: { suit: 'Black' as Suit, number: 0, points: 0 },
+                B2: { suit: 'Black' as Suit, number: 0, points: 0 }
             },
             winner: 'A1',
-            handScores: { A: 0, B: 0 },
             playOrder: ['A1', 'B1', 'A2', 'B2']
         });
         setCompletedTricks([]);
@@ -246,12 +292,23 @@ export default function GameTable() {
                         (p) => p?.bid === 'pass'
                     ).length;
 
+                    const previousBids = Object.entries(game.players).reduce((bids, [seat, player]) => {
+                        if (player?.bid) {
+                            bids[seat as Seat] = player.bid;
+                        }
+                        return bids;
+                    }, {} as Record<Seat, number | 'pass'>);
+
                     const botBid = decideBotBid(
                         currentPlayer.hand,
                         game.currentBid,
-                        passes
+                        passes,
+                        game.currentTurn,
+                        game.dealer || 'A1',
+                        game.players,
+                        previousBids
                     );
-                    placeBid(game.currentTurn!, botBid);
+                    placeBid(game.currentTurn, botBid);
                     break;
                 }
                 case 'widow': {
@@ -297,9 +354,12 @@ export default function GameTable() {
                                 remainingCards,
                                 leadSuit,
                                 game.trump || null,
-                                playedCards
+                                playedCards,
+                                trickCards,
+                                game.currentTurn,
+                                game.trickLeader || game.currentTurn
                             );
-                            playCardAction(game.currentTurn!, cardToPlay);
+                            playCardAction(game.currentTurn, cardToPlay);
                             break; // If successful, exit the loop
                         } catch (error) {
                             console.log('Failed to play card, trying another one');
@@ -483,18 +543,12 @@ export default function GameTable() {
         const isWinningCard = game?.trickComplete && game?.trickWinner === seat;
 
         return (
-            <div
-                key={`${seat}-${card.suit}-${card.number}`}
-                className={`
-                    absolute ${positions[seat]}
-                    ${seat === 'B1' ? '-rotate-90' :
-                      seat === 'A2' ? 'rotate-180' :
-                      seat === 'B2' ? 'rotate-90' : ''}
-                    transition-all duration-300
-                    z-20 scale-[0.8]
-                `}
-            >
-                <Card card={card} highlight={isWinningCard} />
+            <div className={`
+                absolute transform transition-all duration-300 ease-out
+                ${positions[seat]}
+                ${isWinningCard ? '' : ''}
+            `}>
+                <CardComponent card={card} highlight={isWinningCard} />
             </div>
         );
     };
@@ -513,6 +567,7 @@ export default function GameTable() {
         // Only show face up cards if it's the human player's hand
         const isFaceUp = isHumanPlayer;
         const isWidowPhase = game?.phase === 'widow' && isCurrentPlayer && isHumanTurn;
+        const isPlayingPhase = game?.phase === 'playing';
 
         // Get lead suit from played cards
         const trickCards = game?.trickCards || {
@@ -542,7 +597,7 @@ export default function GameTable() {
                         // Determine if this card can be played
                         const canPlay = !leadSuit || // First card of trick
                                       card.suit === leadSuit || // Following suit
-                                      !player.hand?.some(c => c.suit === leadSuit);
+                                      !player.hand?.some(c => c.suit === leadSuit); // No cards of lead suit
 
                         return (
                             <div
@@ -551,7 +606,7 @@ export default function GameTable() {
                                     card-element
                                     transition-all duration-300 ease-in-out
                                     ${isPlayed ? 'opacity-0' : 'opacity-100'}
-                                    ${isHumanPlayer ? 'cursor-grab active:cursor-grabbing' : ''}
+                                    ${isHumanPlayer ? 'cursor-pointer' : ''}
                                     ${draggedCard?.card === card ? 'opacity-50' : ''}
                                     relative
                                     transform hover:scale-105 hover:-translate-y-1
@@ -600,23 +655,20 @@ export default function GameTable() {
                                     handleDrop(index, seat);
                                 }}
                             >
-                                <Card
+                                <CardComponent
                                     card={isFaceUp ? card : { suit: 'Black', number: 0, points: 0 }}
                                     onClick={
                                         isWidowPhase
                                             ? () => handleWidowCardSelect(card)
-                                            : isCurrentPlayer && isHumanTurn && game?.phase === 'playing' && canPlay
+                                            : (isPlayingPhase && isCurrentPlayer && isHumanPlayer)
                                             ? () => handlePlayCard(seat, card)
                                             : undefined
                                     }
-                                    disabled={!isCurrentPlayer || !isHumanTurn || 
-                                            (game?.phase !== 'playing' && game?.phase !== 'widow') ||
-                                            (game?.phase === 'playing' && !canPlay)}
-                                    selected={isWidowPhase && selectedWidowCards.some(
-                                        c => c.suit === card.suit && c.number === card.number
+                                    selected={selectedWidowCards.some(
+                                        (c) => c.suit === card.suit && c.number === card.number
                                     )}
-                                    selectable={isWidowPhase && selectedWidowCards.length < 4}
-                                    dimmed={isCurrentPlayer && game?.phase === 'playing' && !canPlay}
+                                    disabled={!isWidowPhase && !(isPlayingPhase && isCurrentPlayer && isHumanPlayer && canPlay)}
+                                    dimmed={isPlayingPhase && isCurrentPlayer && !canPlay}
                                 />
                             </div>
                         );
@@ -787,7 +839,7 @@ export default function GameTable() {
                                     ${isHumanBidWinner ? 'hover:-translate-y-2' : ''}
                                 `}
                             >
-                                <Card
+                                <CardComponent
                                     card={isGoDownFlipped ? card : { suit: 'Black', number: 0, points: 0 }}
                                     disabled={true}
                                     selectable={isHumanBidWinner}
@@ -821,13 +873,12 @@ export default function GameTable() {
         setCompletedTricks([]);
         setLastTrick({
             cards: { 
-                A1: { suit: 'Black', number: 0, points: 0 } as CardType, 
-                B1: { suit: 'Black', number: 0, points: 0 } as CardType, 
-                A2: { suit: 'Black', number: 0, points: 0 } as CardType, 
-                B2: { suit: 'Black', number: 0, points: 0 } as CardType 
+                A1: { suit: 'Black' as Suit, number: 0, points: 0 },
+                B1: { suit: 'Black' as Suit, number: 0, points: 0 },
+                A2: { suit: 'Black' as Suit, number: 0, points: 0 },
+                B2: { suit: 'Black' as Suit, number: 0, points: 0 }
             },
             winner: 'A1',
-            handScores: { A: 0, B: 0 },
             playOrder: ['A1', 'B1', 'A2', 'B2']
         });
     };
@@ -909,6 +960,80 @@ export default function GameTable() {
         }, 600);
     };
 
+    const handleBotPlay = async (seat: Seat) => {
+        if (!isBot(seat)) return;
+        
+        const hand = hands[seat];
+        if (!hand || hand.length === 0) {
+            console.error('Bot has no cards to play:', seat);
+            return;
+        }
+
+        // Get lead suit from first played card
+        const leadCard = Object.values(trickCards).find(card => card !== null);
+        const leadSuit = leadCard?.suit || null;
+
+        // Track cards that failed to play
+        let remainingCards = [...hand];
+        let attempts = 0;
+        const maxAttempts = hand.length;
+
+        while (remainingCards.length > 0 && attempts < maxAttempts) {
+            try {
+                // Get bot's decision
+                const cardToPlay = decideBotCard(
+                    remainingCards,
+                    leadSuit,
+                    trump,
+                    Object.values(trickCards).filter((c): c is CardType => c !== null),
+                    trickCards,
+                    seat,
+                    trickLeader
+                );
+
+                // Validate the card
+                if (!cardToPlay || !cardToPlay.suit || !cardToPlay.number) {
+                    console.warn('Invalid card selected by bot:', cardToPlay);
+                    attempts++;
+                    continue;
+                }
+
+                // Check if card follows suit rules
+                if (leadSuit && 
+                    cardToPlay.suit !== leadSuit && 
+                    hand.some(c => c.suit === leadSuit)) {
+                    console.warn('Bot tried to play out of suit when it had lead suit');
+                    remainingCards = remainingCards.filter(c => 
+                        !(c.suit === cardToPlay.suit && c.number === cardToPlay.number)
+                    );
+                    attempts++;
+                    continue;
+                }
+
+                // Try to play the card
+                await playCardAction(seat, cardToPlay);
+                break; // Success!
+            } catch (error) {
+                console.warn('Error in bot play attempt:', error);
+                // Remove the failed card from remaining options
+                if (remainingCards.length > 0) {
+                    remainingCards.shift(); // Remove the first card as a fallback
+                }
+                attempts++;
+            }
+        }
+
+        if (attempts >= maxAttempts) {
+            console.error('Bot failed to play a valid card after all attempts:', seat);
+            // Try one last time with any card from hand
+            try {
+                await playCardAction(seat, hand[0]);
+            } catch (error) {
+                console.error('Final fallback play failed:', error);
+            }
+        }
+    };
+
     return (
         <div className="h-screen w-screen overflow-hidden bg-green-800">
             {/* ROOK title and game info - now fixed */}
@@ -927,7 +1052,7 @@ export default function GameTable() {
                         handleSecretSort();
                     }}
                     id="rook-title"
-                    className="font-orbitron text-[48px] font-bold text-white cursor-pointer hover:text-white/90 transition-colors relative group"
+                    className="font-orbitron text-[48px] font-bold text-white cursor-pointer hover:text-white/90 transition-colors relative group drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)]"
                 >
                     ROOK
                     <span className="absolute -bottom-2 left-0 w-0 h-1 bg-white group-hover:w-full transition-all duration-300"></span>

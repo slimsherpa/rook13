@@ -213,6 +213,12 @@ export const useGameStore = create<GameStore>()((set) => ({
         set((state) => {
             if (!state.game || state.game.phase !== 'bidding') return state;
             
+            // Check if player has already passed
+            if (state.game.players[seat]?.bid === 'pass' && bid !== 'pass') {
+                console.log('Player has already passed and cannot bid again');
+                return state;
+            }
+            
             const updatedPlayers = {
                 ...state.game.players,
                 [seat]: state.game.players[seat] ? {

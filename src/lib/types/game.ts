@@ -44,6 +44,7 @@ export interface GameState {
     goDown?: Card[];
     trickCards?: Record<Seat, Card | null>;
     trickWinner?: Seat;
+    trickLeader?: Seat;
     trickComplete?: boolean;
     playOrder?: Seat[];  // Track the order cards were played in the current trick
     tricks: {

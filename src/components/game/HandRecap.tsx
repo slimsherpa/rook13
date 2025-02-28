@@ -335,10 +335,6 @@ export default function HandRecap({
                                                     disabled={true}
                                                     highlight={seat === trick.winner}
                                                 />
-                                                {/* Extra glow effect for winning card */}
-                                                {seat === trick.winner && (
-                                                    <div className="absolute inset-0 rounded-lg bg-yellow-400/5 shadow-[0_0_12px_4px_rgba(234,179,8,0.3)] pointer-events-none" />
-                                                )}
                                             </div>
                                         </div>
                                     ))}

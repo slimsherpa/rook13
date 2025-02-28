@@ -74,7 +74,7 @@ export default function Card({ card, onClick, disabled, selected, selectable, fa
             className={`
                 relative w-16 h-24 rounded-lg border-2 shadow-lg
                 ${selected ? 'border-blue-500 transform -translate-y-4' : 
-                  highlight ? 'border-white/60' :
+                  highlight ? 'border-yellow-400/70' :
                   selectable ? 'border-gray-300 hover:border-blue-300 hover:-translate-y-2' :
                   'border-gray-300'}
                 ${disabled ? 'cursor-not-allowed' : 
@@ -82,11 +82,12 @@ export default function Card({ card, onClick, disabled, selected, selectable, fa
                 ${colorClasses}
                 ${dimmed ? 'opacity-60 grayscale-[30%]' : ''}
                 transition-all duration-300 ease-in-out
+                z-10
             `}
         >
-            {/* Glow effect wrapper */}
+            {/* Glow effect wrapper - moved before content */}
             {highlight && (
-                <div className="absolute inset-[-2px] rounded-lg bg-white/10 shadow-[0_0_12px_3px_rgba(255,255,255,0.4)] pointer-events-none" />
+                <div className="absolute inset-0 rounded-lg bg-yellow-400/10 shadow-[0_0_16px_6px_rgba(234,179,8,0.5)] -z-10" />
             )}
 
             {/* Top left */}
