@@ -1,29 +1,30 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/hooks/useAuth';
-import Lobby from '@/components/lobby/Lobby';
+// Game room at /game?id=<gameId>. Query-param routing keeps the app fully
+// static-exportable for Firebase Hosting (no dynamic route segments).
+
+import { Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import GameRoom from '@/components/table/GameRoom';
 import LoadingPage from '@/components/LoadingPage';
 
-export default function GamePage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
+function GamePageInner() {
+    const params = useSearchParams();
+    const router = useRouter();
+    const id = params.get('id');
 
-  // Redirect to home if not authenticated
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/');
+    if (!id) {
+        router.push('/');
+        return null;
     }
-  }, [user, loading, router]);
 
-  if (loading) {
-    return <LoadingPage title="Rook13" subtitle="Loading Game" />;
-  }
+    return <GameRoom gameId={id} />;
+}
 
-  if (!user) {
-    return null; // Will redirect in the useEffect
-  }
-
-  return <Lobby />;
-} 
+export default function GamePage() {
+    return (
+        <Suspense fallback={<LoadingPage title="Rook13" subtitle="Joining table…" />}>
+            <GamePageInner />
+        </Suspense>
+    );
+}

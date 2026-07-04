@@ -52,19 +52,6 @@ export default function LandingPage() {
         }
     };
 
-    // Redirect to game if user is already logged in
-    useEffect(() => {
-        console.log("LandingPage: Auth state changed", { 
-            user: user ? `${user.displayName} (${user.uid})` : 'null', 
-            loading: authLoading 
-        });
-        
-        if (user && !authLoading) {
-            console.log("LandingPage: Redirecting to game page");
-            router.push('/game');
-        }
-    }, [user, authLoading, router]);
-
     // Show auth error if any
     useEffect(() => {
         if (authError) {
@@ -154,7 +141,7 @@ export default function LandingPage() {
                         <div className="text-center">
                             <p className="text-blue-300 mb-4">Welcome back, <span className="font-bold">{user.displayName}</span></p>
                             <button
-                                onClick={() => router.push('/game')}
+                                onClick={() => router.push('/')}
                                 className="bg-gradient-to-r from-green-600 to-green-400 text-white py-3 px-6 rounded-md hover:from-green-500 hover:to-green-300 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-3 shadow-[0_0_10px_rgba(0,255,128,0.5)]"
                             >
                                 <span className="material-symbols-outlined">

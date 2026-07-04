@@ -14,6 +14,7 @@ import {
 } from "firebase/auth";
 import { User } from "firebase/auth";
 import { auth } from "../firebase/firebase";
+import { ensureUserProfile } from "../firebase/userService";
 
 interface AuthContextType {
   user: User | null;
@@ -63,7 +64,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       console.log("Auth state changed:", currentUser ? `User: ${currentUser.displayName}` : "No user");
       setUser(currentUser);
-      
+      if (currentUser) {
+        ensureUserProfile(currentUser).catch((e) =>
+          console.error("Failed to ensure user profile", e)
+        );
+      }
+
       if (initialCheckDone || !currentUser) {
         setLoading(false);
       }

@@ -1,0 +1,225 @@
+'use client';
+
+// Signed-in home: start a table, join by code, jump back into your games.
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { GameDoc, teamOf, Seat, SEATS } from '@/lib/game/types';
+import { createGame, findGameByCode, listMyGames, listOpenGames } from '@/lib/firebase/gameService';
+
+export default function HomeScreen() {
+    const { user, signOut } = useAuth();
+    const router = useRouter();
+    const [creating, setCreating] = useState(false);
+    const [joinCode, setJoinCode] = useState('');
+    const [joinError, setJoinError] = useState<string | null>(null);
+    const [joining, setJoining] = useState(false);
+    const [myGames, setMyGames] = useState<GameDoc[]>([]);
+    const [openGames, setOpenGames] = useState<GameDoc[]>([]);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [jayCupOpen, setJayCupOpen] = useState(false);
+
+    useEffect(() => {
+        if (!user) return;
+        listMyGames(user.uid).then(setMyGames).catch(() => {});
+        listOpenGames().then((games) => {
+            setOpenGames(games.filter((g) => !g.playerUids.includes(user.uid)));
+        }).catch(() => {});
+    }, [user]);
+
+    if (!user) return null;
+
+    const handleCreate = async () => {
+        if (creating) return;
+        setCreating(true);
+        try {
+            const game = await createGame({
+                uid: user.uid,
+                name: user.displayName || 'Player',
+                ...(user.photoURL ? { photoURL: user.photoURL } : {}),
+            });
+            router.push(`/game?id=${game.id}`);
+        } catch (e) {
+            console.error(e);
+            setCreating(false);
+        }
+    };
+
+    const handleJoin = async () => {
+        if (joinCode.trim().length < 4 || joining) return;
+        setJoining(true);
+        setJoinError(null);
+        try {
+            const game = await findGameByCode(joinCode);
+            if (!game) {
+                setJoinError('No table found with that code');
+            } else {
+                router.push(`/game?id=${game.id}`);
+            }
+        } catch {
+            setJoinError('Could not look up that code');
+        } finally {
+            setJoining(false);
+        }
+    };
+
+    const gameRow = (g: GameDoc) => {
+        const mySeat = SEATS.find((s) => g.seats[s].kind === 'human' && g.seats[s].uid === user.uid);
+        const names = SEATS
+            .map((s) => g.seats[s])
+            .filter((si) => si.kind === 'human')
+            .map((si) => si.name.split(' ')[0])
+            .join(', ');
+        const status =
+            g.status === 'lobby' ? { label: 'Waiting', cls: 'bg-yellow-500/20 text-yellow-300' } :
+            g.status === 'active' ? { label: 'In Progress', cls: 'bg-green-500/20 text-green-300' } :
+            g.winner && mySeat && teamOf(mySeat) === g.winner
+                ? { label: 'Won', cls: 'bg-sky-500/20 text-sky-300' }
+                : { label: 'Finished', cls: 'bg-gray-500/20 text-gray-300' };
+
+        return (
+            <button
+                key={g.id}
+                onClick={() => router.push(`/game?id=${g.id}`)}
+                className="w-full rounded-xl bg-green-900/50 border border-green-700/50 hover:border-green-500 p-3 flex items-center gap-3 text-left transition"
+            >
+                <span className="material-symbols-outlined text-white/60">
+                    {g.status === 'completed' ? 'history' : 'playing_cards'}
+                </span>
+                <div className="flex-1 min-w-0">
+                    <div className="text-white font-orbitron text-sm truncate">{names || 'Bot game'}</div>
+                    <div className="text-green-100/50 text-[11px]">
+                        {g.status !== 'lobby' && `${g.scores.A} – ${g.scores.B} · `}
+                        {new Date(g.updatedAt).toLocaleDateString()} · code {g.joinCode}
+                    </div>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-orbitron ${status.cls}`}>{status.label}</span>
+            </button>
+        );
+    };
+
+    return (
+        <div className="min-h-dvh bg-green-800">
+            <div className="max-w-md mx-auto px-4 py-5">
+                {/* header */}
+                <div className="flex items-center justify-between mb-8">
+                    <h1 className="font-orbitron text-3xl font-black text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)]">
+                        ROOK<span className="text-yellow-400">13</span>
+                    </h1>
+                    <div className="relative">
+                        <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2">
+                            <span className="text-white/90 font-orbitron text-xs hidden sm:block">{user.displayName?.split(' ')[0]}</span>
+                            {user.photoURL ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={user.photoURL} alt="" className="w-9 h-9 rounded-full border-2 border-white/30" referrerPolicy="no-referrer" />
+                            ) : (
+                                <span className="w-9 h-9 rounded-full bg-green-950 border-2 border-white/30 flex items-center justify-center text-white font-orbitron">
+                                    {(user.displayName || 'P').charAt(0)}
+                                </span>
+                            )}
+                        </button>
+                        {menuOpen && (
+                            <>
+                                <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
+                                <div className="absolute right-0 mt-2 w-44 bg-green-950 border border-green-700 rounded-xl shadow-xl z-30 overflow-hidden">
+                                    <button
+                                        onClick={() => router.push('/profile')}
+                                        className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-green-800/60 flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-base">person</span> My Stats
+                                    </button>
+                                    <button
+                                        onClick={signOut}
+                                        className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-green-800/60 flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-base">logout</span> Log Out
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* primary actions */}
+                <button
+                    onClick={handleCreate}
+                    disabled={creating}
+                    className="w-full py-5 rounded-2xl bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white font-orbitron font-bold text-xl shadow-lg flex items-center justify-center gap-3 active:scale-[0.98] transition"
+                >
+                    <span className="material-symbols-outlined text-2xl">playing_cards</span>
+                    {creating ? 'Setting the table…' : 'NEW GAME'}
+                </button>
+
+                <div className="flex gap-2 mt-3">
+                    <input
+                        value={joinCode}
+                        onChange={(e) => { setJoinCode(e.target.value.toUpperCase()); setJoinError(null); }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+                        placeholder="TABLE CODE"
+                        maxLength={4}
+                        className="flex-1 rounded-xl bg-green-950/60 border border-green-700/60 px-4 py-3 text-white font-orbitron tracking-[0.3em] text-center placeholder:text-green-100/30 placeholder:tracking-normal focus:outline-none focus:border-sky-400"
+                    />
+                    <button
+                        onClick={handleJoin}
+                        disabled={joinCode.trim().length < 4 || joining}
+                        className="px-6 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-orbitron font-bold"
+                    >
+                        JOIN
+                    </button>
+                </div>
+                {joinError && <p className="text-red-300 text-xs font-orbitron mt-2 text-center">{joinError}</p>}
+
+                {/* my games */}
+                {myGames.length > 0 && (
+                    <section className="mt-8">
+                        <h2 className="text-green-100/70 font-orbitron text-xs uppercase tracking-widest mb-2">My Games</h2>
+                        <div className="space-y-2">{myGames.slice(0, 8).map(gameRow)}</div>
+                    </section>
+                )}
+
+                {/* open tables */}
+                {openGames.length > 0 && (
+                    <section className="mt-6">
+                        <h2 className="text-green-100/70 font-orbitron text-xs uppercase tracking-widest mb-2">Open Tables</h2>
+                        <div className="space-y-2">{openGames.slice(0, 5).map(gameRow)}</div>
+                    </section>
+                )}
+
+                {/* JAY CUP */}
+                <button
+                    onClick={() => setJayCupOpen(true)}
+                    className="mt-8 w-full rounded-2xl border border-yellow-500/40 bg-gradient-to-r from-yellow-500/10 to-transparent p-4 flex items-center gap-4"
+                >
+                    <span className="material-symbols-outlined text-yellow-400 text-4xl">emoji_events</span>
+                    <div className="text-left">
+                        <div className="font-orbitron text-white font-bold">THE JAY CUP</div>
+                        <div className="text-green-100/60 text-xs">The family trophy · every other year</div>
+                    </div>
+                </button>
+            </div>
+
+            {jayCupOpen && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setJayCupOpen(false)}>
+                    <div className="bg-green-950 border border-green-700 rounded-2xl p-6 w-full max-w-sm text-center" onClick={(e) => e.stopPropagation()}>
+                        <span className="material-symbols-outlined text-yellow-400 text-6xl">emoji_events</span>
+                        <h2 className="font-orbitron text-white text-2xl font-bold mt-2">THE JAY CUP</h2>
+                        <p className="text-green-100/70 text-sm mt-3 leading-relaxed">
+                            Awarded to the champion team at the family tournament, every two years,
+                            for nearly a century of Rook.
+                        </p>
+                        <p className="text-green-100/50 text-xs mt-3 font-orbitron">
+                            Tournament mode & the hall of champions are coming soon.
+                        </p>
+                        <button
+                            onClick={() => setJayCupOpen(false)}
+                            className="mt-5 px-8 py-2.5 rounded-xl bg-green-700 hover:bg-green-600 text-white font-orbitron text-sm"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

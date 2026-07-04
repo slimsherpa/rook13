@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Games: any signed-in player can read (enables spectating) and any
+    // signed-in player can write via the client engine's transactions.
+    // Move legality is enforced by the shared rules engine on every client;
+    // this is a family game built on trust, not an anti-cheat system.
+    match /games/{gameId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.hostUid == request.auth.uid;
+      allow update: if signedIn();
+      allow delete: if false;
+
+      // Append-only action log for replays.
+      match /actions/{actionId} {
+        allow read: if signedIn();
+        allow create: if signedIn();
+        allow update, delete: if false;
+      }
+    }
+
+    // Profiles: readable by any signed-in user, writable only by the owner.
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+
+      match /history/{gameId} {
+        allow read: if signedIn();
+        allow write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+  }
+}

@@ -1,17 +1,20 @@
 'use client';
 
 import { useAuth } from '@/lib/hooks/useAuth';
-import Lobby from '@/components/lobby/Lobby';
 import LandingPage from '@/components/landing/LandingPage';
+import HomeScreen from '@/components/home/HomeScreen';
+import LoadingPage from '@/components/LoadingPage';
 
 export default function Home() {
   const { user, loading } = useAuth();
 
-  // Show landing page for non-authenticated users
-  if (!user && !loading) {
+  if (loading) {
+    return <LoadingPage title="Rook13" subtitle="Shuffling up…" />;
+  }
+
+  if (!user) {
     return <LandingPage />;
   }
 
-  // Show lobby for authenticated users
-  return <Lobby />;
+  return <HomeScreen />;
 }

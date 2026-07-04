@@ -10,46 +10,29 @@ jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      
+      - uses: actions/checkout@v4
+
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
-          
+
       - name: Install dependencies
         run: npm ci
-        
-      - name: Create dummy environment variables
-        run: |
-          echo "OPENAI_API_KEY=dummy_key" > .env.local
-          echo "ANTHROPIC_API_KEY=dummy_key" >> .env.local
-          echo "REPLICATE_API_KEY=dummy_key" >> .env.local
-          echo "DEEPGRAM_API_KEY=dummy_key" >> .env.local
-      
-      - name: Build
+
+      - name: Test game engine
+        run: npm test
+
+      - name: Build static site
         env:
           NODE_ENV: production
-        run: |
-          # Temporarily move API directory
-          mv src/app/api src/app/_api_backup || true
-          # Run build
-          npm run build
-          # Move API directory back
-          mv src/app/_api_backup src/app/api || true
-          
-      - name: Prepare deployment
-        run: |
-          # Ensure public-deploy exists
-          mkdir -p public-deploy
-          # Copy build output
-          cp -r out/* public-deploy/
-      
-      - name: Deploy to Firebase
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
           channelId: live
-          projectId: rook13-01 
+          projectId: rook13-01

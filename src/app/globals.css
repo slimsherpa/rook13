@@ -32,6 +32,16 @@ body {
   }
 }
 
+/* Card entering the trick area */
+@keyframes card-in {
+  from { transform: scale(0.6) translateY(10px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.animate-card-in {
+  animation: card-in 0.25s ease-out;
+}
+
 /* Cyberpunk Animation Effects */
 @keyframes glitch {
   0%, 100% { transform: translate(0); }
