@@ -17,6 +17,7 @@ import RedealOverlay from './RedealOverlay';
 import GameOverOverlay from './GameOverOverlay';
 import LastTrickPanel from './LastTrickPanel';
 import PlayingCard from '@/components/ui/PlayingCard';
+import { useWatchers } from '@/lib/hooks/useWatchers';
 
 interface TableViewProps {
     game: GameDoc;
@@ -40,6 +41,8 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     const [showScores, setShowScores] = useState(false);
     const [showLastTrick, setShowLastTrick] = useState(false);
     const [goDownPeek, setGoDownPeek] = useState(false);
+    const [showWatchers, setShowWatchers] = useState(false);
+    const watchers = useWatchers(game.id, mySeat === null);
 
     // reset go-down selection whenever the phase moves on
     useEffect(() => {
@@ -112,6 +115,16 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                     )}
                 </div>
                 <div className="flex items-center gap-2.5">
+                    {watchers.length > 0 && (
+                        <button
+                            onClick={() => setShowWatchers(true)}
+                            className="flex items-center gap-1 text-white/70 hover:text-white"
+                            title={`${watchers.length} watching`}
+                        >
+                            <span className="material-symbols-outlined text-lg">visibility</span>
+                            <span className="text-xs font-orbitron">{watchers.length}</span>
+                        </button>
+                    )}
                     {game.completedTricks.length > 0 && game.phase === 'playing' && (
                         <button
                             onClick={() => setShowLastTrick(true)}
@@ -229,6 +242,37 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                 <GameOverOverlay game={game} mySeat={mySeat} onShowScores={() => setShowScores(true)} />
             )}
             {showScores && <ScoreSheetModal game={game} onClose={() => setShowScores(false)} />}
+            {showWatchers && (
+                <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowWatchers(false)}>
+                    <div className="bg-green-950 border border-green-700 rounded-2xl p-5 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2 text-white font-orbitron text-sm mb-3">
+                            <span className="material-symbols-outlined text-lg">visibility</span>
+                            Watching now · {watchers.length}
+                        </div>
+                        <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                            {watchers.map((w) => (
+                                <div key={w.uid} className="flex items-center gap-3">
+                                    {w.photoURL ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img src={w.photoURL} alt="" className="w-8 h-8 rounded-full border border-white/20" referrerPolicy="no-referrer" />
+                                    ) : (
+                                        <span className="w-8 h-8 rounded-full bg-green-900 border border-white/20 flex items-center justify-center text-white text-xs font-orbitron">
+                                            {w.name.charAt(0)}
+                                        </span>
+                                    )}
+                                    <span className="text-green-100/90 text-sm truncate">{w.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <button
+                            onClick={() => setShowWatchers(false)}
+                            className="mt-4 w-full py-2.5 rounded-xl bg-green-700 hover:bg-green-600 text-white font-orbitron text-sm"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

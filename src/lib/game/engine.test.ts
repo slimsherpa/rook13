@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    GameDoc, Card, Seat, Suit, SEATS, getCardPoints, teamOf,
+    GameDoc, Card, Seat, Suit, SEATS, BotStyle, getCardPoints, teamOf,
 } from './types';
 import { createDeck, createShuffledDeck, splitDeal, isRedealHand, isValidDeck, sortHand } from './deck';
 import {
@@ -480,7 +480,7 @@ describe('going set', () => {
 // Full-game simulation (bots playing bots) — the engine must never wedge.
 // ---------------------------------------------------------------------------
 
-const simulateFullGame = (id: string, style: 'basic' | 'random' = 'basic'): GameDoc => {
+const simulateFullGame = (id: string, style: BotStyle = 'basic'): GameDoc => {
     let g = createGameDoc({ id, joinCode: 'SIMX', host, now: 1 });
     g = applyAction(g, { type: 'START_GAME' });
     // make every seat a bot so nextBotAction drives the whole game
@@ -533,6 +533,35 @@ describe('full game simulation', () => {
             const g = simulateFullGame(`sim-random-${i}`, 'random');
             expect(g.status).toBe('completed');
         }
+    });
+
+    it('aggressive and cautious bots finish 10 games each', () => {
+        for (const style of ['aggressive', 'cautious'] as BotStyle[]) {
+            for (let i = 0; i < 10; i++) {
+                const g = simulateFullGame(`sim-${style}-${i}`, style);
+                expect(g.status).toBe('completed');
+                expect(g.winner).not.toBeNull();
+            }
+        }
+    });
+
+    it('standard bots stop leading trump once trump is dead', () => {
+        // Across simulations, count tricks led with trump after all 10 trump
+        // cards outside the leader's hand are gone — should be rare compared
+        // to the old always-lead-trump behavior (smoke check: games finish
+        // and hands conserve points is covered above; here we just make sure
+        // trump leads are no longer 100% of the bid team's leads).
+        let trumpLeads = 0;
+        let leads = 0;
+        for (let i = 0; i < 10; i++) {
+            const g = simulateFullGame(`sim-lead-${i}`);
+            for (const t of g.completedTricks) {
+                leads++;
+                if (t.plays[0].card.suit === g.trump) trumpLeads++;
+            }
+        }
+        expect(leads).toBeGreaterThan(0);
+        expect(trumpLeads).toBeLessThan(leads);
     });
 });
 

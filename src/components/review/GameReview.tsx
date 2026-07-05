@@ -1,0 +1,199 @@
+'use client';
+
+// Full game review: every hand of a finished game, trick by trick, rebuilt
+// from the action log. The screen the post-game arguments deserve.
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { GameDoc, GameAction, Seat, teamOf, getCardPoints } from '@/lib/game/types';
+import { getGame, loadActionLog } from '@/lib/firebase/gameService';
+import { HandReview, reconstructGame } from '@/lib/game/review';
+import PlayingCard from '@/components/ui/PlayingCard';
+import LoadingPage from '@/components/LoadingPage';
+
+export default function GameReview({ gameId }: { gameId: string }) {
+    const { user, loading: authLoading } = useAuth();
+    const router = useRouter();
+    const [game, setGame] = useState<GameDoc | null>(null);
+    const [hands, setHands] = useState<HandReview[] | null>(null);
+    const [complete, setComplete] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [openHand, setOpenHand] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!user) return;
+        (async () => {
+            try {
+                const g = await getGame(gameId);
+                if (!g) { setError('Game not found'); return; }
+                setGame(g);
+                const log = await loadActionLog(gameId);
+                const review = reconstructGame(g, log.map((e) => e.action as GameAction));
+                setHands(review.hands);
+                setComplete(review.complete);
+                // a single-hand game might as well open expanded
+                if (review.hands.length === 1) setOpenHand(0);
+            } catch (e: any) {
+                setError(e?.message || 'Could not load the game log');
+            }
+        })();
+    }, [gameId, user]);
+
+    if (authLoading || (user && !game && !error)) {
+        return <LoadingPage title="Rook13" subtitle="Reading the archives…" />;
+    }
+    if (!user) {
+        router.push(`/game?id=${gameId}`);
+        return null;
+    }
+    if (error || !game) {
+        return (
+            <div className="min-h-dvh bg-green-800 flex flex-col items-center justify-center gap-4 px-6 text-center">
+                <p className="text-white font-orbitron max-w-sm">{error || 'Game not found'}</p>
+                <button onClick={() => router.push('/')} className="px-6 py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-orbitron text-sm">
+                    Back to Lobby
+                </button>
+            </div>
+        );
+    }
+
+    const name = (seat: Seat) => game.seats[seat].name.split(' ')[0];
+    const teamLabel = (t: 'A' | 'B') =>
+        t === 'A' ? `${name('A1')} & ${name('A2')}` : `${name('B1')} & ${name('B2')}`;
+
+    const handCard = (h: HandReview, idx: number) => {
+        const open = openHand === idx;
+        const s = h.summary;
+        const bidTeam = teamOf(s.bidWinner);
+        return (
+            <div key={idx} className="rounded-2xl bg-green-900/50 border border-green-700/50 overflow-hidden">
+                <button
+                    onClick={() => setOpenHand(open ? null : idx)}
+                    className="w-full p-3.5 flex items-center gap-3 text-left"
+                >
+                    <div className="w-8 h-8 rounded-full bg-green-950 border border-green-700 flex items-center justify-center text-white font-orbitron text-sm font-bold flex-shrink-0">
+                        {s.handNumber}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="text-white font-orbitron text-sm">
+                            {name(s.bidWinner)} bid {s.bid} · {s.trump}
+                        </div>
+                        <div className={`text-[11px] ${s.wentSet ? 'text-red-300' : 'text-green-100/60'}`}>
+                            {s.wentSet ? `SET — took ${s.pointsTaken[bidTeam]}` : `made it with ${s.pointsTaken[bidTeam]}`}
+                        </div>
+                    </div>
+                    <div className="text-right font-orbitron text-xs flex-shrink-0">
+                        <div className={s.handScore.A < 0 ? 'text-red-400' : 'text-sky-300'}>
+                            {s.handScore.A >= 0 ? '+' : ''}{s.handScore.A}
+                        </div>
+                        <div className={s.handScore.B < 0 ? 'text-red-400' : 'text-orange-300'}>
+                            {s.handScore.B >= 0 ? '+' : ''}{s.handScore.B}
+                        </div>
+                    </div>
+                    <span className="material-symbols-outlined text-white/50">{open ? 'expand_less' : 'expand_more'}</span>
+                </button>
+
+                {open && (
+                    <div className="px-3.5 pb-4 border-t border-green-800/60 pt-3 space-y-4">
+                        {/* the auction */}
+                        <div>
+                            <div className="text-green-100/50 font-orbitron text-[11px] uppercase tracking-widest mb-1.5">Bidding</div>
+                            <div className="flex flex-wrap gap-1.5">
+                                {h.bids.map((b, i) => (
+                                    <span key={i} className={`px-2 py-0.5 rounded-md text-[11px] font-orbitron ${b.bid === 'pass' ? 'bg-gray-800/80 text-gray-300' : 'bg-sky-700 text-white'}`}>
+                                        {name(b.seat as Seat)} {b.bid === 'pass' ? 'pass' : b.bid}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* trick by trick */}
+                        <div className="space-y-3">
+                            {h.tricks.map((trick, tIdx) => (
+                                <div key={tIdx} className="flex items-center gap-2">
+                                    <div className="w-6 flex-shrink-0 text-green-100/40 font-orbitron text-lg font-bold text-center">{tIdx + 1}</div>
+                                    <div className="grid grid-cols-4 gap-1.5 flex-1">
+                                        {trick.plays.map(({ seat, card }) => {
+                                            const isWinner = seat === trick.winner;
+                                            return (
+                                                <div key={seat} className="flex flex-col items-center gap-1">
+                                                    <span className={`px-1.5 py-px rounded text-[10px] font-orbitron max-w-full truncate ${isWinner ? 'bg-yellow-500/20 text-yellow-300 font-bold' : 'text-green-100/60'}`}>
+                                                        {name(seat)}
+                                                    </span>
+                                                    <PlayingCard card={card} trump={h.trump} size="sm" highlight={isWinner} />
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                            {/* go-down */}
+                            <div className="flex items-center gap-2">
+                                <div className="w-6 flex-shrink-0 text-green-100/40 font-orbitron text-[10px] font-bold text-center">GD</div>
+                                <div className="grid grid-cols-4 gap-1.5 flex-1">
+                                    {h.goDown.map((c) => (
+                                        <div key={`${c.suit}-${c.number}`} className="flex flex-col items-center gap-1">
+                                            <span className={`px-1.5 py-px rounded text-[10px] font-orbitron ${getCardPoints(c) > 0 ? 'text-yellow-300' : 'text-green-100/40'}`}>
+                                                {getCardPoints(c) > 0 ? `${getCardPoints(c)} pts` : '—'}
+                                            </span>
+                                            <PlayingCard card={c} trump={h.trump} size="sm" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div className="min-h-dvh bg-green-800">
+            <div className="max-w-md mx-auto px-4 py-5">
+                <div className="flex items-center justify-between mb-5">
+                    <button onClick={() => router.push('/')} className="text-white/70 hover:text-white flex items-center gap-1 font-orbitron text-sm">
+                        <span className="material-symbols-outlined">arrow_back</span> Lobby
+                    </button>
+                    <span className="font-orbitron font-bold text-white">ROOK<span className="text-yellow-400">13</span></span>
+                </div>
+
+                {/* final result */}
+                <div className="rounded-2xl bg-green-950/60 border border-green-700/50 p-4 text-center mb-5">
+                    <div className="text-green-100/60 text-xs font-orbitron uppercase tracking-widest">
+                        {game.status === 'completed' ? 'Final Score' : 'Score So Far'}
+                    </div>
+                    <div className="flex items-center justify-center gap-5 mt-1 font-orbitron">
+                        <div className="text-right">
+                            <div className={`text-3xl font-bold ${game.winner === 'A' ? 'text-yellow-400' : 'text-sky-300'}`}>{game.scores.A}</div>
+                            <div className="text-green-100/60 text-[11px] truncate max-w-[8rem]">{teamLabel('A')}</div>
+                        </div>
+                        <div className="text-green-100/40 text-sm">·</div>
+                        <div className="text-left">
+                            <div className={`text-3xl font-bold ${game.winner === 'B' ? 'text-yellow-400' : 'text-orange-300'}`}>{game.scores.B}</div>
+                            <div className="text-green-100/60 text-[11px] truncate max-w-[8rem]">{teamLabel('B')}</div>
+                        </div>
+                    </div>
+                    <div className="text-green-100/50 text-[11px] mt-2">
+                        {new Date(game.createdAt).toLocaleDateString()} · table <span className="font-code text-[10px]">{game.joinCode}</span>
+                    </div>
+                </div>
+
+                {!complete && (
+                    <p className="text-yellow-300/80 text-xs font-orbitron text-center mb-3">
+                        Some of this game&apos;s log couldn&apos;t be replayed — showing what we could recover.
+                    </p>
+                )}
+
+                {hands === null ? (
+                    <p className="text-center text-green-100/60 font-orbitron text-sm py-8">Rebuilding hands…</p>
+                ) : hands.length === 0 ? (
+                    <p className="text-center text-green-100/60 font-orbitron text-sm py-8">No finished hands in this game yet.</p>
+                ) : (
+                    <div className="space-y-2.5">{hands.map(handCard)}</div>
+                )}
+            </div>
+        </div>
+    );
+}

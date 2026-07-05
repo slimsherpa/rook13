@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { GameDoc, teamOf, Seat, SEATS } from '@/lib/game/types';
 import { createGame, findGameByCode, listMyGames, listOpenGames } from '@/lib/firebase/gameService';
+import JayCupModal from './JayCupModal';
+import RookBird from '@/components/ui/RookBird';
 
 export default function HomeScreen() {
     const { user, signOut } = useAuth();
@@ -81,7 +83,8 @@ export default function HomeScreen() {
         return (
             <button
                 key={g.id}
-                onClick={() => router.push(`/game?id=${g.id}`)}
+                // finished games open straight into the trick-by-trick review
+                onClick={() => router.push(g.status === 'completed' ? `/review?id=${g.id}` : `/game?id=${g.id}`)}
                 className="w-full rounded-xl bg-green-900/50 border border-green-700/50 hover:border-green-500 p-3 flex items-center gap-3 text-left transition"
             >
                 <span className="material-symbols-outlined text-white/60">
@@ -91,7 +94,7 @@ export default function HomeScreen() {
                     <div className="text-white font-orbitron text-sm truncate">{names || 'Bot game'}</div>
                     <div className="text-green-100/50 text-[11px]">
                         {g.status !== 'lobby' && `${g.scores.A} – ${g.scores.B} · `}
-                        {new Date(g.updatedAt).toLocaleDateString()} · code {g.joinCode}
+                        {new Date(g.updatedAt).toLocaleDateString()} · code <span className="font-code text-[10px]">{g.joinCode}</span>
                     </div>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-orbitron ${status.cls}`}>{status.label}</span>
@@ -104,8 +107,9 @@ export default function HomeScreen() {
             <div className="max-w-md mx-auto px-4 py-5">
                 {/* header */}
                 <div className="flex items-center justify-between mb-8">
-                    <h1 className="font-orbitron text-3xl font-black text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)]">
-                        ROOK<span className="text-yellow-400">13</span>
+                    <h1 className="font-orbitron text-3xl font-black text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)] flex items-center gap-2.5">
+                        <RookBird className="w-9 h-9 text-white/90" />
+                        ROOK<span className="text-yellow-400 -ml-2">13</span>
                     </h1>
                     <div className="relative">
                         <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2">
@@ -158,7 +162,7 @@ export default function HomeScreen() {
                         onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
                         placeholder="TABLE CODE"
                         maxLength={4}
-                        className="flex-1 rounded-xl bg-green-950/60 border border-green-700/60 px-4 py-3 text-white font-orbitron tracking-[0.3em] text-center placeholder:text-green-100/30 placeholder:tracking-normal focus:outline-none focus:border-sky-400"
+                        className="flex-1 rounded-xl bg-green-950/60 border border-green-700/60 px-4 py-3 text-white font-code text-center placeholder:text-green-100/30 placeholder:tracking-normal placeholder:font-normal focus:outline-none focus:border-sky-400"
                     />
                     <button
                         onClick={handleJoin}
@@ -191,35 +195,15 @@ export default function HomeScreen() {
                     onClick={() => setJayCupOpen(true)}
                     className="mt-8 w-full rounded-2xl border border-yellow-500/40 bg-gradient-to-r from-yellow-500/10 to-transparent p-4 flex items-center gap-4"
                 >
-                    <span className="material-symbols-outlined text-yellow-400 text-4xl">emoji_events</span>
+                    <span className="material-symbols-outlined text-yellow-400 text-4xl">trophy</span>
                     <div className="text-left">
                         <div className="font-orbitron text-white font-bold">THE JAY CUP</div>
-                        <div className="text-green-100/60 text-xs">The family trophy · every other year</div>
+                        <div className="text-green-100/60 text-xs">Hall of Champions · 2008–2024</div>
                     </div>
                 </button>
             </div>
 
-            {jayCupOpen && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setJayCupOpen(false)}>
-                    <div className="bg-green-950 border border-green-700 rounded-2xl p-6 w-full max-w-sm text-center" onClick={(e) => e.stopPropagation()}>
-                        <span className="material-symbols-outlined text-yellow-400 text-6xl">emoji_events</span>
-                        <h2 className="font-orbitron text-white text-2xl font-bold mt-2">THE JAY CUP</h2>
-                        <p className="text-green-100/70 text-sm mt-3 leading-relaxed">
-                            Awarded to the champion team at the family tournament, every two years,
-                            for nearly a century of Rook.
-                        </p>
-                        <p className="text-green-100/50 text-xs mt-3 font-orbitron">
-                            Tournament mode & the hall of champions are coming soon.
-                        </p>
-                        <button
-                            onClick={() => setJayCupOpen(false)}
-                            className="mt-5 px-8 py-2.5 rounded-xl bg-green-700 hover:bg-green-600 text-white font-orbitron text-sm"
-                        >
-                            Close
-                        </button>
-                    </div>
-                </div>
-            )}
+            {jayCupOpen && <JayCupModal onClose={() => setJayCupOpen(false)} />}
         </div>
     );
 }

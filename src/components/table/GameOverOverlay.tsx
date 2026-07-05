@@ -35,16 +35,22 @@ export default function GameOverOverlay({ game, mySeat, onShowScores }: GameOver
                 <div className={`text-3xl font-bold ${game.winner === 'B' ? 'text-yellow-400' : 'text-white/70'}`}>{game.scores.B}</div>
             </div>
             <p className="text-green-100/50 text-xs mt-2 font-orbitron">{game.handHistory.length} hands played</p>
-            <div className="flex gap-3 mt-6">
+            <div className="flex flex-wrap justify-center gap-3 mt-6">
                 <button
                     onClick={onShowScores}
-                    className="px-6 py-3 rounded-xl bg-green-800 hover:bg-green-700 text-white font-orbitron text-sm"
+                    className="px-5 py-3 rounded-xl bg-green-800 hover:bg-green-700 text-white font-orbitron text-sm"
                 >
                     Score Sheet
                 </button>
                 <button
+                    onClick={() => router.push(`/review?id=${game.id}`)}
+                    className="px-5 py-3 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-green-950 font-orbitron text-sm font-bold"
+                >
+                    Review Game
+                </button>
+                <button
                     onClick={() => router.push('/')}
-                    className="px-6 py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-orbitron text-sm font-bold"
+                    className="px-5 py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-orbitron text-sm font-bold"
                 >
                     Back to Lobby
                 </button>

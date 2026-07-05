@@ -5,10 +5,21 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics } from 'firebase/analytics';
 
+// Auth must be same-origin with the page on iOS: every iOS browser (Chrome
+// included) runs on WebKit, which blocks the third-party storage the
+// firebaseapp.com auth helper needs, so sign-in silently bounces back to the
+// login screen. Firebase Hosting serves /__/auth/* on every domain of this
+// site (rook13.com, *.web.app, *.firebaseapp.com), so in the browser we point
+// authDomain at whatever host we're on. localhost keeps the project default.
+const authDomain =
+  typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? window.location.hostname
+    : 'rook13-01.firebaseapp.com';
+
 // Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCQOm9D3zWMTsi8GPsoSng3sxTUc2tEAUM",
-  authDomain: "rook13-01.firebaseapp.com",
+  authDomain,
   projectId: "rook13-01",
   storageBucket: "rook13-01.firebasestorage.app",
   messagingSenderId: "325993848338",

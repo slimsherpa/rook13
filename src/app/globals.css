@@ -32,24 +32,26 @@ body {
   }
 }
 
-/* Card entering the trick area */
-@keyframes card-in {
-  from { transform: scale(0.6) translateY(10px); opacity: 0; }
-  to { transform: scale(1) translateY(0); opacity: 1; }
+/* Join codes: maximum legibility beats style. Plain uppercase Helvetica,
+   generously tracked, so a 4-letter code can be read across the room. */
+.font-code {
+  font-family: 'Helvetica Neue', Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-variant-ligatures: none;
 }
 
-.animate-card-in {
-  animation: card-in 0.25s ease-out;
-}
-
-/* A played card flips face-up in place — no travel */
+/* A played card materializes in place — no travel, no flip-squash. A gentle
+   fade with a barely-there settle reads as "smooth" rather than "animated". */
 @keyframes card-reveal {
-  from { transform: rotateY(90deg); }
-  to { transform: rotateY(0deg); }
+  from { opacity: 0; transform: scale(0.92); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 .animate-card-reveal {
-  animation: card-reveal 0.22s ease-out;
+  animation: card-reveal 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Cyberpunk Animation Effects */

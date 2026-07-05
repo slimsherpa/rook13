@@ -22,6 +22,13 @@ service cloud.firestore {
         allow create: if signedIn();
         allow update, delete: if false;
       }
+
+      // Spectator presence heartbeats: each watcher owns exactly one doc
+      // keyed by their uid.
+      match /watchers/{watcherUid} {
+        allow read: if signedIn();
+        allow write: if signedIn() && request.auth.uid == watcherUid;
+      }
     }
 
     // Profiles: readable by any signed-in user, writable only by the owner.

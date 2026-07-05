@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Card, GameDoc, Seat, Suit, TrickRecord } from '@/lib/game/types';
 import { TablePosition, positionOfSeat } from './layout';
 import PlayingCard from '@/components/ui/PlayingCard';
+import RookBird from '@/components/ui/RookBird';
 
 const SLOT_CLASSES: Record<TablePosition, string> = {
     bottom: 'absolute left-1/2 -translate-x-1/2 bottom-1',
@@ -90,14 +91,23 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
                     className={`absolute inset-0 transition-all duration-700 ease-in-out ${turnPosition ? 'opacity-100' : 'opacity-0'}`}
                     style={{ transform: `rotate(${angle}deg)` }}
                 >
-                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-5 w-0 h-0
-                        border-l-[26px] border-l-transparent
-                        border-r-[26px] border-r-transparent
-                        border-t-[34px] border-t-[#0d4527]" />
+                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-8 w-0 h-0
+                        border-l-[38px] border-l-transparent
+                        border-r-[38px] border-r-transparent
+                        border-t-[52px] border-t-[#0d4527]
+                        drop-shadow-[0_3px_4px_rgba(0,0,0,0.35)]" />
                 </div>
             )}
             {/* felt circle */}
             <div className="absolute inset-0 rounded-full bg-[#0d4527] border border-green-700/40 shadow-inner" />
+            {/* the rook, embossed into the felt */}
+            <div className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center pointer-events-none">
+                <RookBird
+                    className="w-36 h-36 sm:w-44 sm:h-44 text-black/25"
+                    // a hairline of light below the dark shape sells the emboss
+                    style={{ filter: 'drop-shadow(0 1px 0 rgba(255,255,255,0.07))' }}
+                />
+            </div>
             {plays.length === 0 && message && (
                 <div className="absolute inset-0 flex items-center justify-center px-8 text-center">
                     <span className="text-green-100/80 text-sm sm:text-base font-orbitron leading-snug">{message}</span>

@@ -5,6 +5,7 @@
 // via the `size` prop; `compact` sizes keep 13 cards playable on a phone.
 
 import { Card, Suit, getCardPoints } from '@/lib/game/types';
+import RookBird from './RookBird';
 
 export type CardSize = 'xs' | 'sm' | 'md' | 'lg';
 
@@ -57,9 +58,7 @@ export default function PlayingCard({
         return (
             <div className={`${base} border-navy-900 bg-navy-800 flex items-center justify-center`}>
                 <div className="absolute inset-1 border border-navy-700 rounded opacity-80" />
-                <span className="material-symbols-outlined text-white/80" style={{ fontSize: size === 'xs' ? 16 : size === 'sm' ? 20 : 28 }}>
-                    raven
-                </span>
+                <RookBird className={`text-white/75 ${size === 'xs' ? 'w-4 h-4' : size === 'sm' ? 'w-5 h-5' : 'w-8 h-8'}`} />
             </div>
         );
     }
@@ -80,7 +79,7 @@ export default function PlayingCard({
                 ${selected ? '-translate-y-3 ring-2 ring-sky-400 border-sky-400' : ''}
                 ${highlight ? 'ring-2 ring-yellow-400 shadow-[0_0_14px_4px_rgba(234,179,8,0.5)]' : ''}
                 ${disabled ? 'opacity-50 saturate-50' : ''}
-                ${onClick && !disabled ? 'cursor-pointer active:-translate-y-2' : ''}
+                ${onClick && !disabled ? 'cursor-pointer active:brightness-90' : ''}
             `}
         >
             <span className="absolute top-0.5 left-1 font-bold">{card.number}</span>

@@ -52,6 +52,9 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
     const dragInfo = useRef<{ card: Card; key: string; startX: number; slot: number; moved: boolean; dx: number } | null>(null);
     const [dragKey, setDragKey] = useState<string | null>(null);
     const [dragDx, setDragDx] = useState(0);
+    // the lift only kicks in once the pointer actually travels — a plain tap
+    // must not make the card twitch
+    const [dragActive, setDragActive] = useState(false);
 
     const slotWidth = (): number => {
         const el = containerRef.current;
@@ -81,7 +84,10 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
         if (!info) return;
         const dx = e.clientX - info.startX;
         info.dx = dx;
-        if (Math.abs(dx) > DRAG_THRESHOLD_PX) info.moved = true;
+        if (Math.abs(dx) > DRAG_THRESHOLD_PX && !info.moved) {
+            info.moved = true;
+            setDragActive(true);
+        }
         setDragDx(dx);
     };
 
@@ -90,6 +96,7 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
         dragInfo.current = null;
         setDragKey(null);
         setDragDx(0);
+        setDragActive(false);
         if (!info) return;
 
         if (!info.moved) {
@@ -150,7 +157,7 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
                         const isSelected = selected.some((c) => sameCard(c, card));
                         const isLegal = legal.some((c) => sameCard(c, card));
                         const interactive = selecting || (playable && isLegal);
-                        const isDragging = dragKey === key;
+                        const isDragging = dragKey === key && dragActive;
                         return (
                             <div
                                 key={key}

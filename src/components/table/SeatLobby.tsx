@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GameDoc, Seat, SeatInfo, GameAction } from '@/lib/game/types';
+import { GameDoc, Seat, SeatInfo, GameAction, BotStyle, BOT_STYLE_LABELS } from '@/lib/game/types';
 
 interface SeatLobbyProps {
     game: GameDoc;
@@ -68,7 +68,21 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     <div className="text-white font-orbitron text-sm truncate">
                         {info.kind === 'open' ? 'Open Seat' : info.name}{isMe ? ' (you)' : ''}
                     </div>
-                    <div className="text-green-100/50 text-[11px] font-orbitron">{seat}{info.kind === 'bot' ? ' · Bot' : ''}</div>
+                    <div className="text-green-100/50 text-[11px] font-orbitron">
+                        {seat}{info.kind === 'bot' ? ` · ${BOT_STYLE_LABELS[info.botStyle ?? 'basic']} Bot` : ''}
+                    </div>
+                    {/* bot mode picker (host only) */}
+                    {isHost && info.kind === 'bot' && (
+                        <select
+                            value={info.botStyle ?? 'basic'}
+                            onChange={(e) => act({ type: 'SET_BOT', seat, botStyle: e.target.value as BotStyle, name: info.name })}
+                            className="mt-1.5 w-full max-w-[9rem] rounded-md bg-green-950 border border-green-700 text-white text-xs px-2 py-1 focus:outline-none focus:border-sky-400"
+                        >
+                            {(Object.keys(BOT_STYLE_LABELS) as BotStyle[]).map((s) => (
+                                <option key={s} value={s}>{BOT_STYLE_LABELS[s]}</option>
+                            ))}
+                        </select>
+                    )}
                 </div>
                 <div className="flex gap-1.5">
                     {info.kind !== 'human' && !isMe && (
@@ -122,7 +136,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                 {/* join code */}
                 <div className="rounded-2xl bg-green-950/60 border border-green-700/50 p-5 text-center mb-6">
                     <div className="text-green-100/60 text-xs font-orbitron uppercase tracking-widest">Table Code</div>
-                    <div className="font-orbitron text-5xl font-black text-yellow-400 tracking-[0.3em] mt-1 ml-[0.3em]">
+                    <div className="font-code text-5xl text-yellow-400 mt-1 ml-[0.28em]">
                         {game.joinCode}
                     </div>
                     <button

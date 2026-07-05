@@ -7,7 +7,7 @@
 // conflicting moves.
 
 import {
-    collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query,
+    collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query,
     runTransaction, setDoc, where, Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -168,6 +168,52 @@ export const loadActionLog = async (gameId: string) => {
     const snap = await getDocs(query(actionsRef(gameId), orderBy('index', 'asc')));
     return snap.docs.map((d) => d.data());
 };
+
+// Spectator presence ---------------------------------------------------------
+//
+// Watchers announce themselves with a heartbeat doc at
+// games/{id}/watchers/{uid}. A watcher is "live" while its lastSeen is fresh;
+// stale docs are ignored client-side (and overwritten on the next visit), so
+// no server-side cleanup is needed.
+
+export interface WatcherDoc {
+    uid: string;
+    name: string;
+    photoURL?: string;
+    lastSeen: number; // epoch ms
+}
+
+/** How often a spectator refreshes their heartbeat. */
+export const WATCHER_HEARTBEAT_MS = 30_000;
+/** A watcher whose heartbeat is older than this is considered gone. */
+export const WATCHER_STALE_MS = 75_000;
+
+const watcherRef = (gameId: string, uid: string) => doc(db, GAMES, gameId, 'watchers', uid);
+
+export const touchWatcher = (gameId: string, watcher: PlayerIdentity): Promise<void> =>
+    setDoc(watcherRef(gameId, watcher.uid), {
+        uid: watcher.uid,
+        name: watcher.name,
+        ...(watcher.photoURL ? { photoURL: watcher.photoURL } : {}),
+        lastSeen: Date.now(),
+    });
+
+export const removeWatcher = (gameId: string, uid: string): Promise<void> =>
+    deleteDoc(watcherRef(gameId, uid)).catch(() => { /* best effort on tab close */ });
+
+export const subscribeWatchers = (
+    gameId: string,
+    onChange: (watchers: WatcherDoc[]) => void,
+): Unsubscribe =>
+    onSnapshot(collection(db, GAMES, gameId, 'watchers'), (snap) => {
+        const cutoff = Date.now() - WATCHER_STALE_MS;
+        onChange(
+            snap.docs
+                .map((d) => d.data() as WatcherDoc)
+                .filter((w) => w.lastSeen > cutoff)
+                .sort((a, b) => b.lastSeen - a.lastSeen),
+        );
+    });
 
 // Convenience wrappers -------------------------------------------------------
 

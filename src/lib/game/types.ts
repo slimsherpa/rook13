@@ -21,7 +21,20 @@ export interface Card {
     number: number; // 5..14
 }
 
-export type BotStyle = 'random' | 'basic';
+// Bot personalities, selectable per seat in the lobby:
+//   random     — "Easy": any legal move (the floor for future AlphaRook comparisons)
+//   basic      — "Standard": solid heuristics — pulls trump with purpose, saves
+//                boss cards, feeds counters to its partner
+//   aggressive — Standard brain, but bids harder and hunts tricks
+//   cautious   — Standard brain, but bids tight and hoards its trump
+export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious';
+
+export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
+    random: 'Easy',
+    basic: 'Standard',
+    aggressive: 'Aggressive',
+    cautious: 'Cautious',
+};
 
 export interface SeatInfo {
     kind: 'human' | 'bot' | 'open';

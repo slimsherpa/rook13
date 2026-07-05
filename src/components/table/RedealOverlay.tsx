@@ -35,7 +35,7 @@ export default function RedealOverlay({ game, mySeat, onAct }: RedealOverlayProp
             </p>
             <div className="flex flex-wrap justify-center gap-1 mt-5 max-w-md">
                 {hand.map((c) => (
-                    <div key={`${c.suit}-${c.number}`} className="animate-card-in">
+                    <div key={`${c.suit}-${c.number}`} className="animate-card-reveal">
                         <PlayingCard card={c} size="sm" />
                     </div>
                 ))}
