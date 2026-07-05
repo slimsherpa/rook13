@@ -14,6 +14,7 @@ interface SeatLobbyProps {
     myPhotoURL?: string;
     isHost: boolean;
     act: (action: GameAction) => Promise<void>;
+    actionError?: string | null;
 }
 
 const TEAM_SEATS: { team: 'A' | 'B'; seats: Seat[]; color: string; text: string }[] = [
@@ -21,7 +22,7 @@ const TEAM_SEATS: { team: 'A' | 'B'; seats: Seat[]; color: string; text: string 
     { team: 'B', seats: ['B1', 'B2'], color: 'border-orange-500/60', text: 'text-orange-300' },
 ];
 
-export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act }: SeatLobbyProps) {
+export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act, actionError }: SeatLobbyProps) {
     const router = useRouter();
     const [copied, setCopied] = useState(false);
 
@@ -29,16 +30,17 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
         (s) => game.seats[s].kind === 'human' && game.seats[s].uid === myUid,
     );
 
+    // Copy/share the bare URL only — mixing prose into the clipboard mangles
+    // the link when pasted into an address bar or chat that joins lines.
     const shareGame = async () => {
         const url = `${window.location.origin}/game?id=${game.id}`;
-        const text = `Join my Rook13 game! Code: ${game.joinCode}`;
         if (navigator.share) {
             try {
-                await navigator.share({ title: 'Rook13', text, url });
+                await navigator.share({ title: `Rook13 — table ${game.joinCode}`, url });
                 return;
             } catch { /* user cancelled; fall through to clipboard */ }
         }
-        await navigator.clipboard.writeText(`${text}\n${url}`);
+        await navigator.clipboard.writeText(url);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -68,13 +70,13 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     </div>
                     <div className="text-green-100/50 text-[11px] font-orbitron">{seat}{info.kind === 'bot' ? ' · Bot' : ''}</div>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1.5">
                     {info.kind !== 'human' && !isMe && (
                         <button
                             onClick={() => act({ type: 'SIT', seat, player: { uid: myUid, name: myName, ...(myPhotoURL ? { photoURL: myPhotoURL } : {}) } })}
-                            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-orbitron"
+                            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-orbitron whitespace-nowrap"
                         >
-                            Sit
+                            Sit Here
                         </button>
                     )}
                     {isMe && (
@@ -88,19 +90,18 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     {isHost && info.kind === 'open' && (
                         <button
                             onClick={() => act({ type: 'SET_BOT', seat, botStyle: 'basic' })}
-                            title="Fill with a bot"
-                            className="px-2 py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-xs font-orbitron flex items-center"
+                            className="px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-xs font-orbitron flex items-center gap-1 whitespace-nowrap"
                         >
-                            <span className="material-symbols-outlined text-sm">smart_toy</span>+
+                            <span className="material-symbols-outlined text-sm">smart_toy</span>
+                            Add Bot
                         </button>
                     )}
                     {isHost && info.kind === 'bot' && (
                         <button
                             onClick={() => act({ type: 'OPEN_SEAT', seat })}
-                            title="Remove bot"
-                            className="px-2 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-xs font-orbitron flex items-center"
+                            className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-xs font-orbitron whitespace-nowrap"
                         >
-                            <span className="material-symbols-outlined text-sm">close</span>
+                            Remove
                         </button>
                     )}
                 </div>
@@ -147,6 +148,13 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     <p className="text-center text-yellow-300/90 font-orbitron text-xs mt-4">
                         Tap “Sit” to take a seat — or stay and spectate once the game starts.
                     </p>
+                )}
+
+                {/* errors (e.g. Firestore rules not deployed) */}
+                {actionError && (
+                    <div className="mt-4 rounded-xl bg-red-900/50 border border-red-500/50 p-3 text-red-200 text-xs font-orbitron text-center leading-relaxed">
+                        {actionError}
+                    </div>
                 )}
 
                 {/* start */}

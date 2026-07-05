@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GameDoc, GameAction, Seat, SEATS } from '../game/types';
 import { nextBotAction } from '../game/bots';
-import { subscribeGame, submitAction, isExpectedRaceError } from '../firebase/gameService';
+import { subscribeGame, submitAction, isExpectedRaceError, describeFirestoreError } from '../firebase/gameService';
 import { recordCompletedGame } from '../firebase/userService';
 import { useAuth } from './useAuth';
 
@@ -46,11 +46,18 @@ export const useGame = (gameId: string | null): UseGameResult => {
             return;
         }
         setLoading(true);
-        const unsub = subscribeGame(gameId, (g) => {
-            setGame(g);
-            setLoading(false);
-            if (!g) setError('Game not found');
-        });
+        const unsub = subscribeGame(
+            gameId,
+            (g) => {
+                setGame(g);
+                setLoading(false);
+                setError(g ? null : 'Game not found');
+            },
+            (e) => {
+                setLoading(false);
+                setError(describeFirestoreError(e));
+            },
+        );
         return unsub;
     }, [gameId]);
 
@@ -72,7 +79,7 @@ export const useGame = (gameId: string | null): UseGameResult => {
             setActionError(null);
         } catch (e: any) {
             if (!isExpectedRaceError(e)) {
-                setActionError(e?.message || 'Move failed');
+                setActionError(describeFirestoreError(e));
             }
         }
     }, [gameId, user]);

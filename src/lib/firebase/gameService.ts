@@ -73,10 +73,28 @@ export const findGameByCode = async (code: string): Promise<GameDoc | null> => {
 export const subscribeGame = (
     id: string,
     onChange: (game: GameDoc | null) => void,
+    onError?: (error: Error) => void,
 ): Unsubscribe =>
-    onSnapshot(gameRef(id), (snap) => {
-        onChange(snap.exists() ? (snap.data() as GameDoc) : null);
-    });
+    onSnapshot(
+        gameRef(id),
+        (snap) => {
+            onChange(snap.exists() ? (snap.data() as GameDoc) : null);
+        },
+        (error) => {
+            console.error('game subscription failed', error);
+            onError?.(error);
+        },
+    );
+
+/** Human-readable message for Firestore/engine errors, with a setup hint. */
+export const describeFirestoreError = (e: unknown): string => {
+    const err = e as { code?: string; message?: string };
+    if (err?.code === 'permission-denied' || /insufficient permissions/i.test(err?.message ?? '')) {
+        return 'Firestore denied the request — the security rules in firestore.rules are '
+            + 'probably not deployed yet (npx firebase-tools deploy --only firestore).';
+    }
+    return err?.message || 'Something went wrong';
+};
 
 /**
  * Apply a game action atomically. Validation runs inside the transaction on

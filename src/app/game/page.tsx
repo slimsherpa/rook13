@@ -11,7 +11,10 @@ import LoadingPage from '@/components/LoadingPage';
 function GamePageInner() {
     const params = useSearchParams();
     const router = useRouter();
-    const id = params.get('id');
+    // Game ids are lowercase alphanumeric; tolerate mangled links (extra text
+    // glued onto the id by copy/paste or share sheets) by taking the leading run.
+    const raw = params.get('id') || '';
+    const id = (decodeURIComponent(raw).match(/^[a-z0-9]+/) || [''])[0];
 
     if (!id) {
         router.push('/');
