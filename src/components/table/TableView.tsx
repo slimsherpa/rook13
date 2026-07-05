@@ -15,6 +15,7 @@ import HandRecapModal from './HandRecapModal';
 import ScoreSheetModal from './ScoreSheetModal';
 import RedealOverlay from './RedealOverlay';
 import GameOverOverlay from './GameOverOverlay';
+import LastTrickPanel from './LastTrickPanel';
 import PlayingCard from '@/components/ui/PlayingCard';
 
 interface TableViewProps {
@@ -37,6 +38,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     const pos = positionsFor(bottomSeat);
     const [selectedGoDown, setSelectedGoDown] = useState<Card[]>([]);
     const [showScores, setShowScores] = useState(false);
+    const [showLastTrick, setShowLastTrick] = useState(false);
     const [goDownPeek, setGoDownPeek] = useState(false);
 
     // reset go-down selection whenever the phase moves on
@@ -109,12 +111,23 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                         </span>
                     )}
                 </div>
-                <button onClick={() => setShowScores(true)} className="flex items-center gap-2 font-orbitron text-sm" title="Score sheet">
-                    <span className="text-sky-300 font-bold">{game.scores.A}</span>
-                    <span className="text-white/40 text-xs">·</span>
-                    <span className="text-orange-300 font-bold">{game.scores.B}</span>
-                    <span className="material-symbols-outlined text-white/70 text-lg">receipt_long</span>
-                </button>
+                <div className="flex items-center gap-2.5">
+                    {game.completedTricks.length > 0 && game.phase === 'playing' && (
+                        <button
+                            onClick={() => setShowLastTrick(true)}
+                            className="lg:hidden text-white/70 hover:text-white flex items-center"
+                            title="Last trick"
+                        >
+                            <span className="material-symbols-outlined text-lg">history</span>
+                        </button>
+                    )}
+                    <button onClick={() => setShowScores(true)} className="flex items-center gap-2 font-orbitron text-sm" title="Score sheet">
+                        <span className="text-sky-300 font-bold">{game.scores.A}</span>
+                        <span className="text-white/40 text-xs">·</span>
+                        <span className="text-orange-300 font-bold">{game.scores.B}</span>
+                        <span className="material-symbols-outlined text-white/70 text-lg">receipt_long</span>
+                    </button>
+                </div>
             </header>
 
             {mySeat === null && (
@@ -166,6 +179,13 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
 
                 {/* my badge floats above my hand on larger screens; on phones the hand is identity enough */}
                 <div className="absolute bottom-2 left-3 hidden sm:block">{badge(pos.bottom, true)}</div>
+
+                {/* last trick: always docked on big screens during play */}
+                {game.phase === 'playing' && game.completedTricks.length > 0 && (
+                    <div className="hidden lg:block absolute top-2 right-2 w-80">
+                        <LastTrickPanel game={game} />
+                    </div>
+                )}
             </main>
 
             {/* dock + hand */}
@@ -197,6 +217,13 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
             </footer>
 
             {/* overlays */}
+            {showLastTrick && (
+                <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 lg:hidden" onClick={() => setShowLastTrick(false)}>
+                    <div onClick={(e) => e.stopPropagation()}>
+                        <LastTrickPanel game={game} onClose={() => setShowLastTrick(false)} />
+                    </div>
+                </div>
+            )}
             {game.phase === 'redeal' && <RedealOverlay game={game} mySeat={mySeat} onAct={act} />}
             {game.phase === 'hand_done' && !showScores && (
                 <HandRecapModal

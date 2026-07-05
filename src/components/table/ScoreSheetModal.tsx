@@ -1,6 +1,8 @@
 'use client';
 
-// Hand-by-hand score sheet, styled like the paper one the family keeps.
+// The score sheet, in the format the family has kept on paper for decades:
+// hand number, dealer, who took it and for how much, then each team's score
+// for the hand — with the running totals summed at the bottom.
 
 import { GameDoc, teamOf } from '@/lib/game/types';
 
@@ -10,14 +12,6 @@ interface ScoreSheetModalProps {
 }
 
 export default function ScoreSheetModal({ game, onClose }: ScoreSheetModalProps) {
-    let runningA = 0;
-    let runningB = 0;
-    const rows = game.handHistory.map((h) => {
-        runningA += h.handScore.A;
-        runningB += h.handScore.B;
-        return { ...h, totalA: runningA, totalB: runningB };
-    });
-
     const teamNames = {
         A: `${game.seats.A1.name.split(' ')[0]} & ${game.seats.A2.name.split(' ')[0]}`,
         B: `${game.seats.B1.name.split(' ')[0]} & ${game.seats.B2.name.split(' ')[0]}`,
@@ -36,53 +30,55 @@ export default function ScoreSheetModal({ game, onClose }: ScoreSheetModalProps)
                     </button>
                 </div>
 
-                <div className="px-5 py-3 grid grid-cols-2 gap-3 border-b border-green-800">
-                    <div className="text-center">
-                        <div className="text-sky-300 font-orbitron text-xs truncate">{teamNames.A}</div>
-                        <div className="text-white font-orbitron text-2xl font-bold">{game.scores.A}</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="text-orange-300 font-orbitron text-xs truncate">{teamNames.B}</div>
-                        <div className="text-white font-orbitron text-2xl font-bold">{game.scores.B}</div>
-                    </div>
-                </div>
-
-                <div className="overflow-y-auto custom-scrollbar">
-                    {rows.length === 0 ? (
+                <div className="overflow-y-auto custom-scrollbar flex-1">
+                    {game.handHistory.length === 0 ? (
                         <div className="text-green-100/60 text-sm text-center py-8">No hands scored yet.</div>
                     ) : (
                         <table className="w-full text-sm">
-                            <thead>
+                            <thead className="sticky top-0 bg-green-950">
                                 <tr className="text-green-100/60 font-orbitron text-[10px] uppercase">
                                     <th className="py-2 pl-4 text-left">#</th>
-                                    <th className="text-left">Bid</th>
-                                    <th className="text-right">A</th>
-                                    <th className="text-right pr-2">Σ</th>
-                                    <th className="text-right">B</th>
-                                    <th className="text-right pr-4">Σ</th>
+                                    <th className="text-left">Dealer</th>
+                                    <th className="text-left">Took It</th>
+                                    <th className="text-right text-sky-300 normal-case">{teamNames.A}</th>
+                                    <th className="text-right pr-4 text-orange-300 normal-case">{teamNames.B}</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {rows.map((r) => {
-                                    const bidTeam = teamOf(r.bidWinner);
+                                {game.handHistory.map((h) => {
+                                    const bidTeam = teamOf(h.bidWinner);
                                     return (
-                                        <tr key={r.handNumber} className="border-t border-green-800/50 text-white">
-                                            <td className="py-2 pl-4 text-green-100/70">{r.handNumber}</td>
+                                        <tr key={h.handNumber} className="border-t border-green-800/50 text-white">
+                                            <td className="py-2.5 pl-4 text-green-100/70">{h.handNumber}</td>
+                                            <td className="text-green-100/80">{game.seats[h.dealer].name.split(' ')[0]}</td>
                                             <td>
-                                                <span className={`font-orbitron font-bold ${r.wentSet ? 'text-red-400' : 'text-green-300'}`}>
-                                                    {r.bid}
+                                                <span className="text-green-100/90">{game.seats[h.bidWinner].name.split(' ')[0]} </span>
+                                                <span className={`font-orbitron font-bold ${h.wentSet ? 'text-red-400' : 'text-green-300'}`}>
+                                                    {h.bid}
                                                 </span>
-                                                <span className="text-green-100/60 text-xs"> {game.seats[r.bidWinner].name.split(' ')[0]}</span>
-                                                {r.wentSet && <span className="text-red-400 text-xs font-orbitron"> SET</span>}
+                                                {h.wentSet && <span className="text-red-400 text-[10px] font-orbitron"> SET</span>}
                                             </td>
-                                            <td className={`text-right ${bidTeam === 'A' && r.wentSet ? 'text-red-400' : ''}`}>{r.handScore.A}</td>
-                                            <td className="text-right pr-2 font-bold">{r.totalA}</td>
-                                            <td className={`text-right ${bidTeam === 'B' && r.wentSet ? 'text-red-400' : ''}`}>{r.handScore.B}</td>
-                                            <td className="text-right pr-4 font-bold">{r.totalB}</td>
+                                            <td className={`text-right font-semibold ${bidTeam === 'A' && h.wentSet ? 'text-red-400' : ''}`}>
+                                                {h.handScore.A}
+                                            </td>
+                                            <td className={`text-right pr-4 font-semibold ${bidTeam === 'B' && h.wentSet ? 'text-red-400' : ''}`}>
+                                                {h.handScore.B}
+                                            </td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
+                            <tfoot className="sticky bottom-0 bg-green-900">
+                                <tr className="border-t-2 border-green-600 text-white font-orbitron">
+                                    <td colSpan={3} className="py-3 pl-4 text-green-100/70 text-xs uppercase tracking-widest">Total</td>
+                                    <td className={`text-right text-xl font-bold ${game.scores.A < 0 ? 'text-red-400' : 'text-sky-300'}`}>
+                                        {game.scores.A}
+                                    </td>
+                                    <td className={`text-right pr-4 text-xl font-bold ${game.scores.B < 0 ? 'text-red-400' : 'text-orange-300'}`}>
+                                        {game.scores.B}
+                                    </td>
+                                </tr>
+                            </tfoot>
                         </table>
                     )}
                 </div>

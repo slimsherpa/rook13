@@ -3,6 +3,7 @@
 // Center of the table: the cards of the trick in progress. When a trick
 // finishes, the engine clears it immediately, so we keep the finished trick
 // on screen locally for a beat (winner glowing) before it sweeps away.
+// A pointer nub on the felt aims at whoever the game is waiting on.
 
 import { useEffect, useRef, useState } from 'react';
 import { Card, GameDoc, Seat, Suit, TrickRecord } from '@/lib/game/types';
@@ -10,10 +11,18 @@ import { TablePosition, positionOfSeat } from './layout';
 import PlayingCard from '@/components/ui/PlayingCard';
 
 const SLOT_CLASSES: Record<TablePosition, string> = {
-    bottom: 'absolute left-1/2 -translate-x-1/2 bottom-0',
-    top: 'absolute left-1/2 -translate-x-1/2 top-0',
-    left: 'absolute top-1/2 -translate-y-1/2 left-0',
-    right: 'absolute top-1/2 -translate-y-1/2 right-0',
+    bottom: 'absolute left-1/2 -translate-x-1/2 bottom-1',
+    top: 'absolute left-1/2 -translate-x-1/2 top-1',
+    left: 'absolute top-1/2 -translate-y-1/2 left-2',
+    right: 'absolute top-1/2 -translate-y-1/2 right-2',
+};
+
+// diamond nub on the circle's edge, pointing at whoever's turn it is
+const NUB_CLASSES: Record<TablePosition, string> = {
+    bottom: 'absolute left-1/2 -translate-x-1/2 -bottom-2',
+    top: 'absolute left-1/2 -translate-x-1/2 -top-2',
+    left: 'absolute top-1/2 -translate-y-1/2 -left-2',
+    right: 'absolute top-1/2 -translate-y-1/2 -right-2',
 };
 
 const LINGER_MS = 1700;
@@ -51,13 +60,21 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
     const plays: { seat: Seat; card: Card }[] = showLingering ? lingering!.plays : game.trickPlays;
     const winner: Seat | null = showLingering ? lingering!.winner : null;
 
+    const turnPosition = game.status === 'active' && game.turn
+        ? positionOfSeat(game.turn, bottomSeat)
+        : null;
+
     return (
-        <div className="relative w-52 h-44 sm:w-72 sm:h-60">
+        <div className="relative w-64 h-52 sm:w-80 sm:h-64">
             {/* felt circle */}
             <div className="absolute inset-0 rounded-full bg-green-950/60 border border-green-700/40 shadow-inner" />
+            {/* turn pointer */}
+            {turnPosition && (
+                <div className={`${NUB_CLASSES[turnPosition]} w-5 h-5 rotate-45 bg-green-950/60 border border-green-700/40 transition-all duration-300`} />
+            )}
             {plays.length === 0 && message && (
-                <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
-                    <span className="text-green-100/70 text-xs sm:text-sm font-orbitron leading-snug">{message}</span>
+                <div className="absolute inset-0 flex items-center justify-center px-8 text-center">
+                    <span className="text-green-100/80 text-sm sm:text-base font-orbitron leading-snug">{message}</span>
                 </div>
             )}
             {plays.map(({ seat, card }) => (
@@ -65,7 +82,7 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
                     <PlayingCard
                         card={card}
                         trump={trump}
-                        size="sm"
+                        size="md"
                         highlight={winner === seat}
                     />
                 </div>

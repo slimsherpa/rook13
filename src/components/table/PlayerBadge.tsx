@@ -35,16 +35,18 @@ export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, cardsLe
                         <span className="text-white font-orbitron text-lg">{firstName.charAt(0)}</span>
                     )}
                 </div>
+                {/* dealer chip: the yellow card badge the family knows from v1 */}
                 {isDealer && (
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-yellow-400 border border-yellow-200 flex items-center justify-center shadow"
+                    <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-yellow-400 border-2 border-yellow-200/80 flex items-center justify-center shadow-md"
                         title="Dealer">
-                        <span className="text-green-950 text-[10px] font-black">D</span>
+                        <span className="material-symbols-outlined text-green-950" style={{ fontSize: 15 }}>playing_cards</span>
                     </div>
                 )}
+                {/* cards left: shaped like a tiny card back */}
                 {cardsLeft !== undefined && cardsLeft > 0 && (
-                    <div className="absolute -top-1 -left-1 min-w-[1.1rem] h-[1.1rem] px-0.5 rounded-full bg-navy-800 border border-white/30 flex items-center justify-center"
-                        title={`${cardsLeft} cards`}>
-                        <span className="text-white text-[10px] font-bold">{cardsLeft}</span>
+                    <div className="absolute -top-1.5 -left-1.5 w-[1.15rem] h-[1.5rem] rounded-[4px] bg-navy-800 border border-white/50 flex items-center justify-center shadow"
+                        title={`${cardsLeft} cards left`}>
+                        <span className="text-white text-[11px] font-bold leading-none">{cardsLeft}</span>
                     </div>
                 )}
             </div>
@@ -52,9 +54,9 @@ export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, cardsLe
                 <span className="text-white font-orbitron text-xs sm:text-sm drop-shadow max-w-[5.5rem] truncate">{firstName}</span>
                 {bid !== undefined && (
                     bid === 'pass' ? (
-                        <span className="text-[10px] sm:text-xs px-1.5 rounded bg-gray-800/80 text-gray-300 font-orbitron mt-0.5">PASS</span>
+                        <span className="text-xs sm:text-sm px-2 py-0.5 rounded-md bg-gray-800/90 text-gray-300 font-orbitron mt-1">PASS</span>
                     ) : (
-                        <span className="text-[10px] sm:text-xs px-1.5 rounded bg-sky-600 text-white font-orbitron font-bold mt-0.5">{bid}</span>
+                        <span className="text-xs sm:text-sm px-2.5 py-0.5 rounded-md bg-sky-600 text-white font-orbitron font-bold mt-1 shadow">{bid}</span>
                     )
                 )}
             </div>
