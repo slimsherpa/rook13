@@ -42,6 +42,16 @@ body {
   animation: card-in 0.25s ease-out;
 }
 
+/* A played card flips face-up in place — no travel */
+@keyframes card-reveal {
+  from { transform: rotateY(90deg); }
+  to { transform: rotateY(0deg); }
+}
+
+.animate-card-reveal {
+  animation: card-reveal 0.22s ease-out;
+}
+
 /* Cyberpunk Animation Effects */
 @keyframes glitch {
   0%, 100% { transform: translate(0); }

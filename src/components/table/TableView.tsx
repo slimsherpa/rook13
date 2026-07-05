@@ -115,7 +115,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                     {game.completedTricks.length > 0 && game.phase === 'playing' && (
                         <button
                             onClick={() => setShowLastTrick(true)}
-                            className="lg:hidden text-white/70 hover:text-white flex items-center"
+                            className="text-white/70 hover:text-white flex items-center"
                             title="Last trick"
                         >
                             <span className="material-symbols-outlined text-lg">history</span>
@@ -179,13 +179,6 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
 
                 {/* my badge floats above my hand on larger screens; on phones the hand is identity enough */}
                 <div className="absolute bottom-2 left-3 hidden sm:block">{badge(pos.bottom, true)}</div>
-
-                {/* last trick: always docked on big screens during play */}
-                {game.phase === 'playing' && game.completedTricks.length > 0 && (
-                    <div className="hidden lg:block absolute top-2 right-2 w-80">
-                        <LastTrickPanel game={game} />
-                    </div>
-                )}
             </main>
 
             {/* dock + hand */}
@@ -218,7 +211,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
 
             {/* overlays */}
             {showLastTrick && (
-                <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 lg:hidden" onClick={() => setShowLastTrick(false)}>
+                <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowLastTrick(false)}>
                     <div onClick={(e) => e.stopPropagation()}>
                         <LastTrickPanel game={game} onClose={() => setShowLastTrick(false)} />
                     </div>

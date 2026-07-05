@@ -3,7 +3,10 @@
 // Center of the table: the cards of the trick in progress. When a trick
 // finishes, the engine clears it immediately, so we keep the finished trick
 // on screen locally for a beat (winner glowing) before it sweeps away.
-// A pointer nub on the felt aims at whoever the game is waiting on.
+//
+// The felt grows a compass pointer that sweeps smoothly around the wheel to
+// whoever the game is waiting on — always rotating clockwise, matching the
+// direction of play, like the v1 table.
 
 import { useEffect, useRef, useState } from 'react';
 import { Card, GameDoc, Seat, Suit, TrickRecord } from '@/lib/game/types';
@@ -17,12 +20,12 @@ const SLOT_CLASSES: Record<TablePosition, string> = {
     right: 'absolute top-1/2 -translate-y-1/2 right-2',
 };
 
-// diamond nub on the circle's edge, pointing at whoever's turn it is
-const NUB_CLASSES: Record<TablePosition, string> = {
-    bottom: 'absolute left-1/2 -translate-x-1/2 -bottom-2',
-    top: 'absolute left-1/2 -translate-x-1/2 -top-2',
-    left: 'absolute top-1/2 -translate-y-1/2 -left-2',
-    right: 'absolute top-1/2 -translate-y-1/2 -right-2',
+/** pointer angle for each position; play order runs clockwise so angles only grow */
+const POSITION_ANGLE: Record<TablePosition, number> = {
+    bottom: 0,
+    left: 90,
+    top: 180,
+    right: 270,
 };
 
 const LINGER_MS = 1700;
@@ -55,30 +58,53 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
         }
     }, [game.completedTricks.length, game.completedTricks]);
 
+    // ---- compass pointer: accumulate rotation so it always sweeps clockwise ----
+    const turnPosition = game.status === 'active' && game.turn
+        ? positionOfSeat(game.turn, bottomSeat)
+        : null;
+    const [angle, setAngle] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!turnPosition) return;
+        const target = POSITION_ANGLE[turnPosition];
+        setAngle((prev) => {
+            if (prev === null) return target;
+            const current = ((prev % 360) + 360) % 360;
+            const delta = (target - current + 360) % 360; // clockwise distance
+            return prev + delta;
+        });
+    }, [turnPosition]);
+
     // A fresh play always takes priority over the lingering old trick.
     const showLingering = lingering !== null && game.trickPlays.length === 0;
     const plays: { seat: Seat; card: Card }[] = showLingering ? lingering!.plays : game.trickPlays;
     const winner: Seat | null = showLingering ? lingering!.winner : null;
 
-    const turnPosition = game.status === 'active' && game.turn
-        ? positionOfSeat(game.turn, bottomSeat)
-        : null;
-
     return (
-        <div className="relative w-64 h-52 sm:w-80 sm:h-64">
-            {/* felt circle */}
-            <div className="absolute inset-0 rounded-full bg-green-950/60 border border-green-700/40 shadow-inner" />
-            {/* turn pointer */}
-            {turnPosition && (
-                <div className={`${NUB_CLASSES[turnPosition]} w-5 h-5 rotate-45 bg-green-950/60 border border-green-700/40 transition-all duration-300`} />
+        // a true circle (square box) so the compass pointer sweeps cleanly
+        <div className="relative w-60 h-60 sm:w-72 sm:h-72">
+            {/* compass pointer sweeps behind the felt; same solid color so it
+                reads as the circle growing a point, v1-style */}
+            {angle !== null && (
+                <div
+                    className={`absolute inset-0 transition-all duration-700 ease-in-out ${turnPosition ? 'opacity-100' : 'opacity-0'}`}
+                    style={{ transform: `rotate(${angle}deg)` }}
+                >
+                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-5 w-0 h-0
+                        border-l-[26px] border-l-transparent
+                        border-r-[26px] border-r-transparent
+                        border-t-[34px] border-t-[#0d4527]" />
+                </div>
             )}
+            {/* felt circle */}
+            <div className="absolute inset-0 rounded-full bg-[#0d4527] border border-green-700/40 shadow-inner" />
             {plays.length === 0 && message && (
                 <div className="absolute inset-0 flex items-center justify-center px-8 text-center">
                     <span className="text-green-100/80 text-sm sm:text-base font-orbitron leading-snug">{message}</span>
                 </div>
             )}
             {plays.map(({ seat, card }) => (
-                <div key={seat} className={`${SLOT_CLASSES[positionOfSeat(seat, bottomSeat)]} animate-card-in`}>
+                <div key={seat} className={`${SLOT_CLASSES[positionOfSeat(seat, bottomSeat)]} animate-card-reveal`}>
                     <PlayingCard
                         card={card}
                         trump={trump}
