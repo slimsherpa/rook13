@@ -5,7 +5,6 @@
 // via the `size` prop; `compact` sizes keep 13 cards playable on a phone.
 
 import { Card, Suit, getCardPoints } from '@/lib/game/types';
-import RookBird from './RookBird';
 
 export type CardSize = 'xs' | 'sm' | 'md' | 'lg';
 
@@ -58,7 +57,11 @@ export default function PlayingCard({
         return (
             <div className={`${base} border-navy-900 bg-navy-800 flex items-center justify-center`}>
                 <div className="absolute inset-1 border border-navy-700 rounded opacity-80" />
-                <RookBird className={`text-white/75 ${size === 'xs' ? 'w-4 h-4' : size === 'sm' ? 'w-5 h-5' : 'w-8 h-8'}`} />
+                {/* card backs are too small for the detailed rook etching —
+                    the Material raven reads better at this size */}
+                <span className="material-symbols-outlined text-white/80" style={{ fontSize: size === 'xs' ? 16 : size === 'sm' ? 20 : 28 }}>
+                    raven
+                </span>
             </div>
         );
     }

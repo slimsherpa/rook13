@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useRouter } from 'next/navigation';
+import RookBird from '@/components/ui/RookBird';
 
 export default function LandingPage() {
     const { user, loading: authLoading, signInWithGoogle } = useAuth();
@@ -66,6 +67,11 @@ export default function LandingPage() {
             
             {/* Cyberpunk-style noise overlay */}
             <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-5 mix-blend-overlay"></div>
+
+            {/* the OG rook, embossed into the backdrop */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <RookBird className="w-[26rem] h-[26rem] max-w-[85vw] text-[#00f0ff]/[0.07]" />
+            </div>
             
             {/* Scanline effect */}
             <div className={`absolute inset-0 bg-gradient-to-b from-transparent via-blue-500/5 to-transparent bg-[length:100%_3px] bg-repeat-y pointer-events-none transition-opacity duration-100 ${scanlineEffect ? 'opacity-30' : 'opacity-5'}`} style={{ backgroundSize: '100% 3px' }}></div>

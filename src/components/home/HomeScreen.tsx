@@ -108,7 +108,7 @@ export default function HomeScreen() {
                 {/* header */}
                 <div className="flex items-center justify-between mb-8">
                     <h1 className="font-orbitron text-3xl font-black text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)] flex items-center gap-2.5">
-                        <RookBird className="w-9 h-9 text-white/90" />
+                        <RookBird className="w-11 h-11 text-white/90" />
                         ROOK<span className="text-yellow-400 -ml-2">13</span>
                     </h1>
                     <div className="relative">

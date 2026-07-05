@@ -50,7 +50,7 @@ export default function JayCupModal({ onClose }: { onClose: () => void }) {
                         <div className="font-serif text-gray-100 text-2xl font-bold tracking-[0.15em]">JAY CUP</div>
                         <div className="text-gray-300 text-[11px] mt-1 tracking-wide">Gardner Family Rook Tournament</div>
                         <div className="font-serif text-gray-100 text-sm font-bold tracking-[0.3em] mt-1.5">CHAMPIONS</div>
-                        <RookBird className="w-8 h-8 mx-auto mt-2 text-gray-300/90" />
+                        <RookBird className="w-12 h-12 mx-auto mt-2 text-gray-300/90" />
                     </div>
                 </div>
 

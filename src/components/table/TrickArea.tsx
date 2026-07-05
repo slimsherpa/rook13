@@ -103,7 +103,7 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
             {/* the rook, embossed into the felt */}
             <div className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center pointer-events-none">
                 <RookBird
-                    className="w-36 h-36 sm:w-44 sm:h-44 text-black/25"
+                    className="w-48 h-48 sm:w-60 sm:h-60 text-black/30"
                     // a hairline of light below the dark shape sells the emboss
                     style={{ filter: 'drop-shadow(0 1px 0 rgba(255,255,255,0.07))' }}
                 />
