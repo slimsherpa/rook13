@@ -8,6 +8,11 @@
 // first). Widow cards simply append to the right, ready to be organized.
 // During go-down selection the hand wraps to two rows so all 13 cards are
 // visible on a phone.
+//
+// Both tap-to-play and drag-to-reorder are handled through pointer events on
+// the wrapper (the card itself is pointer-inert). We deliberately do NOT rely
+// on the card button's click: capturing the pointer for dragging retargets
+// native click events, which would otherwise swallow taps.
 
 import { useEffect, useRef, useState } from 'react';
 import { Card, GameDoc, Seat, sameCard, cardKey } from '@/lib/game/types';
@@ -42,41 +47,56 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [game.hands[seat].length, game.handNumber, seat]);
 
-    // ---- drag to reorder (pointer events cover touch + mouse) ----
+    // ---- drag / tap (pointer events cover touch + mouse) ----
     const containerRef = useRef<HTMLDivElement>(null);
-    const dragInfo = useRef<{ key: string; startX: number; index: number; slot: number; moved: boolean } | null>(null);
-    const suppressTap = useRef(false);
-    const [drag, setDrag] = useState<{ key: string; dx: number } | null>(null);
+    const dragInfo = useRef<{ card: Card; key: string; startX: number; slot: number; moved: boolean; dx: number } | null>(null);
+    const [dragKey, setDragKey] = useState<string | null>(null);
+    const [dragDx, setDragDx] = useState(0);
 
     const slotWidth = (): number => {
         const el = containerRef.current;
-        if (!el || el.children.length < 2) return 36;
+        if (!el || el.children.length < 2) return 40;
         const a = (el.children[0] as HTMLElement).getBoundingClientRect();
         const b = (el.children[1] as HTMLElement).getBoundingClientRect();
         return Math.max(20, Math.abs(b.left - a.left));
     };
 
-    const handlePointerDown = (e: React.PointerEvent, key: string, index: number) => {
-        dragInfo.current = { key, startX: e.clientX, index, slot: slotWidth(), moved: false };
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const handleTap = (card: Card) => {
+        if (selecting) { onToggleSelect(card); return; }
+        if (game.phase === 'playing' && game.turn === seat) {
+            if (legalCards(game, seat).some((c) => sameCard(c, card))) onPlay(card);
+        }
     };
 
-    const handlePointerMove = (e: React.PointerEvent) => {
+    const onPointerDown = (e: React.PointerEvent, card: Card, key: string) => {
+        if (e.button !== undefined && e.button !== 0) return; // left button / touch only
+        dragInfo.current = { card, key, startX: e.clientX, slot: slotWidth(), moved: false, dx: 0 };
+        try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+        setDragKey(key);
+        setDragDx(0);
+    };
+
+    const onPointerMove = (e: React.PointerEvent) => {
         const info = dragInfo.current;
         if (!info) return;
         const dx = e.clientX - info.startX;
+        info.dx = dx;
         if (Math.abs(dx) > DRAG_THRESHOLD_PX) info.moved = true;
-        if (info.moved) setDrag({ key: info.key, dx });
+        setDragDx(dx);
     };
 
-    const handlePointerUp = () => {
+    const onPointerUp = () => {
         const info = dragInfo.current;
         dragInfo.current = null;
-        setDrag(null);
-        if (!info || !info.moved) return;
-        suppressTap.current = true;
-        setTimeout(() => { suppressTap.current = false; }, 0);
-        const shift = Math.round((drag?.dx ?? 0) / info.slot);
+        setDragKey(null);
+        setDragDx(0);
+        if (!info) return;
+
+        if (!info.moved) {
+            handleTap(info.card);
+            return;
+        }
+        const shift = Math.round(info.dx / info.slot);
         if (shift === 0) return;
         setOrder((prev) => {
             const from = prev.indexOf(info.key);
@@ -129,21 +149,21 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
                         const key = cardKey(card);
                         const isSelected = selected.some((c) => sameCard(c, card));
                         const isLegal = legal.some((c) => sameCard(c, card));
-                        const tappable = selecting || (playable && isLegal);
-                        const isDragging = drag?.key === key;
+                        const interactive = selecting || (playable && isLegal);
+                        const isDragging = dragKey === key;
                         return (
                             <div
                                 key={key}
-                                className="touch-none"
+                                className={`touch-none ${interactive ? 'cursor-pointer' : 'cursor-default'}`}
                                 style={{
                                     zIndex: isDragging ? 60 : i + 1,
-                                    transform: isDragging ? `translateX(${drag!.dx}px) translateY(-10px) scale(1.06)` : undefined,
+                                    transform: isDragging ? `translateX(${dragDx}px) translateY(-10px) scale(1.06)` : undefined,
                                     transition: isDragging ? 'none' : 'transform 0.15s ease-out',
                                 }}
-                                onPointerDown={(e) => handlePointerDown(e, key, i)}
-                                onPointerMove={handlePointerMove}
-                                onPointerUp={handlePointerUp}
-                                onPointerCancel={handlePointerUp}
+                                onPointerDown={(e) => onPointerDown(e, card, key)}
+                                onPointerMove={onPointerMove}
+                                onPointerUp={onPointerUp}
+                                onPointerCancel={onPointerUp}
                             >
                                 <PlayingCard
                                     card={card}
@@ -151,11 +171,7 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
                                     size="lg"
                                     selected={isSelected}
                                     disabled={playable && !isLegal}
-                                    onClick={() => {
-                                        if (suppressTap.current || !tappable) return;
-                                        if (selecting) onToggleSelect(card);
-                                        else onPlay(card);
-                                    }}
+                                    className="pointer-events-none"
                                 />
                             </div>
                         );
