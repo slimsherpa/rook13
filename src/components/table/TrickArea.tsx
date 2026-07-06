@@ -16,6 +16,40 @@ import { themeFor } from './theme';
 import PlayingCard from '@/components/ui/PlayingCard';
 import RookBird from '@/components/ui/RookBird';
 
+// A played card: mounts back-up (the committed style, so there is no
+// first-frame race with CSS animations), holds the blue back for a beat,
+// then transition-flips to the face — same mechanism as the hand reveal.
+const FLIP_HOLD_MS = 100;
+const FLIP_MS = 250;
+
+function TrickCard({ card, trump, highlight }: { card: Card; trump: Suit | null; highlight: boolean }) {
+    const [faceUp, setFaceUp] = useState(false);
+    useEffect(() => {
+        const t = setTimeout(() => setFaceUp(true), FLIP_HOLD_MS);
+        return () => clearTimeout(t);
+    }, []);
+    return (
+        <div
+            className="relative [transform-style:preserve-3d]"
+            style={{
+                transform: faceUp ? 'rotateY(0deg)' : 'rotateY(180deg)',
+                transition: `transform ${FLIP_MS}ms ease-out`,
+            }}
+        >
+            <PlayingCard
+                card={card}
+                trump={trump}
+                size="md"
+                highlight={highlight}
+                className="[backface-visibility:hidden]"
+            />
+            <div className="absolute inset-0 [transform:rotateY(180deg)] [backface-visibility:hidden]">
+                <PlayingCard faceDown size="md" />
+            </div>
+        </div>
+    );
+}
+
 const SLOT_CLASSES: Record<TablePosition, string> = {
     bottom: 'absolute left-1/2 -translate-x-1/2 bottom-1',
     top: 'absolute left-1/2 -translate-x-1/2 top-1',
@@ -168,18 +202,7 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
                         <div
                             style={{ transition: `transform ${SWEEP_MS}ms ease-in, opacity ${SWEEP_MS}ms ease-in`, ...sweepStyle }}
                         >
-                            <div className="relative [transform-style:preserve-3d] animate-trick-flip">
-                                <PlayingCard
-                                    card={card}
-                                    trump={trump}
-                                    size="md"
-                                    highlight={winner === seat}
-                                    className="[backface-visibility:hidden]"
-                                />
-                                <div className="absolute inset-0 [transform:rotateY(180deg)] [backface-visibility:hidden]">
-                                    <PlayingCard faceDown size="md" />
-                                </div>
-                            </div>
+                            <TrickCard card={card} trump={trump} highlight={winner === seat} />
                         </div>
                     </div>
                 );

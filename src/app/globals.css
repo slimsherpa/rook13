@@ -54,20 +54,6 @@ body {
   animation: card-reveal 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* A card played to the trick: appears instantly back-up, stays put, and
-   flips over fast. Applied to the two-faced inner wrapper (preserve-3d).
-   `backwards` fill makes the very first painted frame use the `from`
-   keyframe (back showing) — without it the browser flashes the card's
-   natural face-up state for a frame before the flip begins. */
-@keyframes trick-flip {
-  from { transform: rotateY(180deg); }
-  to   { transform: rotateY(0deg); }
-}
-
-.animate-trick-flip {
-  animation: trick-flip 0.25s ease-out backwards;
-}
-
 /* The hand-points ticker "bings" when a team captures counters. */
 @keyframes points-bing {
   0%   { transform: scale(1);    filter: brightness(1); }
