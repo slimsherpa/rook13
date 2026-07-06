@@ -33,53 +33,29 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [initialCheckDone, setInitialCheckDone] = useState(false);
 
-  // Handle redirect result and auth state changes
   useEffect(() => {
-    console.log("AuthProvider: Setting up auth state listener");
-    
-    // First, check for redirect result
-    const checkRedirectResult = async () => {
-      try {
-        console.log("Checking for redirect result...");
-        const result = await getRedirectResult(auth);
-        
-        if (result) {
-          console.log("Redirect sign-in successful", result.user.displayName);
-          setUser(result.user);
-        } else {
-          console.log("No redirect result found");
-        }
-      } catch (error: any) {
-        console.error("Error with redirect sign-in", error.code, error.message);
-      } finally {
-        setInitialCheckDone(true);
-      }
-    };
+    // Consume a pending redirect sign-in (the popup-blocked fallback path).
+    // Deliberately NOT awaited before trusting onAuthStateChanged: a locally
+    // cached session must never wait on this network round-trip, or reopening
+    // an ongoing game can hang on the spinner with flaky connectivity.
+    getRedirectResult(auth).catch((error: any) => {
+      console.error("Error with redirect sign-in", error.code, error.message);
+    });
 
-    checkRedirectResult();
-    
-    // Then set up the auth state listener
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       console.log("Auth state changed:", currentUser ? `User: ${currentUser.displayName}` : "No user");
       setUser(currentUser);
+      setLoading(false);
       if (currentUser) {
         ensureUserProfile(currentUser).catch((e) =>
           console.error("Failed to ensure user profile", e)
         );
       }
-
-      if (initialCheckDone || !currentUser) {
-        setLoading(false);
-      }
     });
 
-    return () => {
-      console.log("Cleaning up auth state listener");
-      unsubscribe();
-    };
-  }, [initialCheckDone]);
+    return unsubscribe;
+  }, []);
 
   const signInWithGoogle = async () => {
     console.log("Initiating Google sign-in");

@@ -31,7 +31,7 @@ export default function HandRecapModal({ game, onNextHand, onShowScores }: HandR
 
     return (
         <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-green-950 border border-green-700 rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] flex flex-col overflow-hidden">
+            <div className="bg-navy-950 border border-white/15 rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] flex flex-col overflow-hidden">
                 {/* headline */}
                 <div className={`px-5 py-4 text-center flex-shrink-0 ${h.wentSet ? 'bg-red-900/60' : 'bg-green-800/60'}`}>
                     <div className="font-orbitron text-white text-xl font-bold">
@@ -46,7 +46,7 @@ export default function HandRecapModal({ game, onNextHand, onShowScores }: HandR
                     {/* team results */}
                     <div className="grid grid-cols-2 gap-3">
                         {(['A', 'B'] as const).map((t) => (
-                            <div key={t} className={`rounded-xl p-3 text-center border ${t === bidTeam ? 'border-yellow-500/50' : 'border-green-800'} bg-green-900/40`}>
+                            <div key={t} className={`rounded-xl p-3 text-center border ${t === bidTeam ? 'border-yellow-500/50' : 'border-white/10'} bg-white/5`}>
                                 <div className={`font-orbitron text-xs truncate ${t === 'A' ? 'text-sky-300' : 'text-orange-300'}`}>
                                     {teamLabel(t)}
                                 </div>
@@ -64,7 +64,7 @@ export default function HandRecapModal({ game, onNextHand, onShowScores }: HandR
                     </div>
 
                     {/* go-down reveal */}
-                    <div className="flex items-center justify-between rounded-xl bg-green-900/40 border border-green-800 p-3">
+                    <div className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 p-3">
                         <div>
                             <div className="text-green-100/80 font-orbitron text-xs">Go-Down · {h.goDownPoints} pts</div>
                             <div className="text-green-100/50 text-[11px]">to {teamLabel(goDownTeam)} (last trick)</div>
@@ -86,7 +86,7 @@ export default function HandRecapModal({ game, onNextHand, onShowScores }: HandR
                     <div className="flex gap-2">
                         <button
                             onClick={onShowScores}
-                            className="flex-1 py-3 rounded-xl bg-green-800 hover:bg-green-700 text-white font-orbitron text-sm"
+                            className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-orbitron text-sm"
                         >
                             Score Sheet
                         </button>
@@ -99,7 +99,7 @@ export default function HandRecapModal({ game, onNextHand, onShowScores }: HandR
                     </div>
 
                     {/* trick-by-trick review, straight from v1 */}
-                    <div className="pt-2 border-t border-green-800">
+                    <div className="pt-2 border-t border-white/10">
                         <div className="text-green-100/50 font-orbitron text-[11px] uppercase tracking-widest mb-3">
                             Trick by trick
                         </div>

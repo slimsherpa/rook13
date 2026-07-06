@@ -136,6 +136,24 @@ export const goDownPoints = (g: GameDoc): number =>
 /** Seat that leads the first trick of the hand: left of the dealer. */
 export const bidLead = (dealer: Seat): Seat => nextSeat(dealer);
 
+/**
+ * The highest point total the bidding team can still reach this hand
+ * (they win everything left: every remaining trick, the go-down, and the
+ * 5-trick bonus if it's still reachable). null outside of trick play.
+ *
+ * Compare against the bid: `< bid` means they're set no matter what;
+ * `=== bid` means they're maxxed — one more counter lost and they're set.
+ */
+export const bidTeamMaxPoints = (g: GameDoc): number | null => {
+    if (g.phase !== 'playing' || !g.bidWinner || g.highBid === null) return null;
+    const bidTeam = teamOf(g.bidWinner);
+    const defTeam: Team = bidTeam === 'A' ? 'B' : 'A';
+    // 100 card points in the deck; whatever the defenders have banked is gone.
+    const tricksLeft = TRICKS_PER_HAND - g.completedTricks.length;
+    const bonusReachable = g.tricksWon[bidTeam] + tricksLeft >= 5;
+    return 100 - g.pointsTaken[defTeam] + (bonusReachable ? TAKING_TRICKS_BONUS : 0);
+};
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------

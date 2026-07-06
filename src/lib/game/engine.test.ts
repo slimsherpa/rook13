@@ -5,7 +5,7 @@ import {
 import { createDeck, createShuffledDeck, splitDeal, isRedealHand, isValidDeck, sortHand } from './deck';
 import {
     createGameDoc, applyAction, validateAction, legalCards, minNextBid, mustBid,
-    winningCardSeat, InvalidActionError, replay,
+    winningCardSeat, InvalidActionError, replay, bidTeamMaxPoints,
 } from './engine';
 import { nextBotAction, bestTrumpSuit, chooseGoDown } from './bots';
 
@@ -605,5 +605,62 @@ describe('replay', () => {
         const initial = createGameDoc({ id: 'replay-game', joinCode: 'RPLY', host, now: 1 });
         const replayed = log.reduce((s, a) => applyAction(s, a, 999), initial);
         expect(replayed).toEqual(g);
+    });
+});
+
+describe('bidTeamMaxPoints (set / maxxed detection)', () => {
+    /** A mid-hand playing state we can poke numbers into. */
+    const playingState = (): GameDoc => {
+        const g = startedGame();
+        return {
+            ...g,
+            phase: 'playing',
+            bidWinner: 'A1',
+            highBid: 100,
+            trump: 'Red',
+            trickLeader: 'B1',
+            turn: 'B1',
+            goDown: [c('Green', 6), c('Green', 7), c('Green', 8), c('Green', 9)],
+        };
+    };
+
+    it('is null outside of trick play', () => {
+        expect(bidTeamMaxPoints(startedGame())).toBeNull();
+    });
+
+    it('starts at 120: all 100 card points plus the 5-trick bonus', () => {
+        expect(bidTeamMaxPoints(playingState())).toBe(120);
+    });
+
+    it('drops by whatever the defenders have banked', () => {
+        const g = playingState();
+        g.pointsTaken = { A: 10, B: 25 };
+        g.completedTricks = new Array(3).fill({ leader: 'B1', plays: [], winner: 'B1', points: 0 });
+        g.tricksWon = { A: 1, B: 2 };
+        expect(bidTeamMaxPoints(g)).toBe(120 - 25);
+    });
+
+    it('detects maxxed: defenders took exactly bid-complement (bid 100, defenders 20)', () => {
+        const g = playingState();
+        g.pointsTaken = { A: 30, B: 20 };
+        g.completedTricks = new Array(4).fill({ leader: 'B1', plays: [], winner: 'B1', points: 0 });
+        g.tricksWon = { A: 2, B: 2 };
+        expect(bidTeamMaxPoints(g)).toBe(100); // === bid → maxxed
+    });
+
+    it('detects a guaranteed set once defenders bank more than the complement', () => {
+        const g = playingState();
+        g.pointsTaken = { A: 30, B: 25 };
+        g.completedTricks = new Array(4).fill({ leader: 'B1', plays: [], winner: 'B1', points: 0 });
+        g.tricksWon = { A: 2, B: 2 };
+        expect(bidTeamMaxPoints(g)).toBe(95); // < bid → set
+    });
+
+    it('loses the +20 bonus once 5 tricks are out of reach', () => {
+        const g = playingState();
+        g.pointsTaken = { A: 0, B: 40 };
+        g.completedTricks = new Array(6).fill({ leader: 'B1', plays: [], winner: 'B1', points: 0 });
+        g.tricksWon = { A: 1, B: 5 }; // A can finish with at most 4 tricks
+        expect(bidTeamMaxPoints(g)).toBe(100 - 40); // no bonus
     });
 });

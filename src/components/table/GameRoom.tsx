@@ -30,7 +30,7 @@ export default function GameRoom({ gameId }: { gameId: string }) {
 
     if (!user) {
         return (
-            <div className="min-h-dvh bg-green-800 flex flex-col items-center justify-center gap-5 px-6 text-center">
+            <div className="min-h-dvh bg-navy-900 flex flex-col items-center justify-center gap-5 px-6 text-center">
                 <h1 className="font-orbitron text-4xl font-black text-white">
                     ROOK<span className="text-yellow-400">13</span>
                 </h1>
@@ -43,7 +43,7 @@ export default function GameRoom({ gameId }: { gameId: string }) {
                         try { await signInWithGoogle(); } finally { setSigningIn(false); }
                     }}
                     disabled={signingIn}
-                    className="px-8 py-3.5 rounded-xl bg-white text-green-900 font-orbitron font-bold shadow-lg hover:bg-green-50 disabled:opacity-60 flex items-center gap-3"
+                    className="px-8 py-3.5 rounded-xl bg-white text-navy-950 font-orbitron font-bold shadow-lg hover:bg-blue-50 disabled:opacity-60 flex items-center gap-3"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/>
@@ -60,7 +60,7 @@ export default function GameRoom({ gameId }: { gameId: string }) {
 
     if (error || !game) {
         return (
-            <div className="min-h-dvh bg-green-800 flex flex-col items-center justify-center gap-4 px-6 text-center">
+            <div className="min-h-dvh bg-navy-900 flex flex-col items-center justify-center gap-4 px-6 text-center">
                 <span className="material-symbols-outlined text-white/50 text-6xl">playing_cards</span>
                 <p className="text-white font-orbitron max-w-sm">{error || 'Game not found'}</p>
                 <button

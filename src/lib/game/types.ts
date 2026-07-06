@@ -47,7 +47,7 @@ export interface SeatInfo {
 export type Phase =
     | 'lobby'        // waiting for seats to fill / host to start
     | 'dealing'      // waiting for dealer to deal
-    | 'redeal'       // a mis-deal (all 6-9 hand) was detected — celebrate, then redeal
+    | 'redeal'       // a redeal hand (all 6-9) was detected — celebrate, then redeal
     | 'bidding'
     | 'widow'        // bid winner picks 4 go-down cards
     | 'trump'        // bid winner declares trump

@@ -30,7 +30,7 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
     const turnName = game.turn ? game.seats[game.turn].name.split(' ')[0] : '';
 
     const Status = ({ text }: { text: string }) => (
-        <div className="text-center text-green-100/80 font-orbitron text-xs sm:text-sm py-2">{text}</div>
+        <div className="text-center text-white/85 font-orbitron text-xs sm:text-sm py-2">{text}</div>
     );
 
     switch (game.phase) {
@@ -88,7 +88,7 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
             const n = selectedGoDown.length;
             return (
                 <div className="flex items-center justify-center gap-3 py-1.5">
-                    <span className="text-green-100/90 font-orbitron text-xs sm:text-sm">
+                    <span className="text-white/90 font-orbitron text-xs sm:text-sm">
                         Go-down: pick 4 cards ({n}/4)
                     </span>
                     <button
@@ -106,7 +106,7 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
             if (game.bidWinner !== mySeat) return <Status text={`${turnName} is calling trump…`} />;
             return (
                 <div className="flex items-center justify-center gap-2 py-1.5">
-                    <span className="text-green-100/90 font-orbitron text-xs sm:text-sm mr-1">Trump:</span>
+                    <span className="text-white/90 font-orbitron text-xs sm:text-sm mr-1">Trump:</span>
                     {SUITS.map((suit) => (
                         <button
                             key={suit}

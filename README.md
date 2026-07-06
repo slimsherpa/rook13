@@ -14,10 +14,10 @@ Full rules: [Rook13 Game Rules.md](./Rook13%20Game%20Rules.md).
 - **Durable games** — all state lives in Firestore. Close your phone mid-hand and
   rejoin exactly where you were. Anyone signed in can open a game link and spectate.
 - **The rules engine** ([src/lib/game/](src/lib/game/)) is pure TypeScript, unit-tested with
-  full simulated games, including the celebrated all-6-7-8-9 misdeal.
+  full simulated games, including the celebrated all-6-7-8-9 redeal.
 - **Every play is logged** to `games/{id}/actions` — games can be perfectly
   reconstructed by replaying the log.
-- **Profiles & stats** — wins, bids made, times set, legendary misdeals witnessed.
+- **Profiles & stats** — wins, bids made, times set, legendary redeals witnessed.
 
 ## Stack
 

@@ -17,7 +17,7 @@ import { useAuth } from './useAuth';
 
 const BOT_BASE_DELAY_MS = 1100;      // natural pacing for bot moves
 const BOT_DEAL_DELAY_MS = 1400;
-const BOT_REDEAL_PAUSE_MS = 6500;    // let the mis-deal celebration breathe
+const BOT_REDEAL_PAUSE_MS = 6500;    // let the redeal celebration breathe
 const FALLBACK_EXTRA_MS = 2500;      // non-host clients wait longer before covering
 
 export interface UseGameResult {

@@ -11,7 +11,7 @@ interface LoadingPageProps {
 export default function LoadingPage({ 
   title = 'Rook13', 
   subtitle = 'Loading...', 
-  variant = 'green',
+  variant = 'blue',
   spinnerSize = 'xl'
 }: LoadingPageProps) {
   // Background color based on variant

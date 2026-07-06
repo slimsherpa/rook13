@@ -24,10 +24,22 @@ export default function HomeScreen() {
 
     useEffect(() => {
         if (!user) return;
-        listMyGames(user.uid).then(setMyGames).catch(() => {});
-        listOpenGames().then((games) => {
-            setOpenGames(games.filter((g) => !g.playerUids.includes(user.uid)));
-        }).catch(() => {});
+        const refresh = () => {
+            listMyGames(user.uid).then(setMyGames).catch(() => {});
+            listOpenGames().then((games) => {
+                setOpenGames(games.filter((g) => !g.playerUids.includes(user.uid)));
+            }).catch(() => {});
+        };
+        refresh();
+        // coming back from a game (or from another app) should always show
+        // fresh games — an ongoing table must be one tap away
+        const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', refresh);
+        return () => {
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', refresh);
+        };
     }, [user]);
 
     if (!user) return null;
@@ -85,7 +97,7 @@ export default function HomeScreen() {
                 key={g.id}
                 // finished games open straight into the trick-by-trick review
                 onClick={() => router.push(g.status === 'completed' ? `/review?id=${g.id}` : `/game?id=${g.id}`)}
-                className="w-full rounded-xl bg-green-900/50 border border-green-700/50 hover:border-green-500 p-3 flex items-center gap-3 text-left transition"
+                className="w-full rounded-xl bg-navy-950/50 border border-white/15 hover:border-sky-400 p-3 flex items-center gap-3 text-left transition"
             >
                 <span className="material-symbols-outlined text-white/60">
                     {g.status === 'completed' ? 'history' : 'playing_cards'}
@@ -103,7 +115,7 @@ export default function HomeScreen() {
     };
 
     return (
-        <div className="min-h-dvh bg-green-800">
+        <div className="min-h-dvh bg-navy-900">
             <div className="max-w-md mx-auto px-4 py-5">
                 {/* header */}
                 <div className="flex items-center justify-between mb-8">
@@ -118,7 +130,7 @@ export default function HomeScreen() {
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={user.photoURL} alt="" className="w-9 h-9 rounded-full border-2 border-white/30" referrerPolicy="no-referrer" />
                             ) : (
-                                <span className="w-9 h-9 rounded-full bg-green-950 border-2 border-white/30 flex items-center justify-center text-white font-orbitron">
+                                <span className="w-9 h-9 rounded-full bg-navy-950 border-2 border-white/30 flex items-center justify-center text-white font-orbitron">
                                     {(user.displayName || 'P').charAt(0)}
                                 </span>
                             )}
@@ -126,16 +138,16 @@ export default function HomeScreen() {
                         {menuOpen && (
                             <>
                                 <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
-                                <div className="absolute right-0 mt-2 w-44 bg-green-950 border border-green-700 rounded-xl shadow-xl z-30 overflow-hidden">
+                                <div className="absolute right-0 mt-2 w-44 bg-navy-950 border border-white/15 rounded-xl shadow-xl z-30 overflow-hidden">
                                     <button
                                         onClick={() => router.push('/profile')}
-                                        className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-green-800/60 flex items-center gap-2"
+                                        className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-white/10 flex items-center gap-2"
                                     >
                                         <span className="material-symbols-outlined text-base">person</span> My Stats
                                     </button>
                                     <button
                                         onClick={signOut}
-                                        className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-green-800/60 flex items-center gap-2"
+                                        className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-white/10 flex items-center gap-2"
                                     >
                                         <span className="material-symbols-outlined text-base">logout</span> Log Out
                                     </button>
@@ -162,7 +174,7 @@ export default function HomeScreen() {
                         onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
                         placeholder="TABLE CODE"
                         maxLength={4}
-                        className="flex-1 rounded-xl bg-green-950/60 border border-green-700/60 px-4 py-3 text-white font-code text-center placeholder:text-green-100/30 placeholder:tracking-normal placeholder:font-normal focus:outline-none focus:border-sky-400"
+                        className="flex-1 rounded-xl bg-navy-950/60 border border-white/15 px-4 py-3 text-white font-code text-center placeholder:text-green-100/30 placeholder:tracking-normal placeholder:font-normal focus:outline-none focus:border-sky-400"
                     />
                     <button
                         onClick={handleJoin}

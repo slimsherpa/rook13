@@ -36,7 +36,7 @@ export default function LastTrickPanel({ game, onClose }: LastTrickPanelProps) {
     );
 
     return (
-        <div className="bg-green-950/95 border border-green-700 rounded-2xl shadow-2xl p-4 w-full max-w-sm">
+        <div className="bg-navy-950/95 border border-white/15 rounded-2xl shadow-2xl p-4 w-full max-w-sm">
             <div className="flex items-center justify-between mb-3">
                 <h3 className="font-orbitron text-white text-base">Last Trick</h3>
                 {onClose && (

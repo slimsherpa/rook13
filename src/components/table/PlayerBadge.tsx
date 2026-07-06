@@ -22,7 +22,7 @@ export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, cardsLe
             <div className="relative">
                 <div className={`
                     w-11 h-11 sm:w-14 sm:h-14 rounded-full border-2 ${teamColor}
-                    bg-green-950 flex items-center justify-center overflow-hidden
+                    bg-navy-950 flex items-center justify-center overflow-hidden
                     transition-shadow duration-300
                     ${isTurn ? 'ring-4 ring-yellow-400/80 shadow-[0_0_18px_4px_rgba(234,179,8,0.55)]' : ''}
                 `}>

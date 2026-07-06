@@ -9,6 +9,11 @@
 // During go-down selection the hand wraps to two rows so all 13 cards are
 // visible on a phone.
 //
+// Christmas morning: freshly dealt cards arrive face-down. Tap one (or slide
+// a finger across the row) to flip it over. The widow cards the bid winner
+// picks up arrive face-down too. Everything auto-reveals when trick play
+// starts so an unflipped card can never block the game.
+//
 // Both tap-to-play and drag-to-reorder are handled through pointer events on
 // the wrapper (the card itself is pointer-inert). We deliberately do NOT rely
 // on the card button's click: capturing the pointer for dragging retargets
@@ -47,6 +52,32 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [game.hands[seat].length, game.handNumber, seat]);
 
+    // ---- face-down reveal (the "Christmas morning" flip) ----
+    const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
+    useEffect(() => {
+        // fresh hand: everything starts face-down again
+        setRevealedKeys(new Set());
+    }, [game.handNumber, seat]);
+    useEffect(() => {
+        // trick play started — any card still face-down flips itself
+        if (game.phase === 'playing' || game.phase === 'hand_done' || game.phase === 'game_over') {
+            setRevealedKeys((prev) => {
+                const keys = hand.map(cardKey);
+                if (keys.every((k) => prev.has(k))) return prev;
+                return new Set([...Array.from(prev), ...keys]);
+            });
+        }
+    }, [game.phase, hand]);
+
+    const reveal = (key: string) => {
+        setRevealedKeys((prev) => {
+            if (prev.has(key)) return prev;
+            const next = new Set(prev);
+            next.add(key);
+            return next;
+        });
+    };
+
     // ---- drag / tap (pointer events cover touch + mouse) ----
     const containerRef = useRef<HTMLDivElement>(null);
     const dragInfo = useRef<{ card: Card; key: string; startX: number; slot: number; moved: boolean; dx: number } | null>(null);
@@ -55,6 +86,8 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
     // the lift only kicks in once the pointer actually travels — a plain tap
     // must not make the card twitch
     const [dragActive, setDragActive] = useState(false);
+    // while true, the pointer is sweeping across face-down cards flipping them
+    const revealSweep = useRef(false);
 
     const slotWidth = (): number => {
         const el = containerRef.current;
@@ -73,6 +106,13 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
 
     const onPointerDown = (e: React.PointerEvent, card: Card, key: string) => {
         if (e.button !== undefined && e.button !== 0) return; // left button / touch only
+        if (!revealedKeys.has(key)) {
+            // face-down card: this press flips cards instead of dragging them
+            revealSweep.current = true;
+            reveal(key);
+            try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+            return;
+        }
         dragInfo.current = { card, key, startX: e.clientX, slot: slotWidth(), moved: false, dx: 0 };
         try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
         setDragKey(key);
@@ -80,6 +120,14 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
     };
 
     const onPointerMove = (e: React.PointerEvent) => {
+        if (revealSweep.current) {
+            // flip every face-down card the finger passes over (pointer capture
+            // retargets events, so hit-test the document instead)
+            const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('[data-cardkey]');
+            const key = el instanceof HTMLElement ? el.dataset.cardkey : undefined;
+            if (key) reveal(key);
+            return;
+        }
         const info = dragInfo.current;
         if (!info) return;
         const dx = e.clientX - info.startX;
@@ -92,6 +140,10 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
     };
 
     const onPointerUp = () => {
+        if (revealSweep.current) {
+            revealSweep.current = false;
+            return;
+        }
         const info = dragInfo.current;
         dragInfo.current = null;
         setDragKey(null);
@@ -139,7 +191,7 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
             <button
                 onClick={handleSort}
                 title="Sort by suit"
-                className="absolute -top-4 right-3 z-30 w-9 h-9 rounded-full bg-green-700 hover:bg-green-600 border border-green-500/50 shadow-lg flex items-center justify-center"
+                className="absolute -top-4 right-3 z-30 w-9 h-9 rounded-full bg-black/40 hover:bg-black/55 border border-white/25 shadow-lg flex items-center justify-center"
             >
                 <span className="material-symbols-outlined text-white text-lg">sort</span>
             </button>
@@ -154,32 +206,44 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
                 >
                     {orderedHand.map((card, i) => {
                         const key = cardKey(card);
+                        const faceUp = revealedKeys.has(key);
                         const isSelected = selected.some((c) => sameCard(c, card));
                         const isLegal = legal.some((c) => sameCard(c, card));
-                        const interactive = selecting || (playable && isLegal);
+                        const interactive = !faceUp || selecting || (playable && isLegal);
                         const isDragging = dragKey === key && dragActive;
                         return (
                             <div
                                 key={key}
+                                data-cardkey={key}
                                 className={`touch-none ${interactive ? 'cursor-pointer' : 'cursor-default'}`}
                                 style={{
                                     zIndex: isDragging ? 60 : i + 1,
                                     transform: isDragging ? `translateX(${dragDx}px) translateY(-10px) scale(1.06)` : undefined,
                                     transition: isDragging ? 'none' : 'transform 0.15s ease-out',
+                                    perspective: '700px',
                                 }}
                                 onPointerDown={(e) => onPointerDown(e, card, key)}
                                 onPointerMove={onPointerMove}
                                 onPointerUp={onPointerUp}
                                 onPointerCancel={onPointerUp}
                             >
-                                <PlayingCard
-                                    card={card}
-                                    trump={game.trump}
-                                    size="lg"
-                                    selected={isSelected}
-                                    disabled={playable && !isLegal}
-                                    className="pointer-events-none"
-                                />
+                                {/* two faces on a card that rotates in 3D */}
+                                <div
+                                    className="relative transition-transform duration-300 [transform-style:preserve-3d]"
+                                    style={{ transform: faceUp ? 'rotateY(0deg)' : 'rotateY(180deg)' }}
+                                >
+                                    <PlayingCard
+                                        card={card}
+                                        trump={game.trump}
+                                        size="lg"
+                                        selected={isSelected}
+                                        disabled={playable && !isLegal}
+                                        className="pointer-events-none [backface-visibility:hidden]"
+                                    />
+                                    <div className="absolute inset-0 [transform:rotateY(180deg)] [backface-visibility:hidden]">
+                                        <PlayingCard faceDown size="lg" className="pointer-events-none" />
+                                    </div>
+                                </div>
                             </div>
                         );
                     })}

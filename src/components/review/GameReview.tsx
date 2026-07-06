@@ -49,7 +49,7 @@ export default function GameReview({ gameId }: { gameId: string }) {
     }
     if (error || !game) {
         return (
-            <div className="min-h-dvh bg-green-800 flex flex-col items-center justify-center gap-4 px-6 text-center">
+            <div className="min-h-dvh bg-navy-900 flex flex-col items-center justify-center gap-4 px-6 text-center">
                 <p className="text-white font-orbitron max-w-sm">{error || 'Game not found'}</p>
                 <button onClick={() => router.push('/')} className="px-6 py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-orbitron text-sm">
                     Back to Lobby
@@ -67,12 +67,12 @@ export default function GameReview({ gameId }: { gameId: string }) {
         const s = h.summary;
         const bidTeam = teamOf(s.bidWinner);
         return (
-            <div key={idx} className="rounded-2xl bg-green-900/50 border border-green-700/50 overflow-hidden">
+            <div key={idx} className="rounded-2xl bg-navy-950/50 border border-white/15 overflow-hidden">
                 <button
                     onClick={() => setOpenHand(open ? null : idx)}
                     className="w-full p-3.5 flex items-center gap-3 text-left"
                 >
-                    <div className="w-8 h-8 rounded-full bg-green-950 border border-green-700 flex items-center justify-center text-white font-orbitron text-sm font-bold flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-navy-950 border border-white/15 flex items-center justify-center text-white font-orbitron text-sm font-bold flex-shrink-0">
                         {s.handNumber}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -95,7 +95,7 @@ export default function GameReview({ gameId }: { gameId: string }) {
                 </button>
 
                 {open && (
-                    <div className="px-3.5 pb-4 border-t border-green-800/60 pt-3 space-y-4">
+                    <div className="px-3.5 pb-4 border-t border-white/10 pt-3 space-y-4">
                         {/* the auction */}
                         <div>
                             <div className="text-green-100/50 font-orbitron text-[11px] uppercase tracking-widest mb-1.5">Bidding</div>
@@ -150,7 +150,7 @@ export default function GameReview({ gameId }: { gameId: string }) {
     };
 
     return (
-        <div className="min-h-dvh bg-green-800">
+        <div className="min-h-dvh bg-navy-900">
             <div className="max-w-md mx-auto px-4 py-5">
                 <div className="flex items-center justify-between mb-5">
                     <button onClick={() => router.push('/')} className="text-white/70 hover:text-white flex items-center gap-1 font-orbitron text-sm">
@@ -160,7 +160,7 @@ export default function GameReview({ gameId }: { gameId: string }) {
                 </div>
 
                 {/* final result */}
-                <div className="rounded-2xl bg-green-950/60 border border-green-700/50 p-4 text-center mb-5">
+                <div className="rounded-2xl bg-navy-950/60 border border-white/15 p-4 text-center mb-5">
                     <div className="text-green-100/60 text-xs font-orbitron uppercase tracking-widest">
                         {game.status === 'completed' ? 'Final Score' : 'Score So Far'}
                     </div>

@@ -51,10 +51,10 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
 
         return (
             <div key={seat} className={`
-                rounded-xl border bg-green-900/50 p-3 flex items-center gap-3
-                ${isMe ? 'border-yellow-400/70' : 'border-green-700/50'}
+                rounded-xl border bg-navy-950/40 p-3 flex items-center gap-3
+                ${isMe ? 'border-yellow-400/70' : 'border-white/15'}
             `}>
-                <div className="w-10 h-10 rounded-full bg-green-950 border border-green-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-navy-950 border border-white/15 flex items-center justify-center overflow-hidden flex-shrink-0">
                     {info.kind === 'human' && info.photoURL ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={info.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -76,7 +76,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                         <select
                             value={info.botStyle ?? 'basic'}
                             onChange={(e) => act({ type: 'SET_BOT', seat, botStyle: e.target.value as BotStyle, name: info.name })}
-                            className="mt-1.5 w-full max-w-[9rem] rounded-md bg-green-950 border border-green-700 text-white text-xs px-2 py-1 focus:outline-none focus:border-sky-400"
+                            className="mt-1.5 w-full max-w-[9rem] rounded-md bg-navy-950 border border-white/15 text-white text-xs px-2 py-1 focus:outline-none focus:border-sky-400"
                         >
                             {(Object.keys(BOT_STYLE_LABELS) as BotStyle[]).map((s) => (
                                 <option key={s} value={s}>{BOT_STYLE_LABELS[s]}</option>
@@ -124,7 +124,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
     };
 
     return (
-        <div className="min-h-dvh bg-green-800 flex flex-col items-center px-4 py-6">
+        <div className="min-h-dvh bg-navy-900 flex flex-col items-center px-4 py-6">
             <div className="w-full max-w-md">
                 <div className="flex items-center justify-between mb-6">
                     <button onClick={() => router.push('/')} className="text-white/70 hover:text-white flex items-center gap-1 font-orbitron text-sm">
@@ -134,7 +134,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                 </div>
 
                 {/* join code */}
-                <div className="rounded-2xl bg-green-950/60 border border-green-700/50 p-5 text-center mb-6">
+                <div className="rounded-2xl bg-navy-950/60 border border-white/15 p-5 text-center mb-6">
                     <div className="text-green-100/60 text-xs font-orbitron uppercase tracking-widest">Table Code</div>
                     <div className="font-code text-5xl text-yellow-400 mt-1 ml-[0.28em]">
                         {game.joinCode}
@@ -151,7 +151,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                 {/* teams */}
                 <div className="space-y-4">
                     {TEAM_SEATS.map(({ team, seats, color, text }) => (
-                        <div key={team} className={`rounded-2xl border ${color} bg-green-900/30 p-3`}>
+                        <div key={team} className={`rounded-2xl border ${color} bg-navy-950/30 p-3`}>
                             <div className={`font-orbitron text-xs font-bold mb-2 ${text}`}>TEAM {team}</div>
                             <div className="space-y-2">{seats.map(seatCard)}</div>
                         </div>

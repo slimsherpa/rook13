@@ -38,7 +38,7 @@ export default function GameOverOverlay({ game, mySeat, onShowScores }: GameOver
             <div className="flex flex-wrap justify-center gap-3 mt-6">
                 <button
                     onClick={onShowScores}
-                    className="px-5 py-3 rounded-xl bg-green-800 hover:bg-green-700 text-white font-orbitron text-sm"
+                    className="px-5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-orbitron text-sm"
                 >
                     Score Sheet
                 </button>

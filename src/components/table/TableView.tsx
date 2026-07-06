@@ -3,10 +3,12 @@
 // The live table. Mobile-first: you always sit at the bottom, partner across
 // the top, play runs clockwise bottom -> left -> top -> right.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, GameAction, GameDoc, Seat, sameCard } from '@/lib/game/types';
+import { Card, GameAction, GameDoc, Seat, Team, sameCard, teamOf } from '@/lib/game/types';
+import { bidTeamMaxPoints } from '@/lib/game/engine';
 import { positionsFor } from './layout';
+import { themeFor } from './theme';
 import PlayerBadge from './PlayerBadge';
 import TrickArea from './TrickArea';
 import MyHand from './MyHand';
@@ -26,12 +28,8 @@ interface TableViewProps {
     actionError: string | null;
 }
 
-const suitChipColors: Record<string, string> = {
-    Red: 'bg-red-600',
-    Yellow: 'bg-yellow-500 text-green-950',
-    Black: 'bg-gray-900',
-    Green: 'bg-green-600',
-};
+const HAND_RECAP_DELAY_MS = 3000; // let the last trick sink in before the recap
+const ANNOUNCE_MS = 4500;
 
 export default function TableView({ game, mySeat, act, actionError }: TableViewProps) {
     const router = useRouter();
@@ -43,11 +41,57 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     const [goDownPeek, setGoDownPeek] = useState(false);
     const [showWatchers, setShowWatchers] = useState(false);
     const watchers = useWatchers(game.id, mySeat === null);
+    const theme = themeFor(game.trump);
 
     // reset go-down selection whenever the phase moves on
     useEffect(() => {
         if (game.phase !== 'widow') setSelectedGoDown([]);
+        if (game.phase !== 'playing') setGoDownPeek(false);
     }, [game.phase]);
+
+    // hold the hand recap / game over screens back a beat so everyone can see
+    // how the last trick landed
+    const [recapReady, setRecapReady] = useState(false);
+    useEffect(() => {
+        if (game.phase === 'hand_done' || game.phase === 'game_over') {
+            setRecapReady(false);
+            const t = setTimeout(() => setRecapReady(true), HAND_RECAP_DELAY_MS);
+            return () => clearTimeout(t);
+        }
+        setRecapReady(false);
+    }, [game.phase]);
+
+    const teamLabel = (t: Team) =>
+        t === 'A'
+            ? `${game.seats.A1.name.split(' ')[0]} & ${game.seats.A2.name.split(' ')[0]}`
+            : `${game.seats.B1.name.split(' ')[0]} & ${game.seats.B2.name.split(' ')[0]}`;
+
+    // live "got set" / "maxxed" announcements, once each per hand
+    const [announcement, setAnnouncement] = useState<{ text: string; tone: 'set' | 'maxxed' } | null>(null);
+    const announcedRef = useRef<Set<string>>(new Set());
+    const announceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => () => { if (announceTimer.current) clearTimeout(announceTimer.current); }, []);
+    useEffect(() => {
+        if (game.phase !== 'playing' || game.highBid === null || !game.bidWinner) return;
+        const maxPts = bidTeamMaxPoints(game);
+        if (maxPts === null) return;
+        const bidTeam = teamOf(game.bidWinner);
+        let key: string | null = null;
+        let next: { text: string; tone: 'set' | 'maxxed' } | null = null;
+        if (maxPts < game.highBid) {
+            key = `set-${game.handNumber}`;
+            next = { text: `Oh no! ${teamLabel(bidTeam)} got set!`, tone: 'set' };
+        } else if (maxPts === game.highBid) {
+            key = `maxxed-${game.handNumber}`;
+            next = { text: `${teamLabel(bidTeam)} is maxxed!`, tone: 'maxxed' };
+        }
+        if (!key || !next || announcedRef.current.has(key)) return;
+        announcedRef.current.add(key);
+        setAnnouncement(next);
+        if (announceTimer.current) clearTimeout(announceTimer.current);
+        announceTimer.current = setTimeout(() => setAnnouncement(null), ANNOUNCE_MS);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [game]);
 
     const toggleGoDown = (card: Card) => {
         setSelectedGoDown((prev) => {
@@ -93,26 +137,18 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     );
 
     return (
-        <div className="h-dvh w-full flex flex-col bg-green-800 overflow-hidden">
-            {/* header */}
-            <header className="flex items-center justify-between px-3 py-2 bg-green-950/60 border-b border-green-700/40">
+        <div
+            className="h-dvh w-full flex flex-col overflow-hidden transition-colors duration-700"
+            style={{ backgroundColor: theme.bg }}
+        >
+            {/* header — the background color already announces trump, and the
+                bid lives on the bidder's badge, so this stays lean */}
+            <header className="flex items-center justify-between px-3 py-2 bg-black/25 border-b border-white/10">
                 <div className="flex items-center gap-2">
                     <button onClick={() => router.push('/')} className="text-white/70 hover:text-white flex items-center" title="Lobby">
                         <span className="material-symbols-outlined">arrow_back</span>
                     </button>
                     <span className="font-orbitron font-bold text-white text-sm sm:text-base">ROOK<span className="text-yellow-400">13</span></span>
-                </div>
-                <div className="flex items-center gap-2">
-                    {game.trump && (
-                        <span className={`px-2 py-0.5 rounded-full text-white text-[11px] font-orbitron font-bold ${suitChipColors[game.trump]}`}>
-                            {game.trump.toUpperCase()}
-                        </span>
-                    )}
-                    {game.highBid && game.bidWinner && (
-                        <span className="px-2 py-0.5 rounded-full bg-sky-700 text-white text-[11px] font-orbitron">
-                            {game.highBid} · {game.seats[game.bidWinner].name.split(' ')[0]}
-                        </span>
-                    )}
                 </div>
                 <div className="flex items-center gap-2.5">
                     {watchers.length > 0 && (
@@ -160,57 +196,84 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
 
                 <TrickArea game={game} bottomSeat={bottomSeat} trump={game.trump} message={centerMessage} />
 
+                {/* set / maxxed announcement */}
+                {announcement && (
+                    <div
+                        className={`absolute top-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl border text-center font-orbitron text-sm font-bold shadow-xl animate-card-reveal max-w-[90%] bg-black/75 ${
+                            announcement.tone === 'set'
+                                ? 'border-red-400/70 text-red-300'
+                                : 'border-yellow-400/70 text-yellow-300'
+                        }`}
+                    >
+                        {announcement.text}
+                    </div>
+                )}
+
                 {/* widow stack during bidding */}
                 {game.phase === 'bidding' && game.widow.length > 0 && (
                     <div className="absolute bottom-3 right-3 flex flex-col items-center">
                         <div className="flex -space-x-6">
                             {game.widow.map((_, i) => <PlayingCard key={i} faceDown size="xs" />)}
                         </div>
-                        <span className="text-green-100/50 text-[10px] font-orbitron mt-1">WIDOW</span>
+                        <span className="text-white/50 text-[10px] font-orbitron mt-1">WIDOW</span>
                     </div>
                 )}
 
-                {/* go-down stack (bid winner can peek at their own) */}
-                {game.goDown.length > 0 && game.phase === 'playing' && (
-                    <button
-                        className="absolute bottom-3 right-3 flex flex-col items-center"
-                        onClick={() => iAmBidWinner && setGoDownPeek((v) => !v)}
+                {/* the taker's private go-down: tap to fan it out face-up,
+                    tap again to stack it back face-down. Nobody else sees it. */}
+                {game.goDown.length > 0 && game.phase === 'playing' && iAmBidWinner && (
+                    // a div, not a button: face-up PlayingCards are buttons and
+                    // buttons must not nest
+                    <div
+                        role="button"
+                        tabIndex={0}
+                        className="absolute bottom-3 right-3 flex flex-col items-center cursor-pointer"
+                        onClick={() => setGoDownPeek((v) => !v)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setGoDownPeek((v) => !v); }}
                     >
-                        <div className="flex -space-x-6">
+                        <div className={`${goDownPeek ? 'flex gap-1' : 'flex -space-x-6'} pointer-events-none`}>
                             {game.goDown.map((c, i) => (
-                                <PlayingCard
-                                    key={i}
-                                    card={goDownPeek && iAmBidWinner ? c : undefined}
-                                    faceDown={!(goDownPeek && iAmBidWinner)}
-                                    size="xs"
-                                />
+                                <div key={i} className={goDownPeek ? 'animate-card-reveal' : ''}>
+                                    <PlayingCard
+                                        card={goDownPeek ? c : undefined}
+                                        faceDown={!goDownPeek}
+                                        trump={game.trump}
+                                        size={goDownPeek ? 'sm' : 'xs'}
+                                    />
+                                </div>
                             ))}
                         </div>
-                        <span className="text-green-100/50 text-[10px] font-orbitron mt-1">GO-DOWN</span>
-                    </button>
+                        <span className="text-white/50 text-[10px] font-orbitron mt-1">GO-DOWN</span>
+                    </div>
                 )}
 
-                {/* my badge floats above my hand on larger screens; on phones the hand is identity enough */}
-                <div className="absolute bottom-2 left-3 hidden sm:block">{badge(pos.bottom, true)}</div>
+                {/* my badge floats above my hand on larger screens; on phones the
+                    hand is identity enough. Spectators have no hand, so they get
+                    the bottom player's badge front and center. */}
+                {mySeat === null ? (
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2">{badge(pos.bottom)}</div>
+                ) : (
+                    <div className="absolute bottom-2 left-3 hidden sm:block">{badge(pos.bottom, true)}</div>
+                )}
             </main>
 
-            {/* dock + hand */}
-            <footer className="bg-green-950/50 border-t border-green-700/40 pb-[env(safe-area-inset-bottom)]">
-                {actionError && (
-                    <div className="text-center text-red-300 text-xs font-orbitron pt-1">{actionError}</div>
-                )}
-                <ActionDock
-                    game={game}
-                    mySeat={mySeat}
-                    selectedGoDown={selectedGoDown}
-                    onAct={act}
-                    onConfirmGoDown={() => {
-                        if (mySeat && selectedGoDown.length === 4) {
-                            act({ type: 'SELECT_GODOWN', seat: mySeat, cards: selectedGoDown });
-                        }
-                    }}
-                />
-                {mySeat && (
+            {/* dock + hand (spectators have neither) */}
+            {mySeat && (
+                <footer className="bg-black/25 border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
+                    {actionError && (
+                        <div className="text-center text-red-300 text-xs font-orbitron pt-1">{actionError}</div>
+                    )}
+                    <ActionDock
+                        game={game}
+                        mySeat={mySeat}
+                        selectedGoDown={selectedGoDown}
+                        onAct={act}
+                        onConfirmGoDown={() => {
+                            if (mySeat && selectedGoDown.length === 4) {
+                                act({ type: 'SELECT_GODOWN', seat: mySeat, cards: selectedGoDown });
+                            }
+                        }}
+                    />
                     <MyHand
                         game={game}
                         seat={mySeat}
@@ -219,8 +282,8 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                         onToggleSelect={toggleGoDown}
                         onPlay={(card) => act({ type: 'PLAY_CARD', seat: mySeat, card })}
                     />
-                )}
-            </footer>
+                </footer>
+            )}
 
             {/* overlays */}
             {showLastTrick && (
@@ -231,20 +294,20 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                 </div>
             )}
             {game.phase === 'redeal' && <RedealOverlay game={game} mySeat={mySeat} onAct={act} />}
-            {game.phase === 'hand_done' && !showScores && (
+            {game.phase === 'hand_done' && recapReady && !showScores && (
                 <HandRecapModal
                     game={game}
                     onNextHand={() => act({ type: 'NEXT_HAND' })}
                     onShowScores={() => setShowScores(true)}
                 />
             )}
-            {game.phase === 'game_over' && !showScores && (
+            {game.phase === 'game_over' && recapReady && !showScores && (
                 <GameOverOverlay game={game} mySeat={mySeat} onShowScores={() => setShowScores(true)} />
             )}
             {showScores && <ScoreSheetModal game={game} onClose={() => setShowScores(false)} />}
             {showWatchers && (
                 <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowWatchers(false)}>
-                    <div className="bg-green-950 border border-green-700 rounded-2xl p-5 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
+                    <div className="bg-navy-950 border border-white/15 rounded-2xl p-5 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2 text-white font-orbitron text-sm mb-3">
                             <span className="material-symbols-outlined text-lg">visibility</span>
                             Watching now · {watchers.length}
@@ -256,7 +319,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img src={w.photoURL} alt="" className="w-8 h-8 rounded-full border border-white/20" referrerPolicy="no-referrer" />
                                     ) : (
-                                        <span className="w-8 h-8 rounded-full bg-green-900 border border-white/20 flex items-center justify-center text-white text-xs font-orbitron">
+                                        <span className="w-8 h-8 rounded-full bg-navy-900 border border-white/20 flex items-center justify-center text-white text-xs font-orbitron">
                                             {w.name.charAt(0)}
                                         </span>
                                     )}

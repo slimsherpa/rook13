@@ -26,7 +26,7 @@ export default function JayCupModal({ onClose }: { onClose: () => void }) {
     return (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
             <div
-                className="w-full max-w-sm max-h-[90dvh] overflow-y-auto custom-scrollbar rounded-2xl bg-green-950 border border-green-700 shadow-2xl"
+                className="w-full max-w-sm max-h-[90dvh] overflow-y-auto custom-scrollbar rounded-2xl bg-navy-950 border border-white/15 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* the bowl */}

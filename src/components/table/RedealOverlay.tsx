@@ -1,7 +1,8 @@
 'use client';
 
-// The legendary mis-deal. A hand of nothing but 6s, 7s, 8s and 9s is so rare
+// The legendary redeal. A hand of nothing but 6s, 7s, 8s and 9s is so rare
 // (~1 in 45,000 deals) that the family celebrates it. Full-screen moment.
+// (Yes, "redeal" is the family name for it — never "misdeal".)
 
 import { GameDoc, Seat } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
@@ -27,7 +28,7 @@ export default function RedealOverlay({ game, mySeat, onAct }: RedealOverlayProp
                 <span className="material-symbols-outlined text-yellow-400 text-6xl">celebration</span>
             </div>
             <h1 className="font-orbitron text-4xl sm:text-5xl font-black text-yellow-400 mt-2 drop-shadow-[0_0_25px_rgba(234,179,8,0.8)]">
-                MISDEAL!
+                REDEAL!
             </h1>
             <p className="text-white font-orbitron mt-3 text-sm sm:text-base max-w-sm">
                 <span className="font-bold">{offender.name.split(' ')[0]}</span> was dealt nothing but

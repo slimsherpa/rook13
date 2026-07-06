@@ -31,7 +31,7 @@ export const splitDeal = (deck: Card[]): { hands: Record<Seat, Card[]>; widow: C
     return { hands, widow };
 };
 
-/** True when a hand contains only 6s, 7s, 8s and 9s — the celebrated mis-deal. */
+/** True when a hand contains only 6s, 7s, 8s and 9s — the celebrated redeal. */
 export const isRedealHand = (hand: Card[]): boolean =>
     hand.length > 0 && hand.every((c) => c.number >= 6 && c.number <= 9);
 

@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Card, GameDoc, Seat, Suit, TrickRecord } from '@/lib/game/types';
 import { TablePosition, positionOfSeat } from './layout';
+import { themeFor } from './theme';
 import PlayingCard from '@/components/ui/PlayingCard';
 import RookBird from '@/components/ui/RookBird';
 
@@ -30,6 +31,9 @@ const POSITION_ANGLE: Record<TablePosition, number> = {
 };
 
 const LINGER_MS = 1700;
+// the final trick of a hand hangs around longer — the recap is coming and
+// people want to see how it ended
+const LAST_TRICK_LINGER_MS = 3200;
 
 interface TrickAreaProps {
     game: GameDoc;
@@ -49,7 +53,8 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
             seenTricks.current = count;
             const last = game.completedTricks[count - 1];
             setLingering(last);
-            const t = setTimeout(() => setLingering(null), LINGER_MS);
+            const linger = game.phase === 'playing' ? LINGER_MS : LAST_TRICK_LINGER_MS;
+            const t = setTimeout(() => setLingering(null), linger);
             return () => clearTimeout(t);
         }
         if (count < seenTricks.current) {
@@ -57,7 +62,7 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
             seenTricks.current = count;
             setLingering(null);
         }
-    }, [game.completedTricks.length, game.completedTricks]);
+    }, [game.completedTricks.length, game.completedTricks, game.phase]);
 
     // ---- compass pointer: accumulate rotation so it always sweeps clockwise ----
     const turnPosition = game.status === 'active' && game.turn
@@ -81,6 +86,8 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
     const plays: { seat: Seat; card: Card }[] = showLingering ? lingering!.plays : game.trickPlays;
     const winner: Seat | null = showLingering ? lingering!.winner : null;
 
+    const theme = themeFor(trump);
+
     return (
         // a true circle (square box) so the compass pointer sweeps cleanly
         <div className="relative w-60 h-60 sm:w-72 sm:h-72">
@@ -94,12 +101,16 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
                     <div className="absolute left-1/2 -translate-x-1/2 -bottom-8 w-0 h-0
                         border-l-[38px] border-l-transparent
                         border-r-[38px] border-r-transparent
-                        border-t-[52px] border-t-[#0d4527]
-                        drop-shadow-[0_3px_4px_rgba(0,0,0,0.35)]" />
+                        border-t-[52px]
+                        drop-shadow-[0_3px_4px_rgba(0,0,0,0.35)]"
+                        style={{ borderTopColor: theme.felt, transition: 'border-top-color 0.7s' }} />
                 </div>
             )}
-            {/* felt circle */}
-            <div className="absolute inset-0 rounded-full bg-[#0d4527] border border-green-700/40 shadow-inner" />
+            {/* felt circle, dyed to match the table */}
+            <div
+                className="absolute inset-0 rounded-full border border-white/10 shadow-inner transition-colors duration-700"
+                style={{ backgroundColor: theme.felt }}
+            />
             {/* the rook, embossed into the felt */}
             <div className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center pointer-events-none">
                 <RookBird
@@ -110,7 +121,7 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
             </div>
             {plays.length === 0 && message && (
                 <div className="absolute inset-0 flex items-center justify-center px-8 text-center">
-                    <span className="text-green-100/80 text-sm sm:text-base font-orbitron leading-snug">{message}</span>
+                    <span className="text-white/85 text-sm sm:text-base font-orbitron leading-snug">{message}</span>
                 </div>
             )}
             {plays.map(({ seat, card }) => (
