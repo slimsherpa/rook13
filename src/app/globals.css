@@ -54,6 +54,17 @@ body {
   animation: card-reveal 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* A card played to the trick: appears instantly back-up, stays put, and
+   flips over fast. Applied to the two-faced inner wrapper (preserve-3d). */
+@keyframes trick-flip {
+  from { transform: rotateY(180deg); }
+  to   { transform: rotateY(0deg); }
+}
+
+.animate-trick-flip {
+  animation: trick-flip 0.25s ease-out;
+}
+
 /* Cyberpunk Animation Effects */
 @keyframes glitch {
   0%, 100% { transform: translate(0); }

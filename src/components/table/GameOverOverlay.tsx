@@ -20,21 +20,21 @@ export default function GameOverOverlay({ game, mySeat, onShowScores }: GameOver
 
     return (
         <div className="fixed inset-0 z-40 bg-black/75 backdrop-blur flex flex-col items-center justify-center p-6 text-center">
-            <span className={`material-symbols-outlined text-7xl ${iWon ? 'text-yellow-400 animate-bounce' : 'text-green-200/60'}`}>
+            <span className={`material-symbols-outlined text-7xl ${iWon ? 'text-yellow-400 animate-bounce' : 'text-white/60'}`}>
                 {iWon ? 'trophy' : 'sentiment_calm'}
             </span>
             <h1 className="font-orbitron text-3xl sm:text-4xl font-black text-white mt-3">
                 {mySeat === null ? `Team ${game.winner} wins!` : iWon ? 'VICTORY!' : 'Defeat…'}
             </h1>
-            <p className="text-green-100/80 font-orbitron mt-2">
+            <p className="text-white/80 font-orbitron mt-2">
                 {winnerNames} take the game
             </p>
             <div className="flex items-center gap-6 mt-5 font-orbitron">
                 <div className={`text-3xl font-bold ${game.winner === 'A' ? 'text-yellow-400' : 'text-white/70'}`}>{game.scores.A}</div>
-                <div className="text-green-100/40 text-sm">FINAL</div>
+                <div className="text-white/40 text-sm">FINAL</div>
                 <div className={`text-3xl font-bold ${game.winner === 'B' ? 'text-yellow-400' : 'text-white/70'}`}>{game.scores.B}</div>
             </div>
-            <p className="text-green-100/50 text-xs mt-2 font-orbitron">{game.handHistory.length} hands played</p>
+            <p className="text-white/50 text-xs mt-2 font-orbitron">{game.handHistory.length} hands played</p>
             <div className="flex flex-wrap justify-center gap-3 mt-6">
                 <button
                     onClick={onShowScores}
@@ -44,7 +44,7 @@ export default function GameOverOverlay({ game, mySeat, onShowScores }: GameOver
                 </button>
                 <button
                     onClick={() => router.push(`/review?id=${game.id}`)}
-                    className="px-5 py-3 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-green-950 font-orbitron text-sm font-bold"
+                    className="px-5 py-3 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-navy-950 font-orbitron text-sm font-bold"
                 >
                     Review Game
                 </button>

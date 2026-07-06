@@ -148,7 +148,7 @@ export default function LandingPage() {
                             <p className="text-blue-300 mb-4">Welcome back, <span className="font-bold">{user.displayName}</span></p>
                             <button
                                 onClick={() => router.push('/')}
-                                className="bg-gradient-to-r from-green-600 to-green-400 text-white py-3 px-6 rounded-md hover:from-green-500 hover:to-green-300 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-3 shadow-[0_0_10px_rgba(0,255,128,0.5)]"
+                                className="bg-gradient-to-r from-sky-600 to-sky-400 text-white py-3 px-6 rounded-md hover:from-sky-500 hover:to-sky-300 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-3 shadow-[0_0_10px_rgba(0,170,255,0.5)]"
                             >
                                 <span className="material-symbols-outlined">
                                     play_arrow

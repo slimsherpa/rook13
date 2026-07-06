@@ -30,7 +30,7 @@ export default function JayCupModal({ onClose }: { onClose: () => void }) {
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* the bowl */}
-                <div className="pt-6 pb-2 text-center bg-gradient-to-b from-green-900/60 to-transparent">
+                <div className="pt-6 pb-2 text-center bg-gradient-to-b from-sky-900/50 to-transparent">
                     <span
                         className="material-symbols-outlined text-7xl"
                         style={{
@@ -55,7 +55,7 @@ export default function JayCupModal({ onClose }: { onClose: () => void }) {
                 </div>
 
                 {/* in memoriam */}
-                <p className="px-7 pt-4 text-center text-green-100/70 text-xs leading-relaxed">
+                <p className="px-7 pt-4 text-center text-white/70 text-xs leading-relaxed">
                     Named in memory of <span className="text-yellow-300/90 font-semibold">Jay Adamson</span>,
                     who won the inaugural cup in 2008. The family has played for his trophy ever since.
                 </p>
@@ -80,7 +80,7 @@ export default function JayCupModal({ onClose }: { onClose: () => void }) {
                 <div className="px-6 pb-6">
                     <button
                         onClick={onClose}
-                        className="w-full py-3 rounded-xl bg-green-700 hover:bg-green-600 text-white font-orbitron text-sm"
+                        className="w-full py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-orbitron text-sm"
                     >
                         Close
                     </button>

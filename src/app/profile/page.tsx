@@ -34,7 +34,7 @@ export default function ProfilePage() {
     const stat = (label: string, value: string | number, accent = false) => (
         <div className="rounded-xl bg-navy-950/50 border border-white/15 p-4 text-center">
             <div className={`font-orbitron text-2xl font-bold ${accent ? 'text-yellow-400' : 'text-white'}`}>{value}</div>
-            <div className="text-green-100/60 text-[11px] font-orbitron uppercase tracking-wide mt-1">{label}</div>
+            <div className="text-white/60 text-[11px] font-orbitron uppercase tracking-wide mt-1">{label}</div>
         </div>
     );
 
@@ -61,7 +61,7 @@ export default function ProfilePage() {
                 </div>
 
                 {!s || s.gamesPlayed === 0 ? (
-                    <div className="text-center text-green-100/60 font-orbitron text-sm py-8">
+                    <div className="text-center text-white/60 font-orbitron text-sm py-8">
                         No finished games yet — go play a hand!
                     </div>
                 ) : (

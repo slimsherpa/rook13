@@ -68,7 +68,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     <div className="text-white font-orbitron text-sm truncate">
                         {info.kind === 'open' ? 'Open Seat' : info.name}{isMe ? ' (you)' : ''}
                     </div>
-                    <div className="text-green-100/50 text-[11px] font-orbitron">
+                    <div className="text-white/50 text-[11px] font-orbitron">
                         {seat}{info.kind === 'bot' ? ` · ${BOT_STYLE_LABELS[info.botStyle ?? 'basic']} Bot` : ''}
                     </div>
                     {/* bot mode picker (host only) */}
@@ -104,7 +104,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     {isHost && info.kind === 'open' && (
                         <button
                             onClick={() => act({ type: 'SET_BOT', seat, botStyle: 'basic' })}
-                            className="px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-xs font-orbitron flex items-center gap-1 whitespace-nowrap"
+                            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-orbitron flex items-center gap-1 whitespace-nowrap"
                         >
                             <span className="material-symbols-outlined text-sm">smart_toy</span>
                             Add Bot
@@ -135,7 +135,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
 
                 {/* join code */}
                 <div className="rounded-2xl bg-navy-950/60 border border-white/15 p-5 text-center mb-6">
-                    <div className="text-green-100/60 text-xs font-orbitron uppercase tracking-widest">Table Code</div>
+                    <div className="text-white/60 text-xs font-orbitron uppercase tracking-widest">Table Code</div>
                     <div className="font-code text-5xl text-yellow-400 mt-1 ml-[0.28em]">
                         {game.joinCode}
                     </div>
@@ -177,16 +177,16 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                         <>
                             <button
                                 onClick={() => act({ type: 'START_GAME' })}
-                                className="w-full py-4 rounded-2xl bg-green-600 hover:bg-green-500 text-white font-orbitron font-bold text-lg shadow-lg active:scale-[0.98] transition"
+                                className="w-full py-4 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-orbitron font-bold text-lg shadow-lg active:scale-[0.98] transition"
                             >
                                 START GAME
                             </button>
-                            <p className="text-center text-green-100/50 text-[11px] font-orbitron mt-2">
+                            <p className="text-center text-white/50 text-[11px] font-orbitron mt-2">
                                 Empty seats are filled with bots automatically.
                             </p>
                         </>
                     ) : (
-                        <p className="text-center text-green-100/70 font-orbitron text-sm animate-pulse">
+                        <p className="text-center text-white/70 font-orbitron text-sm animate-pulse">
                             Waiting for {game.seats.A1.kind === 'human' && game.seats.A1.uid === game.hostUid
                                 ? game.seats.A1.name.split(' ')[0]
                                 : 'the host'} to start the game…

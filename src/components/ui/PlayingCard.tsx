@@ -54,14 +54,18 @@ export default function PlayingCard({
     const base = `relative flex-shrink-0 border-2 shadow-md select-none transition-all duration-200 ${SIZES[size]} ${className}`;
 
     if (faceDown || !card) {
+        // Real-card look: white frame around a royal-blue center, so backs pop
+        // on every table color (the table's own blues are much darker).
+        const innerRound = size === 'xs' || size === 'sm' ? 'rounded' : 'rounded-md';
         return (
-            <div className={`${base} border-navy-900 bg-navy-800 flex items-center justify-center`}>
-                <div className="absolute inset-1 border border-navy-700 rounded opacity-80" />
-                {/* card backs are too small for the detailed rook etching —
-                    the Material raven reads better at this size */}
-                <span className="material-symbols-outlined text-white/80" style={{ fontSize: size === 'xs' ? 16 : size === 'sm' ? 20 : 28 }}>
-                    raven
-                </span>
+            <div className={`${base} border-gray-300 bg-white flex items-center justify-center`}>
+                <div className={`absolute inset-[3px] ${innerRound} bg-[#1d4ed8] border border-blue-900/60 flex items-center justify-center`}>
+                    {/* card backs are too small for the detailed rook etching —
+                        the Material raven reads better at this size */}
+                    <span className="material-symbols-outlined text-white/90" style={{ fontSize: size === 'xs' ? 14 : size === 'sm' ? 18 : 26 }}>
+                        raven
+                    </span>
+                </div>
             </div>
         );
     }

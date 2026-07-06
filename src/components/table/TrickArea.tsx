@@ -125,13 +125,25 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
                 </div>
             )}
             {plays.map(({ seat, card }) => (
-                <div key={seat} className={`${SLOT_CLASSES[positionOfSeat(seat, bottomSeat)]} animate-card-reveal`}>
-                    <PlayingCard
-                        card={card}
-                        trump={trump}
-                        size="md"
-                        highlight={winner === seat}
-                    />
+                // keyed by card too: a fresh play remounts and runs its flip,
+                // while the lingering finished trick keeps its settled cards
+                <div
+                    key={`${seat}-${card.suit}-${card.number}`}
+                    className={SLOT_CLASSES[positionOfSeat(seat, bottomSeat)]}
+                    style={{ perspective: '700px' }}
+                >
+                    <div className="relative [transform-style:preserve-3d] animate-trick-flip">
+                        <PlayingCard
+                            card={card}
+                            trump={trump}
+                            size="md"
+                            highlight={winner === seat}
+                            className="[backface-visibility:hidden]"
+                        />
+                        <div className="absolute inset-0 [transform:rotateY(180deg)] [backface-visibility:hidden]">
+                            <PlayingCard faceDown size="md" />
+                        </div>
+                    </div>
                 </div>
             ))}
         </div>

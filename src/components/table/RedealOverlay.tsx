@@ -41,13 +41,13 @@ export default function RedealOverlay({ game, mySeat, onAct }: RedealOverlayProp
                     </div>
                 ))}
             </div>
-            <p className="text-green-100/60 text-xs mt-4 font-orbitron">
+            <p className="text-white/60 text-xs mt-4 font-orbitron">
                 House rule: the whole hand gets thrown in and redealt.
             </p>
             {iAmDealer ? (
                 <button
                     onClick={() => onAct({ type: 'ACK_REDEAL', deck: createShuffledDeck() })}
-                    className="mt-5 px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-green-950 rounded-xl font-orbitron font-bold shadow-lg active:scale-95 transition"
+                    className="mt-5 px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-navy-950 rounded-xl font-orbitron font-bold shadow-lg active:scale-95 transition"
                 >
                     Redeal ’em!
                 </button>

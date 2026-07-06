@@ -39,7 +39,7 @@ export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, cardsLe
                 {isDealer && (
                     <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-yellow-400 border-2 border-yellow-200/80 flex items-center justify-center shadow-md"
                         title="Dealer">
-                        <span className="material-symbols-outlined text-green-950" style={{ fontSize: 15 }}>playing_cards</span>
+                        <span className="material-symbols-outlined text-navy-950" style={{ fontSize: 15 }}>playing_cards</span>
                     </div>
                 )}
                 {/* cards left: shaped like a tiny card back */}

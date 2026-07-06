@@ -51,11 +51,11 @@ export default function ScoreSheetModal({ game, onClose }: ScoreSheetModalProps)
 
                 <div className="overflow-y-auto custom-scrollbar flex-1">
                     {game.handHistory.length === 0 ? (
-                        <div className="text-green-100/60 text-sm text-center py-8">No hands scored yet.</div>
+                        <div className="text-white/60 text-sm text-center py-8">No hands scored yet.</div>
                     ) : (
                         <table className="w-full text-sm">
                             <thead className="sticky top-0 bg-navy-950">
-                                <tr className="text-green-100/60 font-orbitron text-[10px] uppercase">
+                                <tr className="text-white/60 font-orbitron text-[10px] uppercase">
                                     <th className="py-2 pl-4 text-left">#</th>
                                     <th className="text-left">Dealer</th>
                                     <th className="text-left">Took It</th>
@@ -68,11 +68,11 @@ export default function ScoreSheetModal({ game, onClose }: ScoreSheetModalProps)
                                     const bidTeam = teamOf(h.bidWinner);
                                     return (
                                         <tr key={h.handNumber} className="border-t border-white/10 text-white">
-                                            <td className="py-2.5 pl-4 text-green-100/70">{h.handNumber}</td>
-                                            <td className="text-green-100/80">{game.seats[h.dealer].name.split(' ')[0]}</td>
+                                            <td className="py-2.5 pl-4 text-white/70">{h.handNumber}</td>
+                                            <td className="text-white/80">{game.seats[h.dealer].name.split(' ')[0]}</td>
                                             <td>
-                                                <span className="text-green-100/90">{game.seats[h.bidWinner].name.split(' ')[0]} </span>
-                                                <span className={`font-orbitron font-bold ${h.wentSet ? 'text-red-400' : 'text-green-300'}`}>
+                                                <span className="text-white/90">{game.seats[h.bidWinner].name.split(' ')[0]} </span>
+                                                <span className={`font-orbitron font-bold ${h.wentSet ? 'text-red-400' : 'text-white'}`}>
                                                     {h.bid}
                                                 </span>
                                                 {h.wentSet && <span className="text-red-400 text-[10px] font-orbitron"> SET</span>}
@@ -89,7 +89,7 @@ export default function ScoreSheetModal({ game, onClose }: ScoreSheetModalProps)
                             </tbody>
                             <tfoot className="sticky bottom-0 bg-navy-800">
                                 <tr className="border-t-2 border-white/25 text-white font-orbitron">
-                                    <td colSpan={3} className="py-3 pl-4 text-green-100/70 text-xs uppercase tracking-widest">Total</td>
+                                    <td colSpan={3} className="py-3 pl-4 text-white/70 text-xs uppercase tracking-widest">Total</td>
                                     <td className={`text-right text-xl font-bold ${game.scores.A < 0 ? 'text-red-400' : 'text-sky-300'}`}>
                                         {game.scores.A}
                                     </td>
@@ -105,7 +105,7 @@ export default function ScoreSheetModal({ game, onClose }: ScoreSheetModalProps)
                 {/* invite spectators */}
                 <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-white/10 bg-white/5 flex-shrink-0">
                     <div className="min-w-0">
-                        <div className="text-green-100/60 text-[10px] font-orbitron uppercase tracking-widest">Watch this game</div>
+                        <div className="text-white/60 text-[10px] font-orbitron uppercase tracking-widest">Watch this game</div>
                         <div className="font-code text-yellow-400 text-xl leading-tight">{game.joinCode}</div>
                     </div>
                     <button

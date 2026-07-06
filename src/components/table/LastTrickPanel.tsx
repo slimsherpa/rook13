@@ -52,10 +52,10 @@ export default function LastTrickPanel({ game, onClose }: LastTrickPanelProps) {
                     const isWinner = seat === trick.winner;
                     return (
                         <div key={seat} className="flex flex-col items-center gap-1">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-orbitron ${i === 0 ? 'bg-yellow-500 text-green-950 font-bold' : 'bg-gray-800 text-gray-300'}`}>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-orbitron ${i === 0 ? 'bg-yellow-500 text-navy-950 font-bold' : 'bg-gray-800 text-gray-300'}`}>
                                 {i === 0 ? 'Lead' : i + 1}
                             </span>
-                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-orbitron max-w-full truncate ${isWinner ? 'bg-green-600 text-white font-bold' : 'bg-gray-800/80 text-gray-200'}`}>
+                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-orbitron max-w-full truncate ${isWinner ? 'bg-yellow-500/25 text-yellow-300 font-bold' : 'bg-gray-800/80 text-gray-200'}`}>
                                 {game.seats[seat].name.split(' ')[0]}
                             </span>
                             <PlayingCard card={card} trump={game.trump} size="sm" highlight={isWinner} />
@@ -65,7 +65,7 @@ export default function LastTrickPanel({ game, onClose }: LastTrickPanelProps) {
             </div>
 
             {/* winner banner */}
-            <div className="mt-3 rounded-xl bg-green-600 text-white text-center py-2 font-orbitron text-sm flex items-center justify-center gap-2">
+            <div className="mt-3 rounded-xl bg-sky-600 text-white text-center py-2 font-orbitron text-sm flex items-center justify-center gap-2">
                 <span className="material-symbols-outlined text-yellow-300 text-lg">stars</span>
                 {winnerName} won {trick.points} point{trick.points === 1 ? '' : 's'}!
             </div>

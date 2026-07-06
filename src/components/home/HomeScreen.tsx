@@ -86,10 +86,10 @@ export default function HomeScreen() {
             .map((si) => si.name.split(' ')[0])
             .join(', ');
         const status =
-            g.status === 'lobby' ? { label: 'Waiting', cls: 'bg-yellow-500/20 text-yellow-300' } :
-            g.status === 'active' ? { label: 'In Progress', cls: 'bg-green-500/20 text-green-300' } :
+            g.status === 'lobby' ? { label: 'Waiting', cls: 'bg-white/10 text-white/70' } :
+            g.status === 'active' ? { label: 'In Progress', cls: 'bg-sky-500/20 text-sky-300' } :
             g.winner && mySeat && teamOf(mySeat) === g.winner
-                ? { label: 'Won', cls: 'bg-sky-500/20 text-sky-300' }
+                ? { label: 'Won', cls: 'bg-yellow-500/20 text-yellow-300' }
                 : { label: 'Finished', cls: 'bg-gray-500/20 text-gray-300' };
 
         return (
@@ -104,7 +104,7 @@ export default function HomeScreen() {
                 </span>
                 <div className="flex-1 min-w-0">
                     <div className="text-white font-orbitron text-sm truncate">{names || 'Bot game'}</div>
-                    <div className="text-green-100/50 text-[11px]">
+                    <div className="text-white/50 text-[11px]">
                         {g.status !== 'lobby' && `${g.scores.A} – ${g.scores.B} · `}
                         {new Date(g.updatedAt).toLocaleDateString()} · code <span className="font-code text-[10px]">{g.joinCode}</span>
                     </div>
@@ -161,7 +161,7 @@ export default function HomeScreen() {
                 <button
                     onClick={handleCreate}
                     disabled={creating}
-                    className="w-full py-5 rounded-2xl bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white font-orbitron font-bold text-xl shadow-lg flex items-center justify-center gap-3 active:scale-[0.98] transition"
+                    className="w-full py-5 rounded-2xl bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-white font-orbitron font-bold text-xl shadow-lg flex items-center justify-center gap-3 active:scale-[0.98] transition"
                 >
                     <span className="material-symbols-outlined text-2xl">playing_cards</span>
                     {creating ? 'Setting the table…' : 'NEW GAME'}
@@ -174,7 +174,7 @@ export default function HomeScreen() {
                         onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
                         placeholder="TABLE CODE"
                         maxLength={4}
-                        className="flex-1 rounded-xl bg-navy-950/60 border border-white/15 px-4 py-3 text-white font-code text-center placeholder:text-green-100/30 placeholder:tracking-normal placeholder:font-normal focus:outline-none focus:border-sky-400"
+                        className="flex-1 rounded-xl bg-navy-950/60 border border-white/15 px-4 py-3 text-white font-code text-center placeholder:text-white/30 placeholder:tracking-normal placeholder:font-normal focus:outline-none focus:border-sky-400"
                     />
                     <button
                         onClick={handleJoin}
@@ -189,7 +189,7 @@ export default function HomeScreen() {
                 {/* my games */}
                 {myGames.length > 0 && (
                     <section className="mt-8">
-                        <h2 className="text-green-100/70 font-orbitron text-xs uppercase tracking-widest mb-2">My Games</h2>
+                        <h2 className="text-white/70 font-orbitron text-xs uppercase tracking-widest mb-2">My Games</h2>
                         <div className="space-y-2">{myGames.slice(0, 8).map(gameRow)}</div>
                     </section>
                 )}
@@ -197,7 +197,7 @@ export default function HomeScreen() {
                 {/* open tables */}
                 {openGames.length > 0 && (
                     <section className="mt-6">
-                        <h2 className="text-green-100/70 font-orbitron text-xs uppercase tracking-widest mb-2">Open Tables</h2>
+                        <h2 className="text-white/70 font-orbitron text-xs uppercase tracking-widest mb-2">Open Tables</h2>
                         <div className="space-y-2">{openGames.slice(0, 5).map(gameRow)}</div>
                     </section>
                 )}
@@ -210,7 +210,7 @@ export default function HomeScreen() {
                     <span className="material-symbols-outlined text-yellow-400 text-4xl">trophy</span>
                     <div className="text-left">
                         <div className="font-orbitron text-white font-bold">THE JAY CUP</div>
-                        <div className="text-green-100/60 text-xs">Hall of Champions · 2008–2024</div>
+                        <div className="text-white/60 text-xs">Hall of Champions · 2008–2024</div>
                     </div>
                 </button>
             </div>

@@ -79,7 +79,7 @@ export default function GameReview({ gameId }: { gameId: string }) {
                         <div className="text-white font-orbitron text-sm">
                             {name(s.bidWinner)} bid {s.bid} · {s.trump}
                         </div>
-                        <div className={`text-[11px] ${s.wentSet ? 'text-red-300' : 'text-green-100/60'}`}>
+                        <div className={`text-[11px] ${s.wentSet ? 'text-red-300' : 'text-white/60'}`}>
                             {s.wentSet ? `SET — took ${s.pointsTaken[bidTeam]}` : `made it with ${s.pointsTaken[bidTeam]}`}
                         </div>
                     </div>
@@ -98,7 +98,7 @@ export default function GameReview({ gameId }: { gameId: string }) {
                     <div className="px-3.5 pb-4 border-t border-white/10 pt-3 space-y-4">
                         {/* the auction */}
                         <div>
-                            <div className="text-green-100/50 font-orbitron text-[11px] uppercase tracking-widest mb-1.5">Bidding</div>
+                            <div className="text-white/50 font-orbitron text-[11px] uppercase tracking-widest mb-1.5">Bidding</div>
                             <div className="flex flex-wrap gap-1.5">
                                 {h.bids.map((b, i) => (
                                     <span key={i} className={`px-2 py-0.5 rounded-md text-[11px] font-orbitron ${b.bid === 'pass' ? 'bg-gray-800/80 text-gray-300' : 'bg-sky-700 text-white'}`}>
@@ -112,13 +112,13 @@ export default function GameReview({ gameId }: { gameId: string }) {
                         <div className="space-y-3">
                             {h.tricks.map((trick, tIdx) => (
                                 <div key={tIdx} className="flex items-center gap-2">
-                                    <div className="w-6 flex-shrink-0 text-green-100/40 font-orbitron text-lg font-bold text-center">{tIdx + 1}</div>
+                                    <div className="w-6 flex-shrink-0 text-white/40 font-orbitron text-lg font-bold text-center">{tIdx + 1}</div>
                                     <div className="grid grid-cols-4 gap-1.5 flex-1">
                                         {trick.plays.map(({ seat, card }) => {
                                             const isWinner = seat === trick.winner;
                                             return (
                                                 <div key={seat} className="flex flex-col items-center gap-1">
-                                                    <span className={`px-1.5 py-px rounded text-[10px] font-orbitron max-w-full truncate ${isWinner ? 'bg-yellow-500/20 text-yellow-300 font-bold' : 'text-green-100/60'}`}>
+                                                    <span className={`px-1.5 py-px rounded text-[10px] font-orbitron max-w-full truncate ${isWinner ? 'bg-yellow-500/20 text-yellow-300 font-bold' : 'text-white/60'}`}>
                                                         {name(seat)}
                                                     </span>
                                                     <PlayingCard card={card} trump={h.trump} size="sm" highlight={isWinner} />
@@ -130,11 +130,11 @@ export default function GameReview({ gameId }: { gameId: string }) {
                             ))}
                             {/* go-down */}
                             <div className="flex items-center gap-2">
-                                <div className="w-6 flex-shrink-0 text-green-100/40 font-orbitron text-[10px] font-bold text-center">GD</div>
+                                <div className="w-6 flex-shrink-0 text-white/40 font-orbitron text-[10px] font-bold text-center">GD</div>
                                 <div className="grid grid-cols-4 gap-1.5 flex-1">
                                     {h.goDown.map((c) => (
                                         <div key={`${c.suit}-${c.number}`} className="flex flex-col items-center gap-1">
-                                            <span className={`px-1.5 py-px rounded text-[10px] font-orbitron ${getCardPoints(c) > 0 ? 'text-yellow-300' : 'text-green-100/40'}`}>
+                                            <span className={`px-1.5 py-px rounded text-[10px] font-orbitron ${getCardPoints(c) > 0 ? 'text-yellow-300' : 'text-white/40'}`}>
                                                 {getCardPoints(c) > 0 ? `${getCardPoints(c)} pts` : '—'}
                                             </span>
                                             <PlayingCard card={c} trump={h.trump} size="sm" />
@@ -161,21 +161,21 @@ export default function GameReview({ gameId }: { gameId: string }) {
 
                 {/* final result */}
                 <div className="rounded-2xl bg-navy-950/60 border border-white/15 p-4 text-center mb-5">
-                    <div className="text-green-100/60 text-xs font-orbitron uppercase tracking-widest">
+                    <div className="text-white/60 text-xs font-orbitron uppercase tracking-widest">
                         {game.status === 'completed' ? 'Final Score' : 'Score So Far'}
                     </div>
                     <div className="flex items-center justify-center gap-5 mt-1 font-orbitron">
                         <div className="text-right">
                             <div className={`text-3xl font-bold ${game.winner === 'A' ? 'text-yellow-400' : 'text-sky-300'}`}>{game.scores.A}</div>
-                            <div className="text-green-100/60 text-[11px] truncate max-w-[8rem]">{teamLabel('A')}</div>
+                            <div className="text-white/60 text-[11px] truncate max-w-[8rem]">{teamLabel('A')}</div>
                         </div>
-                        <div className="text-green-100/40 text-sm">·</div>
+                        <div className="text-white/40 text-sm">·</div>
                         <div className="text-left">
                             <div className={`text-3xl font-bold ${game.winner === 'B' ? 'text-yellow-400' : 'text-orange-300'}`}>{game.scores.B}</div>
-                            <div className="text-green-100/60 text-[11px] truncate max-w-[8rem]">{teamLabel('B')}</div>
+                            <div className="text-white/60 text-[11px] truncate max-w-[8rem]">{teamLabel('B')}</div>
                         </div>
                     </div>
-                    <div className="text-green-100/50 text-[11px] mt-2">
+                    <div className="text-white/50 text-[11px] mt-2">
                         {new Date(game.createdAt).toLocaleDateString()} · table <span className="font-code text-[10px]">{game.joinCode}</span>
                     </div>
                 </div>
@@ -187,9 +187,9 @@ export default function GameReview({ gameId }: { gameId: string }) {
                 )}
 
                 {hands === null ? (
-                    <p className="text-center text-green-100/60 font-orbitron text-sm py-8">Rebuilding hands…</p>
+                    <p className="text-center text-white/60 font-orbitron text-sm py-8">Rebuilding hands…</p>
                 ) : hands.length === 0 ? (
-                    <p className="text-center text-green-100/60 font-orbitron text-sm py-8">No finished hands in this game yet.</p>
+                    <p className="text-center text-white/60 font-orbitron text-sm py-8">No finished hands in this game yet.</p>
                 ) : (
                     <div className="space-y-2.5">{hands.map(handCard)}</div>
                 )}

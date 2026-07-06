@@ -209,43 +209,66 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                     </div>
                 )}
 
-                {/* widow stack during bidding */}
-                {game.phase === 'bidding' && game.widow.length > 0 && (
-                    <div className="absolute bottom-3 right-3 flex flex-col items-center">
-                        <div className="flex -space-x-6">
-                            {game.widow.map((_, i) => <PlayingCard key={i} faceDown size="xs" />)}
-                        </div>
-                        <span className="text-white/50 text-[10px] font-orbitron mt-1">WIDOW</span>
-                    </div>
-                )}
+                {/* bottom-right corner: hand facts (who took it, who deals) above
+                    the widow / go-down stacks */}
+                <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2">
+                    {/* who took it and for how much — stays up all hand, for
+                        players and spectators alike */}
+                    {game.bidWinner && game.highBid !== null && game.phase !== 'bidding' && (
+                        <span
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-orbitron font-bold shadow ${
+                                iAmBidWinner ? 'bg-yellow-400 text-navy-950' : 'bg-sky-700 text-white'
+                            }`}
+                        >
+                            {iAmBidWinner ? 'YOU' : game.seats[game.bidWinner].name.split(' ')[0]} · {game.highBid}
+                        </span>
+                    )}
+                    {/* dealer reminder — your own badge is hidden on phones */}
+                    {mySeat !== null && game.dealer === mySeat && game.status === 'active' && (
+                        <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-yellow-400 text-navy-950 text-[11px] font-orbitron font-bold shadow">
+                            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>playing_cards</span>
+                            YOU DEAL
+                        </span>
+                    )}
 
-                {/* the taker's private go-down: tap to fan it out face-up,
-                    tap again to stack it back face-down. Nobody else sees it. */}
-                {game.goDown.length > 0 && game.phase === 'playing' && iAmBidWinner && (
-                    // a div, not a button: face-up PlayingCards are buttons and
-                    // buttons must not nest
-                    <div
-                        role="button"
-                        tabIndex={0}
-                        className="absolute bottom-3 right-3 flex flex-col items-center cursor-pointer"
-                        onClick={() => setGoDownPeek((v) => !v)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setGoDownPeek((v) => !v); }}
-                    >
-                        <div className={`${goDownPeek ? 'flex gap-1' : 'flex -space-x-6'} pointer-events-none`}>
-                            {game.goDown.map((c, i) => (
-                                <div key={i} className={goDownPeek ? 'animate-card-reveal' : ''}>
-                                    <PlayingCard
-                                        card={goDownPeek ? c : undefined}
-                                        faceDown={!goDownPeek}
-                                        trump={game.trump}
-                                        size={goDownPeek ? 'sm' : 'xs'}
-                                    />
-                                </div>
-                            ))}
+                    {/* widow stack during bidding */}
+                    {game.phase === 'bidding' && game.widow.length > 0 && (
+                        <div className="flex flex-col items-center self-center">
+                            <div className="flex -space-x-6">
+                                {game.widow.map((_, i) => <PlayingCard key={i} faceDown size="xs" />)}
+                            </div>
+                            <span className="text-white/50 text-[10px] font-orbitron mt-1">WIDOW</span>
                         </div>
-                        <span className="text-white/50 text-[10px] font-orbitron mt-1">GO-DOWN</span>
-                    </div>
-                )}
+                    )}
+
+                    {/* the taker's private go-down: tap to fan it out face-up,
+                        tap again to stack it back face-down. Nobody else sees it.
+                        (a div, not a button: face-up PlayingCards are buttons and
+                        buttons must not nest) */}
+                    {game.goDown.length > 0 && game.phase === 'playing' && iAmBidWinner && (
+                        <div
+                            role="button"
+                            tabIndex={0}
+                            className="flex flex-col items-center cursor-pointer"
+                            onClick={() => setGoDownPeek((v) => !v)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setGoDownPeek((v) => !v); }}
+                        >
+                            <div className={`${goDownPeek ? 'flex gap-1' : 'flex -space-x-6'} pointer-events-none`}>
+                                {game.goDown.map((c, i) => (
+                                    <div key={i} className={goDownPeek ? 'animate-card-reveal' : ''}>
+                                        <PlayingCard
+                                            card={goDownPeek ? c : undefined}
+                                            faceDown={!goDownPeek}
+                                            trump={game.trump}
+                                            size={goDownPeek ? 'sm' : 'xs'}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            <span className="text-white/50 text-[10px] font-orbitron mt-1">GO-DOWN</span>
+                        </div>
+                    )}
+                </div>
 
                 {/* my badge floats above my hand on larger screens; on phones the
                     hand is identity enough. Spectators have no hand, so they get
@@ -323,13 +346,13 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                                             {w.name.charAt(0)}
                                         </span>
                                     )}
-                                    <span className="text-green-100/90 text-sm truncate">{w.name}</span>
+                                    <span className="text-white/90 text-sm truncate">{w.name}</span>
                                 </div>
                             ))}
                         </div>
                         <button
                             onClick={() => setShowWatchers(false)}
-                            className="mt-4 w-full py-2.5 rounded-xl bg-green-700 hover:bg-green-600 text-white font-orbitron text-sm"
+                            className="mt-4 w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-orbitron text-sm"
                         >
                             Close
                         </button>

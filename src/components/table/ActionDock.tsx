@@ -19,7 +19,7 @@ interface ActionDockProps {
 
 const suitButtonColors: Record<Suit, string> = {
     Red: 'bg-red-600 hover:bg-red-500',
-    Yellow: 'bg-yellow-500 hover:bg-yellow-400 text-green-950',
+    Yellow: 'bg-yellow-500 hover:bg-yellow-400 text-navy-950',
     Black: 'bg-gray-900 hover:bg-gray-800',
     Green: 'bg-green-600 hover:bg-green-500',
 };
@@ -40,7 +40,7 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
                 <div className="flex justify-center py-1.5">
                     <button
                         onClick={() => onAct({ type: 'DEAL', deck: createShuffledDeck() })}
-                        className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl font-orbitron text-lg shadow-lg flex items-center gap-2 active:scale-95 transition"
+                        className="px-8 py-3 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-orbitron text-lg shadow-lg flex items-center gap-2 active:scale-95 transition"
                     >
                         <span className="material-symbols-outlined">style</span>
                         Deal Cards

@@ -34,7 +34,7 @@ export default function GameRoom({ gameId }: { gameId: string }) {
                 <h1 className="font-orbitron text-4xl font-black text-white">
                     ROOK<span className="text-yellow-400">13</span>
                 </h1>
-                <p className="text-green-100/80 font-orbitron text-sm max-w-xs">
+                <p className="text-white/80 font-orbitron text-sm max-w-xs">
                     You&apos;ve been invited to a table! Sign in to take a seat or watch.
                 </p>
                 <button

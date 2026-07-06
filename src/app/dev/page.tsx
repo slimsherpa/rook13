@@ -81,7 +81,7 @@ export default function DevTablePage() {
                 <TableView game={game} mySeat={mySeat} act={act} actionError={actionError} />
                 <button
                     onClick={() => setGame(freshGame(spectate))}
-                    className="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-yellow-500 text-green-950 font-orbitron text-xs font-bold"
+                    className="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-yellow-500 text-navy-950 font-orbitron text-xs font-bold"
                 >
                     New Dev Game
                 </button>

@@ -11,7 +11,7 @@ interface LoadingSpinnerProps {
 
 export default function LoadingSpinner({ 
   size = 'md', 
-  variant = 'green',
+  variant = 'blue',
   showText = true,
   text = 'Loading...',
   showSpinningDots = false,
