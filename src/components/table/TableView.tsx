@@ -174,15 +174,6 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                             <span className="text-xs font-orbitron">{watchers.length}</span>
                         </button>
                     )}
-                    {game.completedTricks.length > 0 && game.phase === 'playing' && (
-                        <button
-                            onClick={() => setShowLastTrick(true)}
-                            className="text-white/70 hover:text-white flex items-center"
-                            title="Last trick"
-                        >
-                            <span className="material-symbols-outlined text-lg">history</span>
-                        </button>
-                    )}
                     <button onClick={() => setShowScores(true)} className="flex items-center gap-2 font-orbitron text-sm" title="Score sheet">
                         <span className="text-sky-300 font-bold">{game.scores.A}</span>
                         <span className="text-white/40 text-xs">·</span>
@@ -212,20 +203,33 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                 <TrickArea game={game} bottomSeat={bottomSeat} trump={game.trump} message={centerMessage} />
 
                 {/* hand-points ticker: the running count of captured points,
-                    binging up on the team that just scooped a counter */}
-                {game.phase === 'playing' && (
-                    <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
-                        <span className="text-white/40 text-[9px] font-orbitron uppercase tracking-widest">Hand pts</span>
-                        <div className="flex gap-1.5">
-                            <span className={`px-2 py-0.5 rounded-full bg-sky-700 text-white text-[11px] font-orbitron font-bold shadow ${pointsFlash.A ? 'animate-points-bing' : ''}`}>
-                                {game.pointsTaken.A}
+                    binging up on the team that just scooped a counter. Tapping
+                    it opens the last-trick recap (once there's a trick to show). */}
+                {game.phase === 'playing' && (() => {
+                    const canReviewTrick = game.completedTricks.length > 0;
+                    return (
+                        <button
+                            type="button"
+                            onClick={() => canReviewTrick && setShowLastTrick(true)}
+                            disabled={!canReviewTrick}
+                            title={canReviewTrick ? 'Last trick' : undefined}
+                            className={`absolute top-2 right-2 z-10 flex flex-col items-end gap-1 ${canReviewTrick ? 'cursor-pointer' : 'cursor-default'}`}
+                        >
+                            <span className="flex items-center gap-1 text-white/40 text-[9px] font-orbitron uppercase tracking-widest">
+                                Hand pts
+                                {canReviewTrick && <span className="material-symbols-outlined text-[13px] leading-none">history</span>}
                             </span>
-                            <span className={`px-2 py-0.5 rounded-full bg-orange-700 text-white text-[11px] font-orbitron font-bold shadow ${pointsFlash.B ? 'animate-points-bing' : ''}`}>
-                                {game.pointsTaken.B}
-                            </span>
-                        </div>
-                    </div>
-                )}
+                            <div className="flex gap-1.5">
+                                <span className={`px-2 py-0.5 rounded-full bg-sky-700 text-white text-[11px] font-orbitron font-bold shadow ${pointsFlash.A ? 'animate-points-bing' : ''}`}>
+                                    {game.pointsTaken.A}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-full bg-orange-700 text-white text-[11px] font-orbitron font-bold shadow ${pointsFlash.B ? 'animate-points-bing' : ''}`}>
+                                    {game.pointsTaken.B}
+                                </span>
+                            </div>
+                        </button>
+                    );
+                })()}
 
                 {/* set / maxxed announcement */}
                 {announcement && (
