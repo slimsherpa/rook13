@@ -2,7 +2,8 @@
 
 // Center of the table: the cards of the trick in progress. When a trick
 // finishes, the engine clears it immediately, so we keep the finished trick
-// on screen locally for a beat (winner glowing) before it sweeps away.
+// on screen locally (winner glowing) for a couple of seconds, then the cards
+// fly to the winner and shrink away — "captured".
 //
 // The felt grows a compass pointer that sweeps smoothly around the wheel to
 // whoever the game is waiting on — always rotating clockwise, matching the
@@ -30,7 +31,16 @@ const POSITION_ANGLE: Record<TablePosition, number> = {
     right: 270,
 };
 
-const LINGER_MS = 1700;
+/** rough slot centers relative to the middle of the felt, for the capture sweep */
+const SLOT_VECTORS: Record<TablePosition, { x: number; y: number }> = {
+    bottom: { x: 0, y: 88 },
+    top: { x: 0, y: -88 },
+    left: { x: -88, y: 0 },
+    right: { x: 88, y: 0 },
+};
+
+const LINGER_MS = 2000;         // let everyone see who took the trick
+const SWEEP_MS = 500;           // then the winner scoops the cards
 // the final trick of a hand hangs around longer — the recap is coming and
 // people want to see how it ended
 const LAST_TRICK_LINGER_MS = 3200;
@@ -45,6 +55,7 @@ interface TrickAreaProps {
 
 export default function TrickArea({ game, bottomSeat, trump, message }: TrickAreaProps) {
     const [lingering, setLingering] = useState<TrickRecord | null>(null);
+    const [sweeping, setSweeping] = useState(false);
     const seenTricks = useRef(game.completedTricks.length);
 
     useEffect(() => {
@@ -53,14 +64,17 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
             seenTricks.current = count;
             const last = game.completedTricks[count - 1];
             setLingering(last);
+            setSweeping(false);
             const linger = game.phase === 'playing' ? LINGER_MS : LAST_TRICK_LINGER_MS;
-            const t = setTimeout(() => setLingering(null), linger);
-            return () => clearTimeout(t);
+            const t1 = setTimeout(() => setSweeping(true), linger);
+            const t2 = setTimeout(() => { setLingering(null); setSweeping(false); }, linger + SWEEP_MS);
+            return () => { clearTimeout(t1); clearTimeout(t2); };
         }
         if (count < seenTricks.current) {
             // new hand started
             seenTricks.current = count;
             setLingering(null);
+            setSweeping(false);
         }
     }, [game.completedTricks.length, game.completedTricks, game.phase]);
 
@@ -82,9 +96,18 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
     }, [turnPosition]);
 
     // A fresh play always takes priority over the lingering old trick.
-    const showLingering = lingering !== null && game.trickPlays.length === 0;
-    const plays: { seat: Seat; card: Card }[] = showLingering ? lingering!.plays : game.trickPlays;
-    const winner: Seat | null = showLingering ? lingering!.winner : null;
+    //
+    // Bridge the one render between "engine cleared the trick" and "the linger
+    // effect committed": without it the four cards unmount for a frame and
+    // remount, replaying every flip animation at once.
+    const count = game.completedTricks.length;
+    const lastTrick = count > 0 ? game.completedTricks[count - 1] : null;
+    const bridging = count > seenTricks.current && game.trickPlays.length === 0;
+    const activeTrick = bridging ? lastTrick : lingering;
+    const showLingering = activeTrick !== null && game.trickPlays.length === 0;
+    const plays: { seat: Seat; card: Card }[] = showLingering ? activeTrick!.plays : game.trickPlays;
+    const winner: Seat | null = showLingering ? activeTrick!.winner : null;
+    const winnerPosition = winner ? positionOfSeat(winner, bottomSeat) : null;
 
     const theme = themeFor(trump);
 
@@ -106,15 +129,16 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
                         style={{ borderTopColor: theme.felt, transition: 'border-top-color 0.7s' }} />
                 </div>
             )}
-            {/* felt circle, dyed to match the table */}
+            {/* felt circle, dyed to match the table — no outline, so the
+                pointer reads as part of the same shape */}
             <div
-                className="absolute inset-0 rounded-full border border-white/10 shadow-inner transition-colors duration-700"
+                className="absolute inset-0 rounded-full shadow-inner transition-colors duration-700"
                 style={{ backgroundColor: theme.felt }}
             />
             {/* the rook, embossed into the felt */}
             <div className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center pointer-events-none">
                 <RookBird
-                    className="w-48 h-48 sm:w-60 sm:h-60 text-black/30"
+                    className={`w-48 h-48 sm:w-60 sm:h-60 ${theme.emboss}`}
                     // a hairline of light below the dark shape sells the emboss
                     style={{ filter: 'drop-shadow(0 1px 0 rgba(255,255,255,0.07))' }}
                 />
@@ -124,28 +148,42 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
                     <span className="text-white/85 text-sm sm:text-base font-orbitron leading-snug">{message}</span>
                 </div>
             )}
-            {plays.map(({ seat, card }) => (
-                // keyed by card too: a fresh play remounts and runs its flip,
-                // while the lingering finished trick keeps its settled cards
-                <div
-                    key={`${seat}-${card.suit}-${card.number}`}
-                    className={SLOT_CLASSES[positionOfSeat(seat, bottomSeat)]}
-                    style={{ perspective: '700px' }}
-                >
-                    <div className="relative [transform-style:preserve-3d] animate-trick-flip">
-                        <PlayingCard
-                            card={card}
-                            trump={trump}
-                            size="md"
-                            highlight={winner === seat}
-                            className="[backface-visibility:hidden]"
-                        />
-                        <div className="absolute inset-0 [transform:rotateY(180deg)] [backface-visibility:hidden]">
-                            <PlayingCard faceDown size="md" />
+            {plays.map(({ seat, card }) => {
+                const slotPosition = positionOfSeat(seat, bottomSeat);
+                // capture sweep: every card slides to the winner's slot and shrinks
+                const sweepStyle = sweeping && showLingering && winnerPosition
+                    ? {
+                        transform: `translate(${SLOT_VECTORS[winnerPosition].x - SLOT_VECTORS[slotPosition].x}px, ${SLOT_VECTORS[winnerPosition].y - SLOT_VECTORS[slotPosition].y}px) scale(0.3)`,
+                        opacity: 0,
+                    }
+                    : undefined;
+                return (
+                    // keyed by card too: a fresh play remounts and runs its flip,
+                    // while the settled trick keeps its cards mounted
+                    <div
+                        key={`${seat}-${card.suit}-${card.number}`}
+                        className={SLOT_CLASSES[slotPosition]}
+                        style={{ perspective: '700px' }}
+                    >
+                        <div
+                            style={{ transition: `transform ${SWEEP_MS}ms ease-in, opacity ${SWEEP_MS}ms ease-in`, ...sweepStyle }}
+                        >
+                            <div className="relative [transform-style:preserve-3d] animate-trick-flip">
+                                <PlayingCard
+                                    card={card}
+                                    trump={trump}
+                                    size="md"
+                                    highlight={winner === seat}
+                                    className="[backface-visibility:hidden]"
+                                />
+                                <div className="absolute inset-0 [transform:rotateY(180deg)] [backface-visibility:hidden]">
+                                    <PlayingCard faceDown size="md" />
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }

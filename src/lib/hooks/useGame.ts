@@ -18,6 +18,8 @@ import { useAuth } from './useAuth';
 const BOT_BASE_DELAY_MS = 1100;      // natural pacing for bot moves
 const BOT_DEAL_DELAY_MS = 1400;
 const BOT_REDEAL_PAUSE_MS = 6500;    // let the redeal celebration breathe
+// leading the next trick waits out the linger + capture sweep of the last one
+const BOT_TRICK_LEAD_DELAY_MS = 3200;
 const FALLBACK_EXTRA_MS = 2500;      // non-host clients wait longer before covering
 
 export interface UseGameResult {
@@ -96,9 +98,14 @@ export const useGame = (gameId: string | null): UseGameResult => {
         const action = nextBotAction(game);
         if (!action) return;
 
+        const leadsNextTrick =
+            action.type === 'PLAY_CARD' &&
+            game.trickPlays.length === 0 &&
+            game.completedTricks.length > 0;
         const baseDelay =
             action.type === 'ACK_REDEAL' ? BOT_REDEAL_PAUSE_MS :
             action.type === 'DEAL' ? BOT_DEAL_DELAY_MS :
+            leadsNextTrick ? BOT_TRICK_LEAD_DELAY_MS :
             BOT_BASE_DELAY_MS;
         const jitter = Math.random() * 400;
         const delay = baseDelay + jitter + (isHost ? 0 : FALLBACK_EXTRA_MS);

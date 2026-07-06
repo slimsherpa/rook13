@@ -170,6 +170,8 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
     };
 
     const handleSort = () => {
+        // sorting is the lazy person's reveal: flip whatever's still face-down
+        setRevealedKeys(new Set(hand.map(cardKey)));
         setOrder(sortHand(hand, game.trump).map(cardKey));
     };
 

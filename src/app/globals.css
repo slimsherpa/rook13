@@ -65,6 +65,17 @@ body {
   animation: trick-flip 0.25s ease-out;
 }
 
+/* The hand-points ticker "bings" when a team captures counters. */
+@keyframes points-bing {
+  0%   { transform: scale(1);    filter: brightness(1); }
+  30%  { transform: scale(1.4);  filter: brightness(1.7); }
+  100% { transform: scale(1);    filter: brightness(1); }
+}
+
+.animate-points-bing {
+  animation: points-bing 0.9s ease-out;
+}
+
 /* Cyberpunk Animation Effects */
 @keyframes glitch {
   0%, 100% { transform: translate(0); }

@@ -93,6 +93,19 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [game]);
 
+    // hand-points ticker: pulse the team chip that just captured points
+    const [pointsFlash, setPointsFlash] = useState<Record<Team, boolean>>({ A: false, B: false });
+    const prevPoints = useRef(game.pointsTaken);
+    useEffect(() => {
+        const gainA = game.pointsTaken.A > prevPoints.current.A;
+        const gainB = game.pointsTaken.B > prevPoints.current.B;
+        prevPoints.current = game.pointsTaken;
+        if (!gainA && !gainB) return;
+        setPointsFlash({ A: gainA, B: gainB });
+        const t = setTimeout(() => setPointsFlash({ A: false, B: false }), 1000);
+        return () => clearTimeout(t);
+    }, [game.pointsTaken]);
+
     const toggleGoDown = (card: Card) => {
         setSelectedGoDown((prev) => {
             if (prev.some((c) => sameCard(c, card))) return prev.filter((c) => !sameCard(c, card));
@@ -188,13 +201,31 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
 
             {/* table */}
             <main className="flex-1 relative flex items-center justify-center min-h-0">
+                {/* badges sit above the felt so the compass pointer slides
+                    underneath them, never over */}
                 {/* partner (top) */}
-                <div className="absolute top-2 left-1/2 -translate-x-1/2">{badge(pos.top)}</div>
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">{badge(pos.top)}</div>
                 {/* left + right opponents */}
-                <div className="absolute left-2 top-1/2 -translate-y-1/2">{badge(pos.left)}</div>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2">{badge(pos.right)}</div>
+                <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10">{badge(pos.left)}</div>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{badge(pos.right)}</div>
 
                 <TrickArea game={game} bottomSeat={bottomSeat} trump={game.trump} message={centerMessage} />
+
+                {/* hand-points ticker: the running count of captured points,
+                    binging up on the team that just scooped a counter */}
+                {game.phase === 'playing' && (
+                    <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-1">
+                        <span className="text-white/40 text-[9px] font-orbitron uppercase tracking-widest">Hand pts</span>
+                        <div className="flex gap-1.5">
+                            <span className={`px-2 py-0.5 rounded-full bg-sky-700 text-white text-[11px] font-orbitron font-bold shadow ${pointsFlash.A ? 'animate-points-bing' : ''}`}>
+                                {game.pointsTaken.A}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full bg-orange-700 text-white text-[11px] font-orbitron font-bold shadow ${pointsFlash.B ? 'animate-points-bing' : ''}`}>
+                                {game.pointsTaken.B}
+                            </span>
+                        </div>
+                    </div>
+                )}
 
                 {/* set / maxxed announcement */}
                 {announcement && (
@@ -209,18 +240,14 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                     </div>
                 )}
 
-                {/* bottom-right corner: hand facts (who took it, who deals) above
+                {/* bottom-right corner: hand facts (your bid, who deals) above
                     the widow / go-down stacks */}
                 <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2">
-                    {/* who took it and for how much — stays up all hand, for
-                        players and spectators alike */}
-                    {game.bidWinner && game.highBid !== null && game.phase !== 'bidding' && (
-                        <span
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-orbitron font-bold shadow ${
-                                iAmBidWinner ? 'bg-yellow-400 text-navy-950' : 'bg-sky-700 text-white'
-                            }`}
-                        >
-                            {iAmBidWinner ? 'YOU' : game.seats[game.bidWinner].name.split(' ')[0]} · {game.highBid}
+                    {/* your bid, as a reminder of what you owe this hand — everyone
+                        else reads the bid off the taker's badge */}
+                    {iAmBidWinner && game.highBid !== null && game.phase !== 'bidding' && (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-orbitron font-bold shadow bg-yellow-400 text-navy-950">
+                            YOU · {game.highBid}
                         </span>
                     )}
                     {/* dealer reminder — your own badge is hidden on phones */}

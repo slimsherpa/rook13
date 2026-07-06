@@ -42,7 +42,12 @@ export default function DevTablePage() {
         if (!game || game.status !== 'active') return;
         const action = nextBotAction(game);
         if (!action) return;
-        const delay = action.type === 'ACK_REDEAL' ? 4000 : 900;
+        // leading a new trick waits out the previous trick's linger + sweep
+        const leadsNextTrick =
+            action.type === 'PLAY_CARD' &&
+            game.trickPlays.length === 0 &&
+            game.completedTricks.length > 0;
+        const delay = action.type === 'ACK_REDEAL' ? 4000 : leadsNextTrick ? 3200 : 900;
         const t = setTimeout(() => {
             setGame((g) => {
                 if (!g) return g;
