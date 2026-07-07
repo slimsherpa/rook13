@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { GameAction, GameDoc } from '@/lib/game/types';
 import { createGameDoc, applyAction, InvalidActionError } from '@/lib/game/engine';
-import { nextBotAction } from '@/lib/game/bots';
+import { nextAgentAction } from '@/lib/alpharook/agent';
 import TableView from '@/components/table/TableView';
 
 const freshGame = (spectate = false): GameDoc => {
@@ -20,8 +20,9 @@ const freshGame = (spectate = false): GameDoc => {
     g = applyAction(g, { type: 'START_GAME' });
     if (spectate) {
         // all-bots game so the table plays itself while we watch
-        // (swapped after START_GAME, which insists on one human)
-        g = { ...g, seats: { ...g.seats, A1: { kind: 'bot', name: 'Rookie', botStyle: 'basic' } } };
+        // (swapped after START_GAME, which insists on one human);
+        // seat the search bot so /dev?spectate doubles as an AlphaRook demo
+        g = { ...g, seats: { ...g.seats, A1: { kind: 'bot', name: 'AlphaRook', botStyle: 'alpharook' } } };
     }
     return g;
 };
@@ -40,7 +41,7 @@ export default function DevTablePage() {
     // local bot loop
     useEffect(() => {
         if (!game || game.status !== 'active') return;
-        const action = nextBotAction(game);
+        const action = nextAgentAction(game);
         if (!action) return;
         // leading a new trick waits out the previous trick's linger + sweep
         const leadsNextTrick =

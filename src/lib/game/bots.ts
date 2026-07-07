@@ -156,6 +156,13 @@ export const PERSONALITIES: Record<BotStyle, BotPersonality> = {
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: false,
         feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
     },
+    // AlphaRook bids/discards like Standard; its card play is replaced by
+    // Monte Carlo search in src/lib/alpharook/agent.ts (nextAgentAction).
+    alpharook: {
+        bidCushion: 3, minBidTricks: 0.8, widowTricks: 0, warStretch: 0, jumpGap: 20, jumpReserve: 5, partnerOverbidMargin: 15,
+        pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
+        feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
+    },
 };
 
 // ---------------------------------------------------------------------------

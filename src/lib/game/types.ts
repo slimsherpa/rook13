@@ -31,13 +31,16 @@ export interface Card {
 //                the bid off a partner with a monster, hunts every trick
 //   cautious   — bids well under the estimate, never outbids partner,
 //                hoards trump for sure things
-export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious';
+//   alpharook  — bids like Standard, but plays cards by determinized Monte
+//                Carlo search (src/lib/alpharook) — the strongest table
+export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook';
 
 export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     random: 'Easy',
     basic: 'Standard',
     aggressive: 'Aggressive',
     cautious: 'Cautious',
+    alpharook: 'AlphaRook',
 };
 
 export interface SeatInfo {

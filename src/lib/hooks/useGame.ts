@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GameDoc, GameAction, Seat, SEATS } from '../game/types';
 import { validateAction } from '../game/engine';
-import { nextBotAction } from '../game/bots';
+import { nextAgentAction } from '../alpharook/agent';
 import { overlayPending, sameAction, PendingAction } from '../game/optimistic';
 import { subscribeGame, submitAction, isExpectedRaceError, describeFirestoreError } from '../firebase/gameService';
 import { recordCompletedGame } from '../firebase/userService';
@@ -172,7 +172,7 @@ export const useGame = (gameId: string | null): UseGameResult => {
         if (!serverGame || !gameId || !user || serverGame.status !== 'active') return;
         if (!mySeat && !isHost) return; // spectators never drive bots
 
-        const action = nextBotAction(serverGame);
+        const action = nextAgentAction(serverGame);
         if (!action) return;
 
         const leadsNextTrick =
