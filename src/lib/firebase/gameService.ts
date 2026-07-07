@@ -239,7 +239,7 @@ export const leaveSeat = (gameId: string, seat: Seat, uid: string) =>
     submitAction(gameId, { type: 'LEAVE_SEAT', seat, uid }, uid);
 
 export const setBot = (gameId: string, seat: Seat, byUid: string) =>
-    submitAction(gameId, { type: 'SET_BOT', seat, botStyle: 'basic' }, byUid);
+    submitAction(gameId, { type: 'SET_BOT', seat, botStyle: 'alpharook' }, byUid);
 
 export const openSeat = (gameId: string, seat: Seat, byUid: string) =>
     submitAction(gameId, { type: 'OPEN_SEAT', seat }, byUid);

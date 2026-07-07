@@ -37,15 +37,33 @@ Measured (bench, 120 games, sides swapped, heuristic bidding both teams):
 Fast enough to run live in the browser. `agent.ts` exposes
 `nextAgentAction()`, a drop-in for `nextBotAction()` that gives seats with
 `botStyle: 'alpharook'` the search brain; the lobby offers it as
-**AlphaRook**. Bidding/widow/trump still use the Standard heuristics.
+**AlphaRook**, and it is the default style for auto-filled bot seats.
 
-## Phase 2 — Search everywhere (next)
+## Phase 2 — Search bidding (SHIPPED)
 
-- **Bidding by rollout**: evaluate bid/pass at each decision by sampling
-  worlds and playing out the whole hand (auction included) instead of the
-  fitted tricks→points line.
+`choosePIMCBid()` prices every auction decision by simulation: for each
+candidate (pass, the minimum raise, and a ladder of jumps at +10/+20/+30),
+sample K=20 worlds and play the *entire* rest of the hand out — remaining
+auction (heuristic opponents), widow, go-down, all nine tricks — then take
+the best average hand score. `playOutHand()` in rollout.ts drives the
+auction phases on the fast path, validated hand-for-hand against the real
+engine. ~12 ms per bid decision.
+
+Results:
+
+- Full AlphaRook (bid + play search) vs Standard: **~81% game wins** pooled
+  over 160 games.
+- An all-AlphaRook table **rediscovers the family meta on its own**: winning
+  bids mode 100 (36%), median 100, 95 ≈ 29%, cheap takes at 65–80 under 3%,
+  115/120 rare, sets ≈ 39%. Nobody told the search "100 is typical."
+- Robustness: deep-endgame world sampling can squeeze the greedy sampler
+  into a corner (all remaining seats void in the suits that remain); a
+  backtracking solver now guarantees a consistent world whenever one exists.
+
+## Phase 2.5 — Search leftovers (next)
+
 - **Go-down/trump by rollout**: score candidate discards by simulated hands
-  rather than the static estimate.
+  rather than the static estimate (the last heuristic decisions left).
 - **Smarter world sampling**: weight determinizations by the auction (a seat
   that bid 100 holds trump length; a seat that passed doesn't) — today's
   sampling is uniform.

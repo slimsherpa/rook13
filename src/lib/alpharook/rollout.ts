@@ -5,10 +5,10 @@
 // rollout.test.ts proves this scores identically to the real engine.
 
 import {
-    GameDoc, Card, Seat, Team, SEATS, TAKING_TRICKS_BONUS, TRICKS_PER_HAND,
+    GameDoc, Card, Seat, Team, SEATS, VALID_BIDS, TAKING_TRICKS_BONUS, TRICKS_PER_HAND,
     getCardPoints, teamOf, nextSeat, sameCard,
 } from '../game/types';
-import { winningCardSeat } from '../game/engine';
+import { winningCardSeat, bidLead } from '../game/engine';
 import { nextBotAction } from '../game/bots';
 import { Observation } from './observation';
 import { World } from './determinize';
@@ -54,6 +54,44 @@ export const materialize = (o: Observation, w: World): GameDoc => ({
     redealCount: 0,
     winner: null,
 });
+
+/**
+ * Full playable state from a mid-auction observation + one guessed world.
+ * The world's hidden 4-card bucket is the face-down widow here.
+ */
+export const materializeAuction = (o: Observation, w: World): GameDoc => {
+    const g = materialize(o, w);
+    g.phase = 'bidding';
+    g.widow = w.goDown;
+    g.goDown = [];
+    g.bidWinner = null;
+    g.trump = null;
+    g.trickLeader = null;
+    return g;
+};
+
+/** Apply one bid, mutating `g`. Mirrors the engine's BID transition exactly. */
+export const applyBidFast = (g: GameDoc, seat: Seat, bid: number | 'pass'): void => {
+    g.bids[seat] = bid;
+    if (bid !== 'pass') g.highBid = bid;
+
+    const passed = (s: Seat) => g.bids[s] === 'pass';
+    const passes = SEATS.filter(passed).length;
+    const maxedOut = g.highBid === VALID_BIDS[VALID_BIDS.length - 1];
+
+    if ((passes === 3 && g.highBid !== null) || maxedOut) {
+        const winner = maxedOut ? seat : SEATS.find((s) => !passed(s))!;
+        g.bidWinner = winner;
+        g.phase = 'widow';
+        g.turn = winner;
+        g.hands[winner] = [...g.hands[winner], ...g.widow];
+        g.widow = [];
+        return;
+    }
+    let t = nextSeat(seat);
+    while (passed(t)) t = nextSeat(t);
+    g.turn = t;
+};
 
 /** Apply one card play, mutating `g`. Resolves the trick on the 4th card. */
 export const applyPlayFast = (g: GameDoc, seat: Seat, card: Card): void => {
@@ -110,6 +148,42 @@ export const playOut = (g: GameDoc): void => {
         applyPlayFast(g, action.seat, action.card);
     }
     if (safety <= 0) throw new Error('rollout did not terminate');
+};
+
+/**
+ * Drive a hand to completion from anywhere in the auction onward, using the
+ * heuristic bots for every remaining decision; mutates `g`. Mirrors the
+ * engine's bidding/widow/trump transitions (validated in alpharook.test.ts).
+ */
+export const playOutHand = (g: GameDoc): void => {
+    let safety = 60;
+    while (g.phase !== 'playing' && safety-- > 0) {
+        const action = nextBotAction(g);
+        if (!action) throw new Error(`auction rollout wedged in ${g.phase}`);
+        switch (action.type) {
+            case 'BID':
+                applyBidFast(g, action.seat, action.bid);
+                break;
+            case 'SELECT_GODOWN':
+                g.goDown = action.cards;
+                g.hands[action.seat] = g.hands[action.seat].filter(
+                    (c) => !action.cards.some((sel) => sameCard(sel, c)),
+                );
+                g.phase = 'trump';
+                break;
+            case 'SELECT_TRUMP':
+                g.trump = action.suit;
+                g.phase = 'playing';
+                g.trickLeader = bidLead(g.dealer!);
+                g.turn = g.trickLeader;
+                g.trickPlays = [];
+                break;
+            default:
+                throw new Error(`auction rollout: unexpected ${action.type}`);
+        }
+    }
+    if (safety <= 0) throw new Error('auction rollout did not terminate');
+    playOut(g);
 };
 
 /** This team's score minus the opponents' — the value PIMC maximizes. */

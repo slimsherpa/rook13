@@ -103,7 +103,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     )}
                     {isHost && info.kind === 'open' && (
                         <button
-                            onClick={() => act({ type: 'SET_BOT', seat, botStyle: 'basic' })}
+                            onClick={() => act({ type: 'SET_BOT', seat, botStyle: 'alpharook' })}
                             className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-orbitron flex items-center gap-1 whitespace-nowrap"
                         >
                             <span className="material-symbols-outlined text-sm">smart_toy</span>

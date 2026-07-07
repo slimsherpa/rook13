@@ -11,8 +11,8 @@ import { nextBotAction } from '../game/bots';
 import { observe, unseenCards, knownVoids, handSizes } from './observation';
 import { nextAgentAction } from './agent';
 import { sampleWorld } from './determinize';
-import { materialize, playOut, scoreHand, applyPlayFast } from './rollout';
-import { choosePIMCCard, legalFromObservation } from './pimc';
+import { materialize, materializeAuction, playOut, playOutHand, scoreHand, applyPlayFast } from './rollout';
+import { choosePIMCCard, choosePIMCBid, legalFromObservation } from './pimc';
 
 const host = { uid: 'host', name: 'Host' };
 
@@ -148,7 +148,60 @@ describe('rollout: matches the real engine', () => {
     });
 });
 
+describe('rollout: full-hand path matches the real engine', () => {
+    it('reproduces the engine hand-for-hand from the start of the auction', () => {
+        for (let i = 0; i < 10; i++) {
+            // snapshot the moment bidding opens (deal done, no bids yet)
+            const g = runUntil(`auc-${i}`, (s) =>
+                s.phase === 'bidding' && Object.keys(s.bids).length === 0);
+            const snapshot = structuredClone(g);
+
+            const o = observe(snapshot, snapshot.turn!);
+            const world = {
+                hands: structuredClone(snapshot.hands),
+                goDown: structuredClone(snapshot.widow), // true widow
+            };
+            const fast = materializeAuction(o, world);
+            playOutHand(fast);
+
+            let real = g;
+            const handNo = real.handNumber;
+            let safety = 300;
+            while (real.status === 'active' && real.handNumber === handNo &&
+                real.phase !== 'hand_done' && real.phase !== 'game_over' && safety-- > 0) {
+                real = applyAction(real, nextBotAction(real)!);
+            }
+            const h = real.handHistory[real.handHistory.length - 1];
+            expect(h.handNumber).toBe(handNo);
+            expect(fast.bidWinner).toBe(h.bidWinner);
+            expect(fast.highBid).toBe(h.bid);
+            expect(fast.trump).toBe(h.trump);
+            expect(fast.pointsTaken).toEqual(h.pointsTaken);
+            expect(scoreHand(fast)).toEqual(h.handScore);
+        }
+    });
+});
+
 describe('PIMC v0', () => {
+    it('always returns a legal bid', () => {
+        for (let i = 0; i < 5; i++) {
+            const g = runUntil(`pimc-bid-${i}`, (s) =>
+                s.phase === 'bidding' && Object.keys(s.bids).length >= 1);
+            const seat = g.turn!;
+            const bid = choosePIMCBid(observe(g, seat), { samples: 4 });
+            if (bid !== 'pass') {
+                expect(bid).toBeGreaterThan(g.highBid ?? 0);
+                expect(bid % 5).toBe(0);
+                expect(bid).toBeGreaterThanOrEqual(65);
+                expect(bid).toBeLessThanOrEqual(120);
+                // and the engine itself accepts it
+                expect(() => applyAction(g, { type: 'BID', seat, bid })).not.toThrow();
+            } else {
+                expect(() => applyAction(g, { type: 'BID', seat, bid: 'pass' })).not.toThrow();
+            }
+        }
+    });
+
     it('always picks a legal card', () => {
         for (let i = 0; i < 5; i++) {
             const g = midTrickState(`pimc-legal-${i}`);
@@ -180,13 +233,13 @@ describe('PIMC v0', () => {
         expect(g.winner).not.toBeNull();
     }, 120000);
 
-    it("the agent dispatcher drives 'alpharook' seats through a full game", () => {
+    it("the agent dispatcher drives an all-AlphaRook game (bids + plays by search)", () => {
+        // four search bots stress the world sampler deep into endgames —
+        // this exact lineup once exposed a greedy-sampling deadlock
         let g = createGameDoc({ id: 'agent-match', joinCode: 'ALFA', host, now: 1 });
         g = applyAction(g, { type: 'START_GAME' });
         for (const s of SEATS) {
-            (g.seats[s] as GameDoc['seats'][Seat]) = {
-                kind: 'bot', name: s, botStyle: teamOf(s) === 'A' ? 'alpharook' : 'basic',
-            };
+            (g.seats[s] as GameDoc['seats'][Seat]) = { kind: 'bot', name: s, botStyle: 'alpharook' };
         }
         let safety = 30000;
         while (g.status === 'active' && safety-- > 0) {
