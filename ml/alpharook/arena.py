@@ -32,10 +32,10 @@ def model_choose(net, device, env: SelfPlayGame, seat: int, dtype: int, cands: l
 
 @torch.no_grad()
 def play_arena_game(net, device, model_team: int, opponent: str, seed: int,
-                    play_only: bool = False):
-    """Returns (model_won, score_diff_for_model, hands). With play_only, the
-    net plays cards while the family heuristic handles its bid/go-down/trump
-    (curriculum stage 1 — mirrors how TS AlphaRook phase 1 was measured)."""
+                    script_dtypes: frozenset = frozenset()):
+    """Returns (model_won, score_diff_for_model, hands). Decision types in
+    script_dtypes are handled by the family heuristic even on the net's team
+    (curriculum stages — mirrors how TS AlphaRook phase 1 was measured)."""
     net.eval()
     env = SelfPlayGame(seed)
     rng = random.Random(seed ^ 0x5EED)
@@ -44,7 +44,7 @@ def play_arena_game(net, device, model_team: int, opponent: str, seed: int,
     while not env.done:
         seat, dtype, cands = env.decision()
         net_decides = (team_of(seat) == model_team
-                       and (not play_only or dtype == D_PLAY))
+                       and dtype not in script_dtypes)
         if net_decides:
             action = model_choose(net, device, env, seat, dtype, cands)
         elif dtype == D_DISCARD:
@@ -63,11 +63,11 @@ def play_arena_game(net, device, model_team: int, opponent: str, seed: int,
 
 
 def arena(net, device, opponent: str, n_games: int, seed: int = 0,
-          play_only: bool = False):
+          script_dtypes: frozenset = frozenset()):
     wins, diffs, hands = 0, [], 0
     for i in range(n_games):
         won, diff, h = play_arena_game(net, device, i % 2, opponent,
-                                       seed + i * 977, play_only)
+                                       seed + i * 977, script_dtypes)
         wins += 1 if won else 0
         diffs.append(diff)
         hands += h
@@ -89,16 +89,19 @@ def main():
     ap.add_argument("--games", type=int, default=100)
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--play-only", action="store_true",
-                    help="heuristic handles the net's bid/go-down/trump")
+    ap.add_argument("--script", default="none",
+                    choices=["openings", "bid", "none"],
+                    help="decisions the family heuristic makes for the net's "
+                         "team too (curriculum-stage evals)")
     args = ap.parse_args()
 
     net = QNet()
     state = torch.load(args.ckpt, map_location="cpu", weights_only=True)
     net.load_state_dict(state["model"] if "model" in state else state)
     net.to(args.device)
+    from .selfplay import SCRIPT_MODES
     r = arena(net, args.device, args.opponent, args.games, args.seed,
-              args.play_only)
+              SCRIPT_MODES[args.script])
     print(f"vs {r['opponent']}: {r['win_rate']:.1%} over {r['games']} games "
           f"(avg score diff {r['avg_diff']:+.1f}, avg hands {r['avg_hands']:.1f})")
 
