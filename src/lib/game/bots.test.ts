@@ -105,9 +105,17 @@ describe('bidding: partner protection', () => {
         expect(bidOf(g)).toBe(85);
     });
 
-    it('competes normally when an opponent holds the high bid', () => {
+    it('jump-bids a statement over an opponent instead of creeping', () => {
         const g = biddingState({
             turn: 'A1', hand: MONSTER, style: 'basic',
+            bids: { B1: 80 }, highBid: 80,
+        });
+        expect(bidOf(g)).toBe(105); // statement bid, not floor-creeping 85
+    });
+
+    it('creeps in minimum steps with a hand only modestly above the price', () => {
+        const g = biddingState({
+            turn: 'A1', hand: MIDDLING, style: 'basic',
             bids: { B1: 80 }, highBid: 80,
         });
         expect(bidOf(g)).toBe(85);
@@ -134,6 +142,44 @@ describe('hand evaluation', () => {
     it('ranks monster > middling > junk', () => {
         expect(estimateTricks(MONSTER)).toBeGreaterThan(estimateTricks(MIDDLING));
         expect(estimateTricks(MIDDLING)).toBeGreaterThan(estimateTricks(JUNK));
+    });
+
+    it('never puts trump in the go-down', () => {
+        // junk trump is still trump — family law
+        const hand13: Card[] = [
+            c('Red', 9), c('Red', 8), c('Red', 7), c('Red', 6), c('Red', 5),
+            c('Yellow', 14), c('Yellow', 13), c('Yellow', 12),
+            c('Black', 14), c('Black', 13),
+            c('Green', 14), c('Green', 13), c('Green', 12),
+        ];
+        const gd = chooseGoDown(hand13, 'Red');
+        expect(gd.every((card) => card.suit !== 'Red')).toBe(true);
+    });
+
+    it('names its longest suit trump even when a shorter suit has more honors', () => {
+        let g = createGameDoc({ id: 'trump-test', joinCode: 'TRMP', host, now: 1 });
+        g = applyAction(g, { type: 'START_GAME' });
+        for (const s of SEATS) {
+            (g.seats[s] as SeatInfo) = { kind: 'bot', name: `Bot ${s}`, botStyle: 'basic' };
+        }
+        while (g.phase === 'dealing' || g.phase === 'redeal') {
+            g = applyAction(g, nextBotAction(g)!);
+        }
+        const hand: Card[] = [
+            c('Red', 9), c('Red', 8), c('Red', 7), c('Red', 6), c('Red', 5),
+            c('Yellow', 14), c('Yellow', 13), c('Yellow', 12),
+            c('Black', 6),
+        ];
+        const frozen: GameDoc = {
+            ...g,
+            phase: 'trump',
+            turn: 'A1',
+            bidWinner: 'A1',
+            highBid: 100,
+            hands: { ...g.hands, A1: hand },
+        };
+        const a = nextBotAction(frozen);
+        expect(a).toEqual({ type: 'SELECT_TRUMP', seat: 'A1', suit: 'Red' });
     });
 
     it('go-down banks a loose counter for the last trick', () => {

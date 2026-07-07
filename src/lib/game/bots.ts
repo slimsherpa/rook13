@@ -64,24 +64,27 @@ export const bestTrumpSuit = (hand: Card[]): Suit => {
  * with, and keeps side bosses. `buryPenalty` prices burying counters in the
  * go-down (points there ride on winning the last trick): positive avoids it,
  * negative treats the go-down as a bank for loose counters.
+ *
+ * Family law: trump never goes in the go-down (unless the hand physically
+ * forces it by holding 10+ trump).
  */
 export const chooseGoDown = (hand: Card[], trump: Suit, buryPenalty = -0.06): Card[] => {
-    const n = hand.length;
-    let best: Card[] = hand.slice(0, 4);
+    const nonTrump = hand.filter((c) => c.suit !== trump);
+    const pool = nonTrump.length >= 4 ? nonTrump : hand;
+    const n = pool.length;
+    let best: Card[] = pool.slice(0, 4);
     let bestScore = -Infinity;
     for (let i = 0; i < n - 3; i++) {
         for (let j = i + 1; j < n - 2; j++) {
             for (let k = j + 1; k < n - 1; k++) {
                 for (let l = k + 1; l < n; l++) {
-                    const drop = new Set([i, j, k, l]);
-                    const keep = hand.filter((_, idx) => !drop.has(idx));
-                    const buried =
-                        getCardPoints(hand[i]) + getCardPoints(hand[j]) +
-                        getCardPoints(hand[k]) + getCardPoints(hand[l]);
+                    const drop = [pool[i], pool[j], pool[k], pool[l]];
+                    const keep = hand.filter((c) => !drop.includes(c));
+                    const buried = drop.reduce((s, c) => s + getCardPoints(c), 0);
                     const score = estimateTricksAs(keep, trump) - buried * buryPenalty;
                     if (score > bestScore) {
                         bestScore = score;
-                        best = [hand[i], hand[j], hand[k], hand[l]];
+                        best = drop;
                     }
                 }
             }
@@ -107,6 +110,10 @@ export interface BotPersonality {
     widowTricks: number;
     /** extra points past comfort it will pay when an opponent holds the high bid */
     warStretch: number;
+    /** how far above the going rate the hand must be to jump-bid a statement */
+    jumpGap: number;
+    /** points held back below comfort when jumping (0 = jump to the max) */
+    jumpReserve: number;
     /**
      * How much stronger (estimate minus the price it would have to pay) the
      * hand must be to take the bid away from a partner while opponents are
@@ -130,22 +137,22 @@ export interface BotPersonality {
 export const PERSONALITIES: Record<BotStyle, BotPersonality> = {
     // 'random' never consults its personality; zeros keep the record total.
     random: {
-        bidCushion: 0, minBidTricks: 0, widowTricks: 0, warStretch: 0, partnerOverbidMargin: null,
+        bidCushion: 0, minBidTricks: 0, widowTricks: 0, warStretch: 0, jumpGap: 99, jumpReserve: 0, partnerOverbidMargin: null,
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: false,
         feedsBossPartner: false, ruffsLikelyCount: false, goDownBuryPenalty: 0.04,
     },
     basic: {
-        bidCushion: 3, minBidTricks: 0.8, widowTricks: 0, warStretch: 0, partnerOverbidMargin: 15,
+        bidCushion: 3, minBidTricks: 0.8, widowTricks: 0, warStretch: 0, jumpGap: 20, jumpReserve: 5, partnerOverbidMargin: 15,
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
         feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
     },
     aggressive: {
-        bidCushion: 0, minBidTricks: 0.4, widowTricks: 0.5, warStretch: 5, partnerOverbidMargin: 10,
+        bidCushion: 0, minBidTricks: 0.4, widowTricks: 0.3, warStretch: 5, jumpGap: 15, jumpReserve: 5, partnerOverbidMargin: 10,
         pullsTrumpOnDefense: true, huntsBareTricks: true, eagerRuffer: true,
         feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
     },
     cautious: {
-        bidCushion: 8, minBidTricks: 1.5, widowTricks: -0.3, warStretch: 0, partnerOverbidMargin: null,
+        bidCushion: 8, minBidTricks: 1.5, widowTricks: -0.3, warStretch: 0, jumpGap: 25, jumpReserve: 10, partnerOverbidMargin: null,
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: false,
         feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
     },
@@ -205,8 +212,10 @@ export const estimateTricksAs = (hand: Card[], trump: Suit): number => {
         else if (c.number === 12) tricks += 0.5;
         else if (c.number === 11) tricks += 0.3;
     }
-    // a long trump suit grinds out extra tricks once the opponents are dry
-    tricks += Math.max(0, trumps.length - 4) * 0.8;
+    // trump length is king: the 4th trump helps, the 5th and beyond win the
+    // war of attrition outright (and make the widow/go-down shaping pay more)
+    if (trumps.length >= 4) tricks += 0.4;
+    tricks += Math.max(0, trumps.length - 4) * 0.9;
 
     // side-suit bosses and ruffing shortness (needs spare trumps to ruff with)
     let spareTrumps = Math.max(0, trumps.length - 3);
@@ -242,7 +251,7 @@ export const estimateTricks = (hand: Card[]): number =>
  * — and it carries the same winner's-curse set rate (~40%) the human meta
  * does. Move `base` to shift the whole distribution (±1 ≈ ±1 bid point).
  */
-const TRICK_TO_POINTS = { base: 87, perTrick: 6 };
+const TRICK_TO_POINTS = { base: 86, perTrick: 6 };
 
 /** Partner opened their mouth — their tricks count toward the team too. */
 const PARTNER_BID_BOOST = 8;
@@ -302,7 +311,15 @@ const chooseBid = (g: GameDoc, seat: Seat, style: BotStyle): number | 'pass' => 
     // rather than hand it over.
     const opponentHasHighBid = g.highBid !== null;
     const limit = comfort + (opponentHasHighBid ? p.warStretch : 0);
-    return floor <= limit ? floor : 'pass'; // bid up in minimum steps
+    if (floor > limit) return 'pass';
+    // jump bidding: with a hand far above the going rate, make a statement
+    // bid that clears out the creepers instead of walking up in 5s. A
+    // statement tops out at 105 — anything past that only happens when a
+    // real bidding war forces it, one step at a time.
+    if (comfort - floor >= p.jumpGap) {
+        return Math.max(floor, Math.min(limit, comfort - p.jumpReserve, 105));
+    }
+    return floor;
 };
 
 // ---------------------------------------------------------------------------
@@ -499,10 +516,8 @@ export const nextBotAction = (g: GameDoc): GameAction | null => {
                 const shuffled = [...g.hands[seat]].sort(() => Math.random() - 0.5);
                 return { type: 'SELECT_GODOWN', seat, cards: shuffled.slice(0, 4) };
             }
-            // shape the discard around the suit we intend to name as trump
-            const trump = SUITS.reduce((bestSuit, s) =>
-                estimateTricksAs(g.hands[seat], s) > estimateTricksAs(g.hands[seat], bestSuit) ? s : bestSuit,
-            SUITS[0]);
+            // family law: the longest suit is trump — shape the discard around it
+            const trump = bestTrumpSuit(g.hands[seat]);
             const cards = chooseGoDown(g.hands[seat], trump, PERSONALITIES[style].goDownBuryPenalty);
             return { type: 'SELECT_GODOWN', seat, cards };
         }
@@ -511,12 +526,9 @@ export const nextBotAction = (g: GameDoc): GameAction | null => {
                 const suit = SUITS[Math.floor(Math.random() * SUITS.length)];
                 return { type: 'SELECT_TRUMP', seat, suit };
             }
-            // same objective the go-down was optimized against, so the suit
-            // the discard was shaped around is the suit that gets named
-            const suit = SUITS.reduce((bestSuit, s) =>
-                estimateTricksAs(g.hands[seat], s) > estimateTricksAs(g.hands[seat], bestSuit) ? s : bestSuit,
-            SUITS[0]);
-            return { type: 'SELECT_TRUMP', seat, suit };
+            // longest suit of the kept hand — matches what the go-down was
+            // shaped around (all trump was kept, so it's still the longest)
+            return { type: 'SELECT_TRUMP', seat, suit: bestTrumpSuit(g.hands[seat]) };
         }
         case 'playing':
             return { type: 'PLAY_CARD', seat, card: chooseCard(g, seat, style) };

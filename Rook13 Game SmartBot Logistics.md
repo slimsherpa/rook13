@@ -29,9 +29,10 @@ measure future bots (AlphaRook) against.
 ## Bidding
 
 1. **Hand evaluation.** `estimateTricks()` scores the 9-card hand with its
-   best suit as trump: trump honors (14/13/12/11), trump length past 4, side
-   bosses, and short side suits it can ruff (each ruff reserves a spare
-   trump).
+   longest suit as trump: trump honors (14/13/12/11), side bosses, short side
+   suits it can ruff (each ruff reserves a spare trump) — and above all
+   **trump length**: the 4th trump adds 0.4 tricks, the 5th and beyond add
+   0.9 each. Five trump is SUPER good, per the family, and the sims agree.
 2. **Tricks → points.** `TRICK_TO_POINTS` (base 87, +6/trick) converts the
    estimate into the most the bot will pay. Fitted reality (over ~2,000
    simulated hands with randomized contracts) is ≈ 71 + 8.5 × tricks — the
@@ -42,8 +43,11 @@ measure future bots (AlphaRook) against.
    compression is what makes 100 the clear typical winning bid, and it
    carries the same winner's-curse set rate the human meta does.
 3. **Auction manners.**
-   - Bid up in minimum +5 steps — never jump. This produces the natural
-     "feeling out the table" bids at 70–85 on the way to the real price.
+   - Creep in +5 steps while feeling out the table, but **jump-bid** with a
+     hand far above the going rate: someone opens 70, the next player with a
+     real hand says 100. Statements top out at 105; bids past that only
+     happen when a genuine war forces them one step at a time. About half of
+     all raises end up being jumps.
    - **Never bid when your partner holds the high bid and both opponents
      have passed.** The contract is already yours; bidding only raises it.
      (This was family complaint #2, and it is a hard rule for every
@@ -58,26 +62,28 @@ measure future bots (AlphaRook) against.
 
 ### Calibrated outcome (matches the family meta)
 
-Measured over ~1,800 bot-vs-bot hands per lineup:
+Measured over ~1,700 bot-vs-bot hands per lineup:
 
-- All-Standard table: **100 is by far the most typical winning bid (≈ 35%)**,
-  95 ≈ 22% and 105 ≈ 18% common, 90 ≈ 15% and 110 ≈ 3% rare, 85/115 very
-  rare, 80/120 and cheap takes at 65–75 essentially never (< 1%, forced bids
-  only). Mean ≈ 97, set rate ≈ 39%.
-- Mixed table (with an Aggressive seat): same shape, set rate ≈ 44% —
-  Aggressive buys more hands and sets more, which is the point.
+- All-Standard table: median 100; **95/100 are the twin peaks (≈ 32%/31%)**
+  with 105 right behind (≈ 18%), 90 ≈ 13% and 110 ≈ 2% rare, 85/115 very
+  rare, 80/120 and cheap takes at 65–75 essentially never. Mean ≈ 98, set
+  rate ≈ 33%, and ~47% of raises are jump bids.
+- Mixed table (with an Aggressive seat): mode 100, 105 ≈ 26%, set rate ≈ 41%
+  — Aggressive buys more hands and sets more, which is the point.
 
-The ~39% set rate is the honest price of a 100-centered meta at current play
-strength (per-hand luck spread ≈ 25 points); the go-down banking upgrade
-clawed it back from ~45%. Knob: `TRICK_TO_POINTS.base` shifts the whole
-distribution (±1 ≈ ±1 bid point, ≈ ∓1.5% set rate). Further set-rate gains
-must come from better card play (AlphaRook) — reality rises, the anchor
-stays.
+The ~33% set rate is the honest price of a 100-centered meta at current play
+strength (per-hand luck spread ≈ 25 points); go-down banking and the length
+re-weighting clawed it back from ~45%. Knob: `TRICK_TO_POINTS.base` shifts
+the whole distribution (±1 ≈ ±1 bid point, ≈ ∓1.5% set rate). Further
+set-rate gains must come from better card play (AlphaRook) — reality rises,
+the anchor stays.
 
 ## Widow, go-down, and trump
 
-The bid winner picks the trump suit that maximizes `estimateTricksAs()` over
-the 13 cards, then brute-forces all 715 possible 4-card go-downs and keeps
+Two family laws are hard-coded: **the longest suit is always trump**, and
+**trump never goes in the go-down** (unless the hand physically forces it).
+The bid winner names its longest suit, then brute-forces every legal 4-card
+go-down from the non-trump cards and keeps
 the discard that leaves the strongest 9 cards — which naturally hoards trump,
 empties short side suits to create ruffing voids, and keeps side bosses. It
 also treats the go-down as a **bank**: loose counters (a blank 10, an
