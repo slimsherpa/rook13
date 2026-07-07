@@ -61,10 +61,11 @@ export const bestTrumpSuit = (hand: Card[]): Suit => {
  * Pick the 4-card go-down that leaves the strongest 9 cards behind: brute
  * force every discard set (13 choose 4 = 715) and keep the one that maximizes
  * the trick estimate — which naturally hoards trump, creates voids to ruff
- * with, and keeps side bosses — minus a small penalty for burying counters
- * (their points ride on winning the last trick).
+ * with, and keeps side bosses. `buryPenalty` prices burying counters in the
+ * go-down (points there ride on winning the last trick): positive avoids it,
+ * negative treats the go-down as a bank for loose counters.
  */
-export const chooseGoDown = (hand: Card[], trump: Suit): Card[] => {
+export const chooseGoDown = (hand: Card[], trump: Suit, buryPenalty = -0.06): Card[] => {
     const n = hand.length;
     let best: Card[] = hand.slice(0, 4);
     let bestScore = -Infinity;
@@ -77,7 +78,7 @@ export const chooseGoDown = (hand: Card[], trump: Suit): Card[] => {
                     const buried =
                         getCardPoints(hand[i]) + getCardPoints(hand[j]) +
                         getCardPoints(hand[k]) + getCardPoints(hand[l]);
-                    const score = estimateTricksAs(keep, trump) - buried * 0.04;
+                    const score = estimateTricksAs(keep, trump) - buried * buryPenalty;
                     if (score > bestScore) {
                         bestScore = score;
                         best = [hand[i], hand[j], hand[k], hand[l]];
@@ -122,6 +123,8 @@ export interface BotPersonality {
     feedsBossPartner: boolean;
     /** ruffs in early when the lead suit still has counters likely to drop */
     ruffsLikelyCount: boolean;
+    /** go-down pricing for buried counters (see chooseGoDown) */
+    goDownBuryPenalty: number;
 }
 
 export const PERSONALITIES: Record<BotStyle, BotPersonality> = {
@@ -129,22 +132,22 @@ export const PERSONALITIES: Record<BotStyle, BotPersonality> = {
     random: {
         bidCushion: 0, minBidTricks: 0, widowTricks: 0, warStretch: 0, partnerOverbidMargin: null,
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: false,
-        feedsBossPartner: false, ruffsLikelyCount: false,
+        feedsBossPartner: false, ruffsLikelyCount: false, goDownBuryPenalty: 0.04,
     },
     basic: {
-        bidCushion: 3, minBidTricks: 1.0, widowTricks: 0, warStretch: 0, partnerOverbidMargin: 15,
+        bidCushion: 3, minBidTricks: 0.8, widowTricks: 0, warStretch: 0, partnerOverbidMargin: 15,
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
-        feedsBossPartner: true, ruffsLikelyCount: true,
+        feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
     },
     aggressive: {
-        bidCushion: 0, minBidTricks: 0.5, widowTricks: 0.5, warStretch: 5, partnerOverbidMargin: 10,
+        bidCushion: 0, minBidTricks: 0.4, widowTricks: 0.5, warStretch: 5, partnerOverbidMargin: 10,
         pullsTrumpOnDefense: true, huntsBareTricks: true, eagerRuffer: true,
-        feedsBossPartner: true, ruffsLikelyCount: true,
+        feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
     },
     cautious: {
         bidCushion: 8, minBidTricks: 1.5, widowTricks: -0.3, warStretch: 0, partnerOverbidMargin: null,
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: false,
-        feedsBossPartner: true, ruffsLikelyCount: true,
+        feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
     },
 };
 
@@ -229,15 +232,17 @@ export const estimateTricks = (hand: Card[]): number =>
     estimateTricksAs(hand, bestTrumpSuit(hand));
 
 /**
- * Tricks -> the points a bot is willing to bid on. Grounded in a fit over
- * ~1500 simulated hands with randomized contracts (declaring team's actual
- * points vs. the declarer's pre-widow estimateTricks came out ≈ 70 + 7t; the
- * high intercept is real — naming trump + the widow + partner's average hand
- * is a big head start, and widow value is included). The slope here is
- * steeper than the fit on purpose: strong hands should press their edge the
- * way humans do, weak hands should get out early.
+ * Tricks -> the points a bot is willing to bid on. Reality, refitted over
+ * ~2000 simulated hands with randomized contracts, is ≈ 71 + 8.5t (the high
+ * intercept is real — naming trump + the widow + partner's average hand is a
+ * big head start). The willingness line here is deliberately *flatter* and
+ * anchored higher: at this family's table everyone knows a takeable hand is
+ * worth about 100, and hand strength only nudges the price. That compression
+ * is what makes 100 the most common winning bid (95/105 common, 90/110 rare)
+ * — and it carries the same winner's-curse set rate (~40%) the human meta
+ * does. Move `base` to shift the whole distribution (±1 ≈ ±1 bid point).
  */
-const TRICK_TO_POINTS = { base: 72, perTrick: 11 };
+const TRICK_TO_POINTS = { base: 87, perTrick: 6 };
 
 /** Partner opened their mouth — their tricks count toward the team too. */
 const PARTNER_BID_BOOST = 8;
@@ -498,7 +503,8 @@ export const nextBotAction = (g: GameDoc): GameAction | null => {
             const trump = SUITS.reduce((bestSuit, s) =>
                 estimateTricksAs(g.hands[seat], s) > estimateTricksAs(g.hands[seat], bestSuit) ? s : bestSuit,
             SUITS[0]);
-            return { type: 'SELECT_GODOWN', seat, cards: chooseGoDown(g.hands[seat], trump) };
+            const cards = chooseGoDown(g.hands[seat], trump, PERSONALITIES[style].goDownBuryPenalty);
+            return { type: 'SELECT_GODOWN', seat, cards };
         }
         case 'trump': {
             if (style === 'random') {

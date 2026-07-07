@@ -21,6 +21,7 @@ Every seat's bot has a `BotStyle`, and each style maps to a row of knobs in
 | Ruffs in early without points showing | — | yes | yes | no |
 | Feeds counters on partner's *likely* wins | — | yes | yes | yes |
 | Ruffs in early when the lead suit has count left | — | yes | yes | yes |
+| Banks loose counters in the go-down | — | yes | yes | yes |
 
 Easy ignores all of it and plays any legal move — it exists as the floor to
 measure future bots (AlphaRook) against.
@@ -31,14 +32,15 @@ measure future bots (AlphaRook) against.
    best suit as trump: trump honors (14/13/12/11), trump length past 4, side
    bosses, and short side suits it can ruff (each ruff reserves a spare
    trump).
-2. **Tricks → points.** `TRICK_TO_POINTS` (base 72, +11/trick) converts the
-   estimate into the most the bot will pay. The line is grounded in a fit
-   over ~1,500 simulated hands with randomized contracts (actual declaring-
-   team points ≈ 72 + 7 × tricks; the big intercept is real — trump choice,
-   the widow, and an average partner are a big head start). The bidding slope
-   is steeper than the fitted reality on purpose: strong hands press their
-   edge like humans do, and yes, that means the winner's curse is alive at
-   this table too.
+2. **Tricks → points.** `TRICK_TO_POINTS` (base 87, +6/trick) converts the
+   estimate into the most the bot will pay. Fitted reality (over ~2,000
+   simulated hands with randomized contracts) is ≈ 71 + 8.5 × tricks — the
+   big intercept is real: trump choice, the widow, and an average partner are
+   a big head start. The willingness line is deliberately flatter and
+   anchored near 100: at this family's table everyone knows a takeable hand
+   is worth about 100 and hand strength only nudges the price. That
+   compression is what makes 100 the clear typical winning bid, and it
+   carries the same winner's-curse set rate the human meta does.
 3. **Auction manners.**
    - Bid up in minimum +5 steps — never jump. This produces the natural
      "feeling out the table" bids at 70–85 on the way to the real price.
@@ -54,32 +56,38 @@ measure future bots (AlphaRook) against.
      outbidding that same partner.
    - Forced to bid (three passes)? Take the 65 and make the best of it.
 
-### Calibrated outcome (family complaint #1)
+### Calibrated outcome (matches the family meta)
 
-Measured over ~1,600 bot-vs-bot hands per lineup:
+Measured over ~1,800 bot-vs-bot hands per lineup:
 
-- All-Standard table: winning bids mean ≈ 91, median 90–95; 100 ≈ 13%,
-  105 ≈ 5%, 110 ≈ 1.5%, 115/120 well under 1%. Set rate ≈ 32%.
-- Mixed table (with an Aggressive seat): median 95, 100 ≈ 17%, set rate ≈ 36%
-  — Aggressive buys more hands and sets more, which is the point.
+- All-Standard table: **100 is by far the most typical winning bid (≈ 35%)**,
+  95 ≈ 22% and 105 ≈ 18% common, 90 ≈ 15% and 110 ≈ 3% rare, 85/115 very
+  rare, 80/120 and cheap takes at 65–75 essentially never (< 1%, forced bids
+  only). Mean ≈ 97, set rate ≈ 39%.
+- Mixed table (with an Aggressive seat): same shape, set rate ≈ 44% —
+  Aggressive buys more hands and sets more, which is the point.
 
-This sits about half a bid-step below the family's human meta ("100 typical,
-95/105 common"). Pushing the center to a true 100 with current play strength
-drives set rates past 43% (the per-hand luck spread is ~24 points), which
-reads as dumb bidding, not bold bidding. If playtesting says the bots are
-still too timid, raise `TRICK_TO_POINTS.base` (each +1 ≈ +1 bid point,
-roughly +1.5% set rate); genuinely closing the gap is AlphaRook's job —
-better card play raises real points taken, and the bid line can follow.
+The ~39% set rate is the honest price of a 100-centered meta at current play
+strength (per-hand luck spread ≈ 25 points); the go-down banking upgrade
+clawed it back from ~45%. Knob: `TRICK_TO_POINTS.base` shifts the whole
+distribution (±1 ≈ ±1 bid point, ≈ ∓1.5% set rate). Further set-rate gains
+must come from better card play (AlphaRook) — reality rises, the anchor
+stays.
 
 ## Widow, go-down, and trump
 
 The bid winner picks the trump suit that maximizes `estimateTricksAs()` over
 the 13 cards, then brute-forces all 715 possible 4-card go-downs and keeps
 the discard that leaves the strongest 9 cards — which naturally hoards trump,
-empties short side suits to create ruffing voids, keeps side bosses, and
-avoids burying counters (their points ride on winning the last trick). The
-trump declaration recomputes the same objective on the kept 9 so the named
-suit always matches what the discard was shaped around.
+empties short side suits to create ruffing voids, and keeps side bosses. It
+also treats the go-down as a **bank**: loose counters (a blank 10, an
+unguarded 5) go down rather than into enemy hands, since the declaring team
+usually wins the last trick and collects them. A/B: banking at −0.06 won
+58–60% of games vs. avoiding burial, and cut the declarer's own set rate by
+~5 points; banking harder (−0.10 and beyond) loses — it starts sacrificing
+real hand strength for points that get lost a third of the time. The trump
+declaration recomputes the same objective on the kept 9 so the named suit
+always matches what the discard was shaped around.
 
 ## Trick play
 

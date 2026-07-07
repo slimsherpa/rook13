@@ -136,6 +136,19 @@ describe('hand evaluation', () => {
         expect(estimateTricks(MIDDLING)).toBeGreaterThan(estimateTricks(JUNK));
     });
 
+    it('go-down banks a loose counter for the last trick', () => {
+        // family rule, confirmed by A/B sims: the go-down is a bank — a loose
+        // 10 in a short side suit goes down, not into enemy hands
+        const hand13: Card[] = [
+            c('Red', 14), c('Red', 13), c('Red', 12), c('Red', 11), c('Red', 9), c('Red', 8),
+            c('Yellow', 10), c('Yellow', 6),
+            c('Black', 14), c('Black', 12),
+            c('Green', 9), c('Green', 8), c('Green', 6),
+        ];
+        const gd = chooseGoDown(hand13, 'Red');
+        expect(gd.some((card) => card.suit === 'Yellow' && card.number === 10)).toBe(true);
+    });
+
     it('go-down keeps trump and counters, and voids a short side suit when it can ruff', () => {
         const hand13: Card[] = [
             c('Red', 14), c('Red', 13), c('Red', 12), c('Red', 11), c('Red', 9), c('Red', 8),
