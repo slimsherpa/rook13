@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from rook.cards import PASS, SEATS, VALID_BIDS, team_of, suit_of
+from rook.cards import PASS, SEATS, SUITS, VALID_BIDS, card_points, team_of, suit_of
+from rook.bots import estimate_tricks_as
 from rook.engine import Game
 from rook.observation import Observation, known_voids, hand_sizes
 
@@ -45,7 +46,10 @@ ACTION_DIM = 50  # [type onehot 4, is_pass, bid/120, card onehot 40, suit onehot
 #   points taken us/them .... 2
 #   game scores & distances . 7
 #   trick number /9 ......... 1
-STATE_DIM = 40 + 40 + 160 + 160 + 5 + 1 + 5 + 4 + 12 + 1 + 1 + 1 + 5 + 1 + 16 + 4 + 2 + 2 + 7 + 1
+#   own-hand strength ....... 11  (suit lengths, per-suit trick estimates,
+#                                  best estimate, hand points, counter count —
+#                                  all derived from MY cards only; leak-safe)
+STATE_DIM = 40 + 40 + 160 + 160 + 5 + 1 + 5 + 4 + 12 + 1 + 1 + 1 + 5 + 1 + 16 + 4 + 2 + 2 + 7 + 1 + 11
 
 
 def encode_state(o: Observation, picks: list[int], decision_type: int,
@@ -165,6 +169,20 @@ def encode_state(o: Observation, picks: list[int], decision_type: int,
 
     x[base] = len(o.completed_tricks) / 9.0
     base += 1
+
+    # own-hand strength: the bid-pricing head start the raw multihot buries.
+    # Everything here is a function of MY hand alone.
+    ests = [estimate_tricks_as(o.hand, s) for s in SUITS]
+    for s in SUITS:
+        x[base + s] = sum(1 for c in o.hand if suit_of(c) == s) / 9.0
+    base += 4
+    for s in SUITS:
+        x[base + s] = ests[s] / 9.0
+    base += 4
+    x[base] = max(ests) / 9.0
+    x[base + 1] = sum(card_points(c) for c in o.hand) / 40.0
+    x[base + 2] = sum(1 for c in o.hand if card_points(c) > 0) / 9.0
+    base += 3
 
     assert base == STATE_DIM
     return x

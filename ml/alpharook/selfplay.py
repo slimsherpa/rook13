@@ -32,7 +32,7 @@ import numpy as np
 import torch
 
 from rook.cards import team_of
-from rook.bots import next_bot_action
+from rook.bots import next_bot_action, choose_bid
 from rook.observation import observe
 from .encoder import encode_state, encode_action, D_BID, D_DISCARD
 from .env import SelfPlayGame
@@ -168,9 +168,21 @@ class VecSelfPlay:
             # ---- pick, record, apply ----
             for i, env in enumerate(self.envs):
                 lo, hi = seg[i], seg[i + 1]
-                eff_eps = max(epsilon, self.bid_eps) if dtypes[i] == D_BID else epsilon
+                is_bid = dtypes[i] == D_BID
+                eff_eps = max(epsilon, self.bid_eps) if is_bid else epsilon
                 if self.rng.random() < eff_eps:
-                    j = self.rng.randrange(hi - lo)
+                    # Guided bid exploration: uniform-random bids are almost
+                    # always terrible (jump to 110 on junk -> set -> "bidding
+                    # is bad"), so half of bid exploration follows the family
+                    # heuristic instead — sensible contracts get sampled and
+                    # valued, and Q-learning keeps the final say.
+                    j = None
+                    if is_bid and self.rng.random() < 0.5:
+                        h = choose_bid(env.g, seats[i], "basic")
+                        if h in cands_all[i]:
+                            j = cands_all[i].index(h)
+                    if j is None:
+                        j = self.rng.randrange(hi - lo)
                 else:
                     j = int(np.argmax(q[lo:hi]))
                 self.bufs[i].append(
