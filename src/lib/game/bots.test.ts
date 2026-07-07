@@ -47,6 +47,9 @@ const biddingState = (opts: {
 }): GameDoc => {
     let g = createGameDoc({ id: 'bid-test', joinCode: 'BIDT', host, now: 1 });
     g = applyAction(g, { type: 'START_GAME' });
+    for (const s of SEATS) {
+        (g.seats[s] as SeatInfo) = { kind: 'bot', name: `Bot ${s}`, botStyle: 'basic' };
+    }
     while (g.phase === 'dealing' || g.phase === 'redeal') {
         g = applyAction(g, nextBotAction(g)!);
     }
@@ -148,6 +151,100 @@ describe('hand evaluation', () => {
         const keep = hand13.filter((card) => !gd.some((d) => d.suit === card.suit && d.number === card.number));
         const keptSuits = new Set(keep.map((card) => card.suit));
         expect(keptSuits.size).toBeLessThan(4);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Trick play: personality-driven table manners.
+// ---------------------------------------------------------------------------
+
+/** A game frozen mid-trick. Only the acting seat's hand matters. */
+const playingState = (opts: {
+    turn: Seat;
+    hand: Card[];
+    style: BotStyle;
+    trump: Suit;
+    trickLeader: Seat;
+    trickPlays: { seat: Seat; card: Card }[];
+    completedTricks?: GameDoc['completedTricks'];
+}): GameDoc => {
+    let g = createGameDoc({ id: 'play-test', joinCode: 'PLYT', host, now: 1 });
+    g = applyAction(g, { type: 'START_GAME' });
+    for (const s of SEATS) {
+        (g.seats[s] as SeatInfo) = { kind: 'bot', name: `Bot ${s}`, botStyle: 'basic' };
+    }
+    while (g.phase === 'dealing' || g.phase === 'redeal') {
+        g = applyAction(g, nextBotAction(g)!);
+    }
+    return {
+        ...g,
+        phase: 'playing',
+        turn: opts.turn,
+        hands: { ...g.hands, [opts.turn]: opts.hand },
+        seats: { ...g.seats, [opts.turn]: { kind: 'bot' as const, name: 'Bot', botStyle: opts.style } },
+        bidWinner: 'B1',
+        highBid: 80,
+        trump: opts.trump,
+        trickLeader: opts.trickLeader,
+        trickPlays: opts.trickPlays,
+        completedTricks: opts.completedTricks ?? [],
+    };
+};
+
+const cardPlayed = (g: GameDoc): Card => {
+    const a = nextBotAction(g);
+    expect(a?.type).toBe('PLAY_CARD');
+    return (a as { type: 'PLAY_CARD'; card: Card }).card;
+};
+
+describe('trick play: feeding and ruffing', () => {
+    it('feeds a counter to a partner whose boss card is likely to hold', () => {
+        // A2 led the Green 14 (boss), B2 followed low; A1 acts 3rd with B1
+        // behind and no evidence B1 is void — feed the 10, not the cheap 7
+        const g = playingState({
+            turn: 'A1', style: 'basic', trump: 'Red', trickLeader: 'A2',
+            trickPlays: [
+                { seat: 'A2', card: c('Green', 14) },
+                { seat: 'B2', card: c('Green', 6) },
+            ],
+            hand: [c('Green', 10), c('Green', 7), c('Black', 8), c('Yellow', 9)],
+        });
+        expect(cardPlayed(g)).toEqual(c('Green', 10));
+    });
+
+    it('holds the counter back when the opponent behind is known void', () => {
+        // same spot, but B1 failed to follow Green earlier — they can ruff
+        const g = playingState({
+            turn: 'A1', style: 'basic', trump: 'Red', trickLeader: 'A2',
+            trickPlays: [
+                { seat: 'A2', card: c('Green', 14) },
+                { seat: 'B2', card: c('Green', 6) },
+            ],
+            hand: [c('Green', 10), c('Green', 7), c('Black', 8), c('Yellow', 9)],
+            completedTricks: [{
+                leader: 'A2',
+                plays: [
+                    { seat: 'A2', card: c('Green', 8) },
+                    { seat: 'B2', card: c('Green', 9) },
+                    { seat: 'A1', card: c('Green', 11) },
+                    { seat: 'B1', card: c('Black', 6) }, // <- void in Green
+                ],
+                winner: 'A1',
+                points: 0,
+            }],
+        });
+        expect(cardPlayed(g)).toEqual(c('Green', 7));
+    });
+
+    it('cautious ruffs in early when the lead suit still has counters to catch', () => {
+        // no points on the table yet, but Yellow's 5/10/13 are all unseen —
+        // ruffing low here is how you catch count (family rule)
+        const g = playingState({
+            turn: 'A1', style: 'cautious', trump: 'Red', trickLeader: 'B1',
+            trickPlays: [{ seat: 'B1', card: c('Yellow', 7) }],
+            hand: [c('Red', 6), c('Black', 8), c('Green', 9), c('Black', 11)],
+        });
+        expect(cardPlayed(g)).toEqual(c('Red', 6));
     });
 });
 

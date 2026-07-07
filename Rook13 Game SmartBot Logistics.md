@@ -19,6 +19,8 @@ Every seat's bot has a `BotStyle`, and each style maps to a row of knobs in
 | Pulls trump on defense | — | no | yes | no |
 | Hunts point-less tricks | — | no | yes | no |
 | Ruffs in early without points showing | — | yes | yes | no |
+| Feeds counters on partner's *likely* wins | — | yes | yes | yes |
+| Ruffs in early when the lead suit has count left | — | yes | yes | yes |
 
 Easy ignores all of it and plays any legal move — it exists as the floor to
 measure future bots (AlphaRook) against.
@@ -89,14 +91,36 @@ trick, and their own hand.
   clear length dominance) and stop once trump is dead; otherwise cash side
   bosses from long suits or lead low from length without gifting counters.
   Defenders don't lead trump (Aggressive does).
-- **Following:** if partner has the trick locked (or you're last), feed them
-  counters; otherwise win as cheaply as possible when there are points on
-  the table (bid-team members and Aggressive contest even point-less tricks
-  — the 5-trick bonus and the last-trick go-down make every trick worth
-  something to the declaring side).
-- **Void:** ruff when there are points to take (Cautious only then; others
-  ruff early on principle), never over a winning partner; otherwise pitch
-  the cheapest non-trump.
+- **Following:** feed counters when partner's card is *likely* to hold —
+  they played the boss of the suit and nobody still to act has shown a void
+  in it (a known void means they can ruff, so the counter stays home).
+  Otherwise win as cheaply as possible when there are points on the table
+  (bid-team members and Aggressive contest even point-less tricks — the
+  5-trick bonus and the last-trick go-down make every trick worth something
+  to the declaring side).
+- **Void:** ruff when there are points on the table, or early when the lead
+  suit still has counters out that the players behind may be forced to drop
+  ("trumping in on likely count"); never over a winning partner; otherwise
+  pitch the cheapest non-trump — and only gift counters to a partner whose
+  trick is safe.
+
+### How play changes get accepted (mini-AlphaRook)
+
+Every play heuristic is a `BotPersonality` flag, so candidate strategies are
+A/B tested head-to-head: same bidding on both teams, one team with the trait,
+600 full games with sides swapped each game (see the temporary harness
+pattern in git history — `ab.scratch.test.ts`). Measured:
+
+- `feedsBossPartner` — **57–58% game wins** vs. legacy. The single biggest
+  play upgrade; shipped.
+- `ruffsLikelyCount` — ~52% wins, +2.0 pts/hand; shipped.
+- "save the boss trump, pull with the cheapest sufficient winner" — measured
+  **neutral-to-negative** (50.2% alone, and it dragged combined arms down),
+  so it was rejected: the bots already keep trump to the end by never
+  discarding it, and pulling with the boss flushes enemy trump fastest.
+
+The human intuition list from the family is the backlog; the sim harness is
+the judge.
 
 ## AlphaRook (future)
 

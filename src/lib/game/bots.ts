@@ -118,6 +118,10 @@ export interface BotPersonality {
     huntsBareTricks: boolean;
     /** ruffs in early even before any points have hit the table */
     eagerRuffer: boolean;
+    /** feeds counters on partner's *likely* wins (not just guaranteed ones) */
+    feedsBossPartner: boolean;
+    /** ruffs in early when the lead suit still has counters likely to drop */
+    ruffsLikelyCount: boolean;
 }
 
 export const PERSONALITIES: Record<BotStyle, BotPersonality> = {
@@ -125,18 +129,22 @@ export const PERSONALITIES: Record<BotStyle, BotPersonality> = {
     random: {
         bidCushion: 0, minBidTricks: 0, widowTricks: 0, warStretch: 0, partnerOverbidMargin: null,
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: false,
+        feedsBossPartner: false, ruffsLikelyCount: false,
     },
     basic: {
         bidCushion: 3, minBidTricks: 1.0, widowTricks: 0, warStretch: 0, partnerOverbidMargin: 15,
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
+        feedsBossPartner: true, ruffsLikelyCount: true,
     },
     aggressive: {
         bidCushion: 0, minBidTricks: 0.5, widowTricks: 0.5, warStretch: 5, partnerOverbidMargin: 10,
         pullsTrumpOnDefense: true, huntsBareTricks: true, eagerRuffer: true,
+        feedsBossPartner: true, ruffsLikelyCount: true,
     },
     cautious: {
         bidCushion: 8, minBidTricks: 1.5, widowTricks: -0.3, warStretch: 0, partnerOverbidMargin: null,
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: false,
+        feedsBossPartner: true, ruffsLikelyCount: true,
     },
 };
 
@@ -165,6 +173,15 @@ const isBoss = (g: GameDoc, seat: Seat, card: Card): boolean => {
     const out = outstandingInSuit(g, seat, card.suit);
     return out.every((n) => n < card.number);
 };
+
+/** True when `who` has already shown (by not following) that they're out of `suit`. */
+const knownVoid = (g: GameDoc, who: Seat, suit: Suit): boolean =>
+    [...g.completedTricks.map((t) => t.plays), g.trickPlays].some(
+        (plays) =>
+            plays.length > 0 &&
+            plays[0].card.suit === suit &&
+            plays.some((pl) => pl.seat === who && pl.card.suit !== suit),
+    );
 
 // ---------------------------------------------------------------------------
 // Bidding
@@ -317,6 +334,9 @@ const chooseLead = (g: GameDoc, seat: Seat, p: BotPersonality): Card => {
         } else if (onBidTeam || p.pullsTrumpOnDefense) {
             // Pull trump only while it's a winning proposition:
             // with the boss trump, or with clear length dominance.
+            // (A/B tested "pull with the cheapest sufficient winner to save
+            // the boss for the endgame" — it measured neutral-to-negative,
+            // so the boss leads the charge.)
             if (haveBoss) return highest(myTrumps);
             if (myTrumps.length > enemyTrumps.length && myTrumps.length >= 3) {
                 // force theirs out with a mid trump, keep the point cards home
@@ -378,11 +398,20 @@ const chooseCard = (g: GameDoc, seat: Seat, style: BotStyle): Card => {
     const currentWinner = winningCardSeat(played, trump);
     const partnerWinning = currentWinner === partnerOf(seat);
     const partnerCard = played.find((pl) => pl.seat === partnerOf(seat))?.card;
-    // partner is winning with a card nothing can beat — safe to feed early
+    // partner is winning with a card that's safe to feed: the boss of the
+    // suit, and nobody left to act can (or is known to be able to) ruff it.
+    // feedsBossPartner trusts "not known void" as safe; without it, feeding
+    // waits for a mathematical lock (all trump accounted for).
+    const playedSeats = new Set(played.map((pl) => pl.seat));
+    const oppsBehind = SEATS.filter(
+        (s) => teamOf(s) !== teamOf(seat) && !playedSeats.has(s),
+    );
+    const trumpsStillOut = trump ? outstandingInSuit(g, seat, trump).length : 0;
     const partnerHasItLocked =
-        partnerWinning && !!partnerCard &&
-        (partnerCard.suit === trump ? isBoss(g, seat, partnerCard)
-            : isBoss(g, seat, partnerCard) && outstandingInSuit(g, seat, trump ?? partnerCard.suit).length === 0);
+        partnerWinning && !!partnerCard && isBoss(g, seat, partnerCard) &&
+        (partnerCard.suit === trump ||
+            trumpsStillOut === 0 ||
+            (p.feedsBossPartner && oppsBehind.every((o) => !knownVoid(g, o, partnerCard.suit))));
 
     const followers = legal.filter((c) => c.suit === lead);
     if (followers.length > 0) {
@@ -406,15 +435,25 @@ const chooseCard = (g: GameDoc, seat: Seat, style: BotStyle): Card => {
     // Void in the lead suit
     if (trump) {
         const trumps = legal.filter((c) => c.suit === trump);
-        const worthRuffing = pointsOnTable > 0 || (p.eagerRuffer && played.length <= 2);
+        // "likely count": players still to act must follow the lead suit, and
+        // that suit has counters left that may be forced out onto this trick
+        const leadCountersOut = lead
+            ? outstandingInSuit(g, seat, lead).filter((n) => n === 5 || n === 10 || n === 13).length
+            : 0;
+        const worthRuffing =
+            pointsOnTable > 0 ||
+            (p.eagerRuffer && played.length <= 2) ||
+            (p.ruffsLikelyCount && played.length <= 2 && leadCountersOut > 0);
         if (trumps.length > 0 && !partnerWinning && worthRuffing) {
             const winningTrumps = trumps.filter(wouldWin);
             if (winningTrumps.length > 0) return lowest(winningTrumps);
         }
     }
     if (partnerWinning) {
+        // don't gift a counter onto a trick partner might still lose
+        const feedSafe = !p.feedsBossPartner || played.length === 3 || partnerHasItLocked;
         const counters = legal.filter((c) => getCardPoints(c) > 0 && c.suit !== trump);
-        if (counters.length > 0) return highest(counters);
+        if (feedSafe && counters.length > 0) return highest(counters);
     }
     const nonTrump = legal.filter((c) => c.suit !== trump);
     return cheapest(nonTrump.length > 0 ? nonTrump : legal);
