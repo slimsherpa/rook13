@@ -1,115 +1,106 @@
-Rook13
+# Rook13 SmartBot Logistics
 
-##User Interface Flow##
-Account and Lobby Management
-Login: Players sign in to access the game.
-Create Account: New players register for an account.
-Logout: Players can log out when finished.
-Lobby: A waiting area where players see active games and can join one.
-Player Profile: See player stats and game histories.
+How the bots think. The implementation lives in `src/lib/game/bots.ts`; the
+behavior tests (including the statistical bidding calibration) live in
+`src/lib/game/bots.test.ts`.
 
+## The four personalities
 
-##Overview##
-Rook13 is played by 4 players divided into 2 teams. The game is played over a series of “hands” (mini-games) until one team’s cumulative score exceeds +500 or falls below –250. Each hand involves dealing cards, bidding on points, playing a series of tricks, and scoring based on the cards won.
-Bots can be substituted for human players.
+Every seat's bot has a `BotStyle`, and each style maps to a row of knobs in
+`PERSONALITIES`:
 
-##Key Concepts and Definitions##
-Players and Teams
-Player: A user of the app.
-Seat: There are 4 fixed seats, labeled A1, B1, A2, and B2. Once a player takes a seat at the start of the game, they remain in that seat for the entire game.
-Team: Two players sitting directly across from each other form a team:
-Team A: Seats A1 and A2.
-Team B: Seats B1 and B2.
-GameScore: The cumulative score for each team, which is the sum of the scores from all completed hands played.
-Cards and the Deck
-Deck: Consists of 40 cards divided equally among 4 suits (Red, Yellow, Black, and Green). Each suit contains cards numbered from 5 through 14.
-Card: Each card has:
-A suit (its color).
-A number (from 5 to 14).
-A point value (only certain cards “count” for points):
-Cards numbered 5 are worth 5 points.
-Cards numbered 10 are worth 10 points.
-Cards numbered 13 are worth 10 points.
-Hand (of Cards): The complete 40-card set used in one mini-game.
+| Knob | Easy (`random`) | Standard (`basic`) | Aggressive | Cautious |
+|---|---|---|---|---|
+| Bid cushion (pts under the estimate) | — | 3 | 0 | 8 |
+| Min tricks to bid at all | — | 1.0 | 0.5 | 1.5 |
+| Widow optimism (tricks) | — | 0 | +0.5 | −0.3 |
+| Bidding-war stretch (pts) | — | 0 | +5 | 0 |
+| Will outbid partner (live auction) | — | needs +15 pt edge | needs +10 pt edge | never |
+| Pulls trump on defense | — | no | yes | no |
+| Hunts point-less tricks | — | no | yes | no |
+| Ruffs in early without points showing | — | yes | yes | no |
 
-##Game Components##
-###Dealing and Hands###
-PlayersHand: At the start of each hand, every player is randomly dealt 9 cards. These cards are private. Players can rearange their cards as they please.
-Widow: In addition to the players’ cards, 4 extra cards are dealt face down. They remain hidden to all players until they are revealed and given to only the player who “takes it” during bidding. 
+Easy ignores all of it and plays any legal move — it exists as the floor to
+measure future bots (AlphaRook) against.
 
-###Roles and Special Terms###
-HandDealer: The player designated as the dealer for the current hand. This role rotates clockwise each hand.
-BidLead: The player immediately clockwise from the dealer who starts the bidding process.
-Bid: A player’s declaration of the minimum number of points they believe their team can win. The valid bids are: 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, and 120. A player may also choose to “Pass.” Once a player passes, they cannot bid again. The bidding continues clockwise until three players have passed. (If the first three players pass, the last player must bid.)
-BidWinner: The last remaining bidder who wins the bid. This player:
-Adds the 4 Widow cards to their hand.
-Selects 4 cards from their combined hand (now including the Widow) to set aside as the GoDown.
-Declares the trump suit for the hand.
-GoDown: The 4 cards selected by the BidWinner that are set aside (hidden until later). Their points count only after the final trick.
-Trump: The suit declared by the BidWinner, which will have the highest power during trick-taking.
+## Bidding
 
-###Playing the Hand###
-####Trick Play####
-Trick: A mini-game where each of the 4 players plays one card, for a total of 9 tricks per hand.
-TrickLead: The player who plays the first card in a trick:
-For the first trick, this is the BidLead.
-For subsequent tricks, it is the player who won the previous trick.
-TrickTurn: The player whose turn it is to play in the current trick, following a clockwise order.
-PlayACard: The act of placing a card from your hand on the table during your turn.
-LeadSuit: The suit of the first card played in a trick.
-FollowingSuit: A rule that requires the other players to play a card of the LeadSuit if they have one. If a player does not have a card matching the LeadSuit, they may play any card.
-TrickCapture: Determining the winner of the trick:
-If one or more trump cards are played, the highest trump wins the trick.
-If no trump cards are played, the highest card in the LeadSuit wins the trick.
-Scoring the Hand
-HandScore: The total points captured by each team during the hand. Points come from:
-The individual point values on the cards won in tricks.
-The GoDown, which is revealed and scored after the last trick.
-A bonus of 20 points if a team wins 5 or more tricks (known as TakingTricks Bonus).
-LastTrick Bonus: The player who wins the 9th (last) trick also claims the GoDown, adding its point values to their team’s score.
-Going Set: If the team of the BidWinner fails to capture enough points to meet or exceed the bid, that hand’s score becomes a negative value equal to the bid (for example, –100 if the bid was 100).
+1. **Hand evaluation.** `estimateTricks()` scores the 9-card hand with its
+   best suit as trump: trump honors (14/13/12/11), trump length past 4, side
+   bosses, and short side suits it can ruff (each ruff reserves a spare
+   trump).
+2. **Tricks → points.** `TRICK_TO_POINTS` (base 72, +11/trick) converts the
+   estimate into the most the bot will pay. The line is grounded in a fit
+   over ~1,500 simulated hands with randomized contracts (actual declaring-
+   team points ≈ 72 + 7 × tricks; the big intercept is real — trump choice,
+   the widow, and an average partner are a big head start). The bidding slope
+   is steeper than the fitted reality on purpose: strong hands press their
+   edge like humans do, and yes, that means the winner's curse is alive at
+   this table too.
+3. **Auction manners.**
+   - Bid up in minimum +5 steps — never jump. This produces the natural
+     "feeling out the table" bids at 70–85 on the way to the real price.
+   - **Never bid when your partner holds the high bid and both opponents
+     have passed.** The contract is already yours; bidding only raises it.
+     (This was family complaint #2, and it is a hard rule for every
+     personality.)
+   - In a live auction where partner holds the high bid, only take it away
+     with a clearly stronger hand (see the per-personality margin). Cautious
+     never does.
+   - A partner who bid adds +8 pts to the estimate (their tricks count too);
+     a partner who passed subtracts 4. The boost never applies toward
+     outbidding that same partner.
+   - Forced to bid (three passes)? Take the 65 and make the best of it.
 
-###Special Condition###
-Redeal: If any player is dealt only cards numbered 6, 7, 8, or 9, the hand is considered too weak, and the entire deal is redone.
+### Calibrated outcome (family complaint #1)
 
-###Phases of the Game###
-1. Game Initialization
-Start New Game: Begin a new game session.
-Open Game: The game is made available for players to join or bots are assigned.
-Request Join: Players send a request to join the game.
-Active Game: Once 4 players have joined, the game becomes active.
-2. Game Setup
-Select Teams: Based on fixed seats, teams are automatically formed (Team A: A1 & A2; Team B: B1 & B2).
-Select Dealer: One player is chosen as the dealer. This role rotates clockwise after each hand.
-3. Playing a Hand
-Dealing:
-The dealer clicks “deal cards” which gives 9 cards to each player.
-4 cards are dealt to the Widow.
-The dealer can click “redeal” during the dealing phase which readeals all the cards. Occasionally this is useful when playing.
-Bidding:
-The BidLead starts the bidding process.
-Players bid (or pass) in clockwise order until three players have passed.
-The remaining player becomes the BidWinner.
-Selecting the GoDown and Trump:
-The BidWinner adds the Widow to their hand.
-They choose 4 cards to remove from their hand as the GoDown.
-They then declare the trump suit for that hand.
-Playing Tricks:
-Nine tricks are played.
-The first trick is led by the BidLead; subsequent tricks are led by the winner of the previous trick.
-Players must follow the LeadSuit if possible.
-The trick is won either by the highest trump card or, if no trumps are played, by the highest card of the LeadSuit.
-Revealing and Scoring:
-After the 9th trick, the GoDown is revealed and its points are added to the team that won the last trick.
-Points from the tricks, any bonus for taking 5 or more tricks, and the GoDown are totaled to form the HandScore.
-If the BidWinner’s team does not meet or exceed the bid, the hand’s score becomes a negative value equal to the bid.
-The HandScore is added to the cumulative GameScore for each team.
-4. Continuing or Ending the Game
-Next Hand:
-The role of dealer rotates to the next player (clockwise).
-A new hand begins following the same process.
-Game End:
-The game continues until one team’s cumulative score goes over +500 or drops below –250.
-At that point, the game is completed and the winning team is determined.
+Measured over ~1,600 bot-vs-bot hands per lineup:
 
+- All-Standard table: winning bids mean ≈ 91, median 90–95; 100 ≈ 13%,
+  105 ≈ 5%, 110 ≈ 1.5%, 115/120 well under 1%. Set rate ≈ 32%.
+- Mixed table (with an Aggressive seat): median 95, 100 ≈ 17%, set rate ≈ 36%
+  — Aggressive buys more hands and sets more, which is the point.
 
+This sits about half a bid-step below the family's human meta ("100 typical,
+95/105 common"). Pushing the center to a true 100 with current play strength
+drives set rates past 43% (the per-hand luck spread is ~24 points), which
+reads as dumb bidding, not bold bidding. If playtesting says the bots are
+still too timid, raise `TRICK_TO_POINTS.base` (each +1 ≈ +1 bid point,
+roughly +1.5% set rate); genuinely closing the gap is AlphaRook's job —
+better card play raises real points taken, and the bid line can follow.
+
+## Widow, go-down, and trump
+
+The bid winner picks the trump suit that maximizes `estimateTricksAs()` over
+the 13 cards, then brute-forces all 715 possible 4-card go-downs and keeps
+the discard that leaves the strongest 9 cards — which naturally hoards trump,
+empties short side suits to create ruffing voids, keeps side bosses, and
+avoids burying counters (their points ride on winning the last trick). The
+trump declaration recomputes the same objective on the kept 9 so the named
+suit always matches what the discard was shaped around.
+
+## Trick play
+
+Shared brain for the three heuristic styles, with personality flags where
+noted. Bots remember only what a human could: completed tricks, the current
+trick, and their own hand.
+
+- **Leading:** pull trump only while it's winning (boss trump in hand, or
+  clear length dominance) and stop once trump is dead; otherwise cash side
+  bosses from long suits or lead low from length without gifting counters.
+  Defenders don't lead trump (Aggressive does).
+- **Following:** if partner has the trick locked (or you're last), feed them
+  counters; otherwise win as cheaply as possible when there are points on
+  the table (bid-team members and Aggressive contest even point-less tricks
+  — the 5-trick bonus and the last-trick go-down make every trick worth
+  something to the declaring side).
+- **Void:** ruff when there are points to take (Cautious only then; others
+  ruff early on principle), never over a winning partner; otherwise pitch
+  the cheapest non-trump.
+
+## AlphaRook (future)
+
+The personality table is deliberately a pure function of `GameDoc` state, so
+a learned policy can drop in behind the same `nextBotAction()` interface and
+be benchmarked against `random` (floor) and `basic` (baseline) via the
+existing full-game simulation harness in the test suite.

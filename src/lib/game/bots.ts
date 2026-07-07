@@ -1,18 +1,28 @@
 // Bot decision making. Pure: (GameDoc) -> GameAction | null.
 //
-// Styles (see BotStyle in types.ts):
-//   'random'     — plays any legal move (the floor for future AlphaRook comparisons)
-//   'basic'      — the standard heuristic bot: counts cards, pulls trump only
-//                  while it's winning that fight, saves boss cards for later
-//   'aggressive' — standard brain, bids ~one step harder, hunts tricks
-//   'cautious'   — standard brain, bids ~one step tighter, hoards trump
+// Each BotStyle maps to a personality — a small table of knobs (see
+// PERSONALITIES below) that shape bidding appetite and table manners:
+//   'random'     — "Easy": any legal move (the floor for future AlphaRook comparisons)
+//   'basic'      — "Standard": bids what the hand is worth minus a small cushion
+//   'aggressive' — bids right up to the estimate, stretches in bidding wars,
+//                  pulls trump on defense, hunts tricks
+//   'cautious'   — bids well under the estimate, never outbids partner,
+//                  hoards trump for sure things
+//
+// Bidding is grounded in an empirical model: estimateTricks() scores the
+// 9-card hand, and TRICK_TO_POINTS maps that to the points the team actually
+// takes when it wins the bid (constants fitted from simulated hands — see
+// bots.test.ts "calibration"). Two table-manner rules from the family:
+//   - never bid when your partner holds the high bid and both opponents have
+//     passed (you'd only be raising your own contract), and
+//   - only outbid a partner in a live auction with a clearly stronger hand.
 //
 // The heuristic bots "remember" only what a human at the table could:
 // completed tricks, the current trick, and their own hand. They never peek
 // at other hands or the hidden go-down.
 
 import {
-    GameDoc, GameAction, Card, Seat, Suit, SUITS, VALID_BIDS, BotStyle,
+    GameDoc, GameAction, Card, Seat, Suit, SEATS, SUITS, VALID_BIDS, BotStyle,
     getCardPoints, partnerOf, teamOf,
 } from './types';
 import { createShuffledDeck } from './deck';
@@ -47,18 +57,87 @@ export const bestTrumpSuit = (hand: Card[]): Suit => {
     return best;
 };
 
-/** Pick the 4 weakest non-trump cards for the go-down (avoids counters when it can). */
+/**
+ * Pick the 4-card go-down that leaves the strongest 9 cards behind: brute
+ * force every discard set (13 choose 4 = 715) and keep the one that maximizes
+ * the trick estimate — which naturally hoards trump, creates voids to ruff
+ * with, and keeps side bosses — minus a small penalty for burying counters
+ * (their points ride on winning the last trick).
+ */
 export const chooseGoDown = (hand: Card[], trump: Suit): Card[] => {
-    const candidates = [...hand].sort((a, b) => {
-        const aTrump = a.suit === trump ? 1 : 0;
-        const bTrump = b.suit === trump ? 1 : 0;
-        if (aTrump !== bTrump) return aTrump - bTrump;           // non-trump first
-        const ap = getCardPoints(a);
-        const bp = getCardPoints(b);
-        if (ap !== bp) return ap - bp;                            // avoid throwing points
-        return a.number - b.number;                               // weakest first
-    });
-    return candidates.slice(0, 4);
+    const n = hand.length;
+    let best: Card[] = hand.slice(0, 4);
+    let bestScore = -Infinity;
+    for (let i = 0; i < n - 3; i++) {
+        for (let j = i + 1; j < n - 2; j++) {
+            for (let k = j + 1; k < n - 1; k++) {
+                for (let l = k + 1; l < n; l++) {
+                    const drop = new Set([i, j, k, l]);
+                    const keep = hand.filter((_, idx) => !drop.has(idx));
+                    const buried =
+                        getCardPoints(hand[i]) + getCardPoints(hand[j]) +
+                        getCardPoints(hand[k]) + getCardPoints(hand[l]);
+                    const score = estimateTricksAs(keep, trump) - buried * 0.04;
+                    if (score > bestScore) {
+                        bestScore = score;
+                        best = [hand[i], hand[j], hand[k], hand[l]];
+                    }
+                }
+            }
+        }
+    }
+    return best;
+};
+
+// ---------------------------------------------------------------------------
+// Personalities
+// ---------------------------------------------------------------------------
+
+export interface BotPersonality {
+    /** points shaved off the raw hand estimate before bidding */
+    bidCushion: number;
+    /** won't open their mouth at all below this many estimated tricks */
+    minBidTricks: number;
+    /**
+     * Widow optimism, in tricks, relative to reality. The fitted
+     * TRICK_TO_POINTS curve already includes the average widow lift, so this
+     * is temperament: >0 counts on a good widow, <0 refuses to.
+     */
+    widowTricks: number;
+    /** extra points past comfort it will pay when an opponent holds the high bid */
+    warStretch: number;
+    /**
+     * How much stronger (estimate minus the price it would have to pay) the
+     * hand must be to take the bid away from a partner while opponents are
+     * still live. null = never outbids partner.
+     */
+    partnerOverbidMargin: number | null;
+    /** pulls trump even when its team is defending */
+    pullsTrumpOnDefense: boolean;
+    /** tries to win tricks even with no points on the table */
+    huntsBareTricks: boolean;
+    /** ruffs in early even before any points have hit the table */
+    eagerRuffer: boolean;
+}
+
+export const PERSONALITIES: Record<BotStyle, BotPersonality> = {
+    // 'random' never consults its personality; zeros keep the record total.
+    random: {
+        bidCushion: 0, minBidTricks: 0, widowTricks: 0, warStretch: 0, partnerOverbidMargin: null,
+        pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: false,
+    },
+    basic: {
+        bidCushion: 3, minBidTricks: 1.0, widowTricks: 0, warStretch: 0, partnerOverbidMargin: 15,
+        pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
+    },
+    aggressive: {
+        bidCushion: 0, minBidTricks: 0.5, widowTricks: 0.5, warStretch: 5, partnerOverbidMargin: 10,
+        pullsTrumpOnDefense: true, huntsBareTricks: true, eagerRuffer: true,
+    },
+    cautious: {
+        bidCushion: 8, minBidTricks: 1.5, widowTricks: -0.3, warStretch: 0, partnerOverbidMargin: null,
+        pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: false,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -91,46 +170,117 @@ const isBoss = (g: GameDoc, seat: Seat, card: Card): boolean => {
 // Bidding
 // ---------------------------------------------------------------------------
 
-const STYLE_BID_ADJUST: Partial<Record<BotStyle, number>> = {
-    aggressive: 12,
-    cautious: -12,
+/**
+ * Expected tricks if this hand plays with `trump` as trump. Honors, length,
+ * side bosses, and ruffing shortness all contribute.
+ */
+export const estimateTricksAs = (hand: Card[], trump: Suit): number => {
+    const groups = groupBySuit(hand);
+    const trumps = groups.get(trump) ?? [];
+
+    let tricks = 0;
+    for (const c of trumps) {
+        if (c.number === 14) tricks += 1.0;
+        else if (c.number === 13) tricks += 0.8;
+        else if (c.number === 12) tricks += 0.5;
+        else if (c.number === 11) tricks += 0.3;
+    }
+    // a long trump suit grinds out extra tricks once the opponents are dry
+    tricks += Math.max(0, trumps.length - 4) * 0.8;
+
+    // side-suit bosses and ruffing shortness (needs spare trumps to ruff with)
+    let spareTrumps = Math.max(0, trumps.length - 3);
+    for (const suit of SUITS) {
+        if (suit === trump) continue;
+        const cards = groups.get(suit) ?? [];
+        const nums = new Set(cards.map((c) => c.number));
+        if (nums.has(14)) tricks += 0.8;
+        if (nums.has(13)) tricks += nums.has(14) ? 0.45 : 0.25;
+        if (cards.length === 0 && spareTrumps > 0) {
+            tricks += 0.9;
+            spareTrumps--;
+        } else if (cards.length === 1 && spareTrumps > 0) {
+            tricks += 0.45;
+            spareTrumps--;
+        }
+    }
+    return Math.min(9, tricks);
+};
+
+/** Expected tricks if this hand wins the bid and names its best suit trump. */
+export const estimateTricks = (hand: Card[]): number =>
+    estimateTricksAs(hand, bestTrumpSuit(hand));
+
+/**
+ * Tricks -> the points a bot is willing to bid on. Grounded in a fit over
+ * ~1500 simulated hands with randomized contracts (declaring team's actual
+ * points vs. the declarer's pre-widow estimateTricks came out ≈ 70 + 7t; the
+ * high intercept is real — naming trump + the widow + partner's average hand
+ * is a big head start, and widow value is included). The slope here is
+ * steeper than the fit on purpose: strong hands should press their edge the
+ * way humans do, weak hands should get out early.
+ */
+const TRICK_TO_POINTS = { base: 72, perTrick: 11 };
+
+/** Partner opened their mouth — their tricks count toward the team too. */
+const PARTNER_BID_BOOST = 8;
+/** Partner passed — expect no help across the table. */
+const PARTNER_PASS_DRAG = 4;
+
+const expectedPoints = (hand: Card[], widowTricks: number): number =>
+    TRICK_TO_POINTS.base + TRICK_TO_POINTS.perTrick * (estimateTricks(hand) + widowTricks);
+
+/** Highest valid bid at or below `points`, or null if even 65 is too rich. */
+const snapToBid = (points: number): number | null => {
+    let best: number | null = null;
+    for (const b of VALID_BIDS) {
+        if (b <= points) best = b;
+    }
+    return best;
 };
 
 const chooseBid = (g: GameDoc, seat: Seat, style: BotStyle): number | 'pass' => {
     if (mustBid(g)) return VALID_BIDS[0];
-
-    const hand = g.hands[seat];
-    const trump = bestTrumpSuit(hand);
-    const trumpCards = hand.filter((c) => c.suit === trump);
-    const goDown = chooseGoDown(hand, trump);
-    const keeping = hand.filter((c) => !goDown.some((gd) => gd.suit === c.suit && gd.number === c.number));
-
-    const trumpPoints = trumpCards.reduce((s, c) => s + getCardPoints(c), 0);
-    let strength =
-        trumpCards.length * 10 +
-        trumpPoints * 3 +
-        suitPower(trumpCards) / 2 +
-        keeping.reduce((s, c) => s + getCardPoints(c), 0);
-
-    // partner already in the auction? push a little harder
-    const partnerBid = g.bids[partnerOf(seat)];
-    if (typeof partnerBid === 'number') strength += 15;
-
-    strength += STYLE_BID_ADJUST[style] ?? 0;
-
-    let ceiling: number | null = null;
-    if (strength >= 120) ceiling = 120;
-    else if (strength >= 110) ceiling = 110;
-    else if (strength >= 100) ceiling = 100;
-    else if (strength >= 90) ceiling = 90;
-    else if (strength >= 80) ceiling = 80;
-    else if (strength >= 70) ceiling = 70;
-    else if (strength >= 65) ceiling = 65;
-
-    if (ceiling === null) return 'pass';
     const floor = minNextBid(g);
-    if (floor === null || floor > ceiling) return 'pass';
-    return floor; // bid up in minimum steps
+    if (floor === null) return 'pass';
+
+    const p = PERSONALITIES[style];
+    const tricks = estimateTricks(g.hands[seat]);
+    // junk is junk — humans pass it no matter what the math says a random
+    // partner might contribute
+    if (tricks < p.minBidTricks) return 'pass';
+
+    const partner = partnerOf(seat);
+    const partnerBid = g.bids[partner];
+    const partnerHasHighBid = g.highBid !== null && partnerBid === g.highBid;
+
+    let estimate = expectedPoints(g.hands[seat], p.widowTricks) - p.bidCushion;
+    // read the table: a partner who bid brings tricks of their own (but never
+    // let partner's strength justify outbidding that same partner), a partner
+    // who passed won't be much help
+    if (typeof partnerBid === 'number' && !partnerHasHighBid) estimate += PARTNER_BID_BOOST;
+    else if (partnerBid === 'pass') estimate -= PARTNER_PASS_DRAG;
+    const comfort = snapToBid(estimate);
+    if (comfort === null) return 'pass';
+
+    if (partnerHasHighBid) {
+        const opponentsAlive = SEATS.some(
+            (s) => teamOf(s) !== teamOf(seat) && g.bids[s] !== 'pass',
+        );
+        // Both opponents folded: the bid is already ours at partner's price.
+        // Bidding again would only raise our own contract.
+        if (!opponentsAlive) return 'pass';
+        // Live auction: leave it to partner unless this hand is clearly
+        // stronger even at the raised price.
+        if (p.partnerOverbidMargin === null) return 'pass';
+        return floor + p.partnerOverbidMargin <= comfort ? floor : 'pass';
+    }
+
+    // An opponent holds the high bid — some personalities pay a little extra
+    // rather than hand it over.
+    const opponentHasHighBid = g.highBid !== null;
+    const limit = comfort + (opponentHasHighBid ? p.warStretch : 0);
+    return floor <= limit ? floor : 'pass'; // bid up in minimum steps
 };
 
 // ---------------------------------------------------------------------------
@@ -149,7 +299,7 @@ const cheapest = (cards: Card[]) =>
     }, cards[0]);
 
 /** What to lead when opening a trick. */
-const chooseLead = (g: GameDoc, seat: Seat, style: BotStyle): Card => {
+const chooseLead = (g: GameDoc, seat: Seat, p: BotPersonality): Card => {
     const hand = g.hands[seat];
     const trump = g.trump;
     const myTrumps = trump ? hand.filter((c) => c.suit === trump) : [];
@@ -164,7 +314,7 @@ const chooseLead = (g: GameDoc, seat: Seat, style: BotStyle): Card => {
         if (enemyTrumps.length === 0) {
             // trump is dead — stop leading it, cash side winners instead
             // (fall through to side-suit logic; trump stays as late control)
-        } else if (onBidTeam || style === 'aggressive') {
+        } else if (onBidTeam || p.pullsTrumpOnDefense) {
             // Pull trump only while it's a winning proposition:
             // with the boss trump, or with clear length dominance.
             if (haveBoss) return highest(myTrumps);
@@ -208,22 +358,26 @@ const chooseCard = (g: GameDoc, seat: Seat, style: BotStyle): Card => {
     if (style === 'random') {
         return legal[Math.floor(Math.random() * legal.length)];
     }
+    const p = PERSONALITIES[style];
 
     const lead = leadSuit(g);
     const trump = g.trump;
     const played = g.trickPlays;
-    const pointsOnTable = played.reduce((s, p) => s + getCardPoints(p.card), 0);
+    const pointsOnTable = played.reduce((s, pl) => s + getCardPoints(pl.card), 0);
+    // the declaring team fights for every trick: each one feeds the 5-trick
+    // bonus, keeps the lead, and guards the go-down on the last trick
+    const onBidTeam = g.bidWinner !== null && teamOf(g.bidWinner) === teamOf(seat);
 
     const wouldWin = (card: Card): boolean =>
         winningCardSeat([...played, { seat, card }], trump) === seat;
 
     // Leading the trick
-    if (!lead) return chooseLead(g, seat, style);
+    if (!lead) return chooseLead(g, seat, p);
 
     // Partner currently winning? dump points to them, otherwise stay cheap.
     const currentWinner = winningCardSeat(played, trump);
     const partnerWinning = currentWinner === partnerOf(seat);
-    const partnerCard = played.find((p) => p.seat === partnerOf(seat))?.card;
+    const partnerCard = played.find((pl) => pl.seat === partnerOf(seat))?.card;
     // partner is winning with a card nothing can beat — safe to feed early
     const partnerHasItLocked =
         partnerWinning && !!partnerCard &&
@@ -238,7 +392,7 @@ const chooseCard = (g: GameDoc, seat: Seat, style: BotStyle): Card => {
             if (counters.length > 0) return highest(counters);
             return cheapest(followers);
         }
-        if (!partnerWinning && (pointsOnTable > 0 || style === 'aggressive')) {
+        if (!partnerWinning && (pointsOnTable > 0 || p.huntsBareTricks || onBidTeam)) {
             const winners = followers.filter(wouldWin);
             if (winners.length > 0) {
                 // last to act wins as cheaply as possible; earlier, top them
@@ -252,7 +406,8 @@ const chooseCard = (g: GameDoc, seat: Seat, style: BotStyle): Card => {
     // Void in the lead suit
     if (trump) {
         const trumps = legal.filter((c) => c.suit === trump);
-        if (trumps.length > 0 && !partnerWinning && (pointsOnTable > 0 || played.length <= 2)) {
+        const worthRuffing = pointsOnTable > 0 || (p.eagerRuffer && played.length <= 2);
+        if (trumps.length > 0 && !partnerWinning && worthRuffing) {
             const winningTrumps = trumps.filter(wouldWin);
             if (winningTrumps.length > 0) return lowest(winningTrumps);
         }
@@ -296,11 +451,14 @@ export const nextBotAction = (g: GameDoc): GameAction | null => {
             return { type: 'BID', seat, bid: chooseBid(g, seat, style) };
         }
         case 'widow': {
-            const trump = bestTrumpSuit(g.hands[seat]);
             if (style === 'random') {
                 const shuffled = [...g.hands[seat]].sort(() => Math.random() - 0.5);
                 return { type: 'SELECT_GODOWN', seat, cards: shuffled.slice(0, 4) };
             }
+            // shape the discard around the suit we intend to name as trump
+            const trump = SUITS.reduce((bestSuit, s) =>
+                estimateTricksAs(g.hands[seat], s) > estimateTricksAs(g.hands[seat], bestSuit) ? s : bestSuit,
+            SUITS[0]);
             return { type: 'SELECT_GODOWN', seat, cards: chooseGoDown(g.hands[seat], trump) };
         }
         case 'trump': {
@@ -308,7 +466,12 @@ export const nextBotAction = (g: GameDoc): GameAction | null => {
                 const suit = SUITS[Math.floor(Math.random() * SUITS.length)];
                 return { type: 'SELECT_TRUMP', seat, suit };
             }
-            return { type: 'SELECT_TRUMP', seat, suit: bestTrumpSuit(g.hands[seat]) };
+            // same objective the go-down was optimized against, so the suit
+            // the discard was shaped around is the suit that gets named
+            const suit = SUITS.reduce((bestSuit, s) =>
+                estimateTricksAs(g.hands[seat], s) > estimateTricksAs(g.hands[seat], bestSuit) ? s : bestSuit,
+            SUITS[0]);
+            return { type: 'SELECT_TRUMP', seat, suit };
         }
         case 'playing':
             return { type: 'PLAY_CARD', seat, card: chooseCard(g, seat, style) };

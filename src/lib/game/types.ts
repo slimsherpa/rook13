@@ -21,12 +21,16 @@ export interface Card {
     number: number; // 5..14
 }
 
-// Bot personalities, selectable per seat in the lobby:
+// Bot personalities, selectable per seat in the lobby. Each style maps to a
+// knob table in bots.ts (PERSONALITIES) covering bidding appetite and table
+// manners:
 //   random     — "Easy": any legal move (the floor for future AlphaRook comparisons)
-//   basic      — "Standard": solid heuristics — pulls trump with purpose, saves
-//                boss cards, feeds counters to its partner
-//   aggressive — Standard brain, but bids harder and hunts tricks
-//   cautious   — Standard brain, but bids tight and hoards its trump
+//   basic      — "Standard": bids what the hand is worth minus a small cushion,
+//                pulls trump with purpose, saves boss cards, feeds counters
+//   aggressive — bids to the estimate, stretches in bidding wars, will take
+//                the bid off a partner with a monster, hunts every trick
+//   cautious   — bids well under the estimate, never outbids partner,
+//                hoards trump for sure things
 export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious';
 
 export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
