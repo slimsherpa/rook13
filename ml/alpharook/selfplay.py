@@ -10,6 +10,12 @@ from that game is labeled with the final result from that seat's team view:
 
 Full games (-250..500), so the net sees game score context and can learn
 endgame desperation/protection bidding.
+
+League play (`opponent_mix`): a fraction of games seat scripted heuristic
+bots as the opposing team, giving the net direct gradient against the bot it
+must beat — pure self-play at laptop scale drifts into a private meta that
+never transfers (gen1 flatlined at ~0% vs Standard while its self-play loss
+kept improving). Only the net's own decisions become training samples.
 """
 
 from __future__ import annotations
@@ -20,8 +26,9 @@ import numpy as np
 import torch
 
 from rook.cards import team_of
+from rook.bots import next_bot_action
 from rook.observation import observe
-from .encoder import encode_state, encode_action
+from .encoder import encode_state, encode_action, D_DISCARD
 from .env import SelfPlayGame
 
 WIN_WEIGHT = 0.7
@@ -40,26 +47,83 @@ def game_targets(env: SelfPlayGame) -> tuple[float, float]:
 
 
 class VecSelfPlay:
-    def __init__(self, n_envs: int, seed: int = 0):
+    def __init__(self, n_envs: int, seed: int = 0, opponent_mix: float = 0.0,
+                 opponent_style: str = "basic"):
         self.rng = random.Random(seed)
-        self.envs = [SelfPlayGame(self.rng.randrange(1 << 30)) for _ in range(n_envs)]
+        self.opponent_mix = opponent_mix
+        self.opponent_style = opponent_style
+        self.styles = [opponent_style] * 4
+        n = n_envs
+        self.envs: list[SelfPlayGame] = [None] * n  # type: ignore[list-item]
+        self.modes: list[int | None] = [None] * n   # None = self-play, else net's team
+        self.pending_gd: list[list[int]] = [[] for _ in range(n)]
         # per env: list of (state_vec, action_vec, team)
-        self.bufs: list[list] = [[] for _ in range(n_envs)]
+        self.bufs: list[list] = [[] for _ in range(n)]
         self.games_done = 0
+        for i in range(n):
+            self._reset_env(i)
+
+    def _reset_env(self, i: int) -> None:
+        self.envs[i] = SelfPlayGame(self.rng.randrange(1 << 30))
+        self.modes[i] = (self.rng.randrange(2)
+                         if self.rng.random() < self.opponent_mix else None)
+        self.pending_gd[i] = []
+        self.bufs[i] = []
+
+    def _next_net_decision(self, i: int):
+        """Advance env i through scripted-opponent decisions until the net
+        must act. Returns (seat, dtype, candidates) or None if the game ended
+        on a scripted move."""
+        env, mode = self.envs[i], self.modes[i]
+        while not env.done:
+            seat, dtype, cands = env.decision()
+            if mode is None or team_of(seat) == mode:
+                return seat, dtype, cands
+            if dtype == D_DISCARD:
+                if not self.pending_gd[i]:
+                    _, _, cards = next_bot_action(env.g, self.styles, self.rng)
+                    self.pending_gd[i] = list(cards)
+                env.apply(self.pending_gd[i].pop(0))
+            else:
+                _, _, action = next_bot_action(env.g, self.styles, self.rng)
+                env.apply(action)
+        return None
+
+    def _flush_finished(self, i: int, out: list, stats: dict) -> None:
+        env, mode = self.envs[i], self.modes[i]
+        t0, t1 = game_targets(env)
+        for s_vec, a_vec, team in self.bufs[i]:
+            out.append((s_vec, a_vec, t0 if team == 0 else t1))
+        stats["games"] += 1
+        stats["hands"] += len(env.g.hand_history)
+        stats["sets"] += sum(1 for h in env.g.hand_history if h[6])
+        stats["bids"] += len(env.g.hand_history)
+        if mode is not None:
+            stats["mix_games"] += 1
+            stats["mix_wins"] += 1 if env.g.winner == mode else 0
+        self.games_done += 1
+        self._reset_env(i)
 
     @torch.no_grad()
     def play(self, net, device, epsilon: float, min_samples: int):
         """Returns (samples, stats): samples = list of (state, action, target),
-        stats aggregates finished games."""
+        stats aggregates finished games. mix_wins/mix_games track the net's
+        live win rate in scripted-opponent games — the transfer signal."""
         out: list[tuple[np.ndarray, np.ndarray, float]] = []
-        stats = {"games": 0, "hands": 0, "team0_wins": 0, "sets": 0, "bids": 0}
+        stats = {"games": 0, "hands": 0, "sets": 0, "bids": 0,
+                 "mix_games": 0, "mix_wins": 0}
         net.eval()
 
         while len(out) < min_samples:
-            # ---- gather all pending decisions across envs ----
+            # ---- gather the net's pending decision in every env ----
             seats, dtypes, cands_all, state_rows, action_rows, seg = [], [], [], [], [], [0]
-            for env in self.envs:
-                seat, dtype, cands = env.decision()
+            for i in range(len(self.envs)):
+                dec = self._next_net_decision(i)
+                while dec is None:  # game ended on a scripted move
+                    self._flush_finished(i, out, stats)
+                    dec = self._next_net_decision(i)
+                seat, dtype, cands = dec
+                env = self.envs[i]
                 s = encode_state(observe(env.g, seat), env.picks, dtype, env.g)
                 seats.append(seat)
                 dtypes.append(dtype)
@@ -83,17 +147,6 @@ class VecSelfPlay:
                 self.bufs[i].append(
                     (state_rows[lo + j], action_rows[lo + j], team_of(seats[i])))
                 env.apply(cands_all[i][j])
-
                 if env.done:
-                    t0, t1 = game_targets(env)
-                    for s_vec, a_vec, team in self.bufs[i]:
-                        out.append((s_vec, a_vec, t0 if team == 0 else t1))
-                    stats["games"] += 1
-                    stats["hands"] += len(env.g.hand_history)
-                    stats["team0_wins"] += 1 if env.g.winner == 0 else 0
-                    stats["sets"] += sum(1 for h in env.g.hand_history if h[6])
-                    stats["bids"] += len(env.g.hand_history)
-                    self.games_done += 1
-                    self.bufs[i] = []
-                    self.envs[i] = SelfPlayGame(self.rng.randrange(1 << 30))
+                    self._flush_finished(i, out, stats)
         return out, stats

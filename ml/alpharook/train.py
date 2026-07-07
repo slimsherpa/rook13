@@ -50,6 +50,9 @@ def main():
     ap.add_argument("--eps-start", type=float, default=0.20)
     ap.add_argument("--eps-end", type=float, default=0.02)
     ap.add_argument("--eps-decay-iters", type=int, default=200)
+    ap.add_argument("--opponent-mix", type=float, default=0.5,
+                    help="fraction of games where the opposing team is scripted bots")
+    ap.add_argument("--opponent-style", default="basic")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", action="store_true")
     args = ap.parse_args()
@@ -74,7 +77,9 @@ def main():
         best_win = ck.get("best_win", -1.0)
         print(f"resumed {args.run} at iter {start_iter}")
 
-    vec = VecSelfPlay(args.envs, seed=args.seed * 7919 + start_iter)
+    vec = VecSelfPlay(args.envs, seed=args.seed * 7919 + start_iter,
+                      opponent_mix=args.opponent_mix,
+                      opponent_style=args.opponent_style)
 
     def log(rec: dict):
         rec["ts"] = time.time()
@@ -112,18 +117,22 @@ def main():
                 losses.append(loss.item())
         t_total = time.time() - t0
 
+        mix_wr = stats["mix_wins"] / max(1, stats["mix_games"])
         rec = {
             "iter": it, "eps": round(eps, 4),
             "loss": round(float(np.mean(losses)), 5),
             "samples": n, "games": stats["games"],
             "hands_per_game": round(stats["hands"] / max(1, stats["games"]), 2),
             "set_rate": round(stats["sets"] / max(1, stats["bids"]), 3),
+            "mix_games": stats["mix_games"],
+            "mix_win_rate": round(mix_wr, 3),
             "sec_collect": round(t_collect, 1), "sec_total": round(t_total, 1),
             "games_total": vec.games_done,
         }
         print(f"[{args.run} it {it}] loss {rec['loss']:.4f} eps {eps:.2f} "
               f"{stats['games']} games ({rec['hands_per_game']} hands/game, "
-              f"set {rec['set_rate']:.0%}) {t_total:.1f}s")
+              f"set {rec['set_rate']:.0%}, "
+              f"mix {mix_wr:.0%}/{stats['mix_games']}) {t_total:.1f}s")
         log(rec)
 
         if (it + 1) % args.eval_every == 0 or it == args.iters - 1:
