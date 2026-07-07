@@ -4,12 +4,18 @@ ONE forward pass — that batching is what makes pure-Python self-play fast
 enough on a MacBook.
 
 Each decision becomes a training sample; when a game finishes, every sample
-from that game is labeled with the final result from that seat's team view:
+is labeled with a blend of how ITS HAND went and how the game ended:
 
-    target = 0.7 * win/loss(±1)  +  0.3 * clip(score_diff / 500, ±1)
+    hand  = clip(hand_score_diff / 200, ±1)          # dense, per-decision credit
+    game  = 0.7 * win/loss(±1) + 0.3 * clip(score_diff / 500, ±1)
+    target = 0.5 * hand + 0.5 * game
 
-Full games (-250..500), so the net sees game score context and can learn
-endgame desperation/protection bidding.
+Full-game win/loss alone is a cliff, not a slope: a random team wins 0/40
+full games vs Standard, so an improving-but-losing net gets the same "-1,
+everything was bad" label on every decision of every mixed game — no ranking
+gradient. The per-hand term restores it: hands where you set the opponents
+score differently from hands where you got set. The game term stays so the
+net still sees score context (-250..500) and can learn endgame bidding.
 
 League play (`opponent_mix`): a fraction of games seat scripted heuristic
 bots as the opposing team, giving the net direct gradient against the bot it
@@ -33,10 +39,12 @@ from .env import SelfPlayGame
 
 WIN_WEIGHT = 0.7
 DIFF_WEIGHT = 0.3
+HAND_WEIGHT = 0.5
+GAME_WEIGHT = 0.5
 
 
 def game_targets(env: SelfPlayGame) -> tuple[float, float]:
-    """Final blended result for team 0 and team 1."""
+    """Final game-level result for team 0 and team 1."""
     s = env.g.scores
     out = []
     for t in (0, 1):
@@ -44,6 +52,16 @@ def game_targets(env: SelfPlayGame) -> tuple[float, float]:
         diff = max(-1.0, min(1.0, (s[t] - s[1 - t]) / 500.0))
         out.append(WIN_WEIGHT * wl + DIFF_WEIGHT * diff)
     return out[0], out[1]
+
+
+def hand_targets(env: SelfPlayGame) -> dict[int, tuple[float, float]]:
+    """Per hand_number, the normalized hand-score diff for team 0 and 1."""
+    out: dict[int, tuple[float, float]] = {}
+    for h in env.g.hand_history:
+        hand_no, d_a, d_b = h[0], h[4], h[5]
+        da = max(-1.0, min(1.0, (d_a - d_b) / 200.0))
+        out[hand_no] = (da, -da)
+    return out
 
 
 class VecSelfPlay:
@@ -57,7 +75,7 @@ class VecSelfPlay:
         self.envs: list[SelfPlayGame] = [None] * n  # type: ignore[list-item]
         self.modes: list[int | None] = [None] * n   # None = self-play, else net's team
         self.pending_gd: list[list[int]] = [[] for _ in range(n)]
-        # per env: list of (state_vec, action_vec, team)
+        # per env: list of (state_vec, action_vec, team, hand_number)
         self.bufs: list[list] = [[] for _ in range(n)]
         self.games_done = 0
         for i in range(n):
@@ -92,8 +110,12 @@ class VecSelfPlay:
     def _flush_finished(self, i: int, out: list, stats: dict) -> None:
         env, mode = self.envs[i], self.modes[i]
         t0, t1 = game_targets(env)
-        for s_vec, a_vec, team in self.bufs[i]:
-            out.append((s_vec, a_vec, t0 if team == 0 else t1))
+        hmap = hand_targets(env)
+        for s_vec, a_vec, team, hand_no in self.bufs[i]:
+            game_t = t0 if team == 0 else t1
+            hand_t = hmap[hand_no][team]
+            out.append((s_vec, a_vec,
+                        HAND_WEIGHT * hand_t + GAME_WEIGHT * game_t))
         stats["games"] += 1
         stats["hands"] += len(env.g.hand_history)
         stats["sets"] += sum(1 for h in env.g.hand_history if h[6])
@@ -145,7 +167,8 @@ class VecSelfPlay:
                 else:
                     j = int(np.argmax(q[lo:hi]))
                 self.bufs[i].append(
-                    (state_rows[lo + j], action_rows[lo + j], team_of(seats[i])))
+                    (state_rows[lo + j], action_rows[lo + j],
+                     team_of(seats[i]), env.g.hand_number))
                 env.apply(cands_all[i][j])
                 if env.done:
                     self._flush_finished(i, out, stats)
