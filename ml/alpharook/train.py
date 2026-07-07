@@ -55,6 +55,9 @@ def main():
     ap.add_argument("--opponent-style", default="basic")
     ap.add_argument("--bid-eps", type=float, default=0.15,
                     help="exploration floor for bid decisions (see selfplay.py)")
+    ap.add_argument("--play-only", action="store_true",
+                    help="curriculum stage 1: heuristic bids/discards/trump "
+                         "everywhere, net learns card play only")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", action="store_true")
     args = ap.parse_args()
@@ -82,7 +85,8 @@ def main():
     vec = VecSelfPlay(args.envs, seed=args.seed * 7919 + start_iter,
                       opponent_mix=args.opponent_mix,
                       opponent_style=args.opponent_style,
-                      bid_eps=args.bid_eps)
+                      bid_eps=args.bid_eps,
+                      play_only=args.play_only)
 
     def log(rec: dict):
         rec["ts"] = time.time()
@@ -140,7 +144,8 @@ def main():
 
         if (it + 1) % args.eval_every == 0 or it == args.iters - 1:
             for opp in ("random", "basic"):
-                r = arena(net, device, opp, args.eval_games, seed=it * 31337)
+                r = arena(net, device, opp, args.eval_games, seed=it * 31337,
+                          play_only=args.play_only)
                 r["iter"] = it
                 r["kind"] = "eval"
                 print(f"  eval vs {opp}: {r['win_rate']:.1%} "

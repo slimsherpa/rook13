@@ -16,7 +16,7 @@ import torch
 from rook.cards import team_of
 from rook.bots import next_bot_action
 from rook.observation import observe
-from .encoder import encode_state, encode_action, D_DISCARD
+from .encoder import encode_state, encode_action, D_DISCARD, D_PLAY
 from .env import SelfPlayGame
 from .model import QNet
 
@@ -31,8 +31,11 @@ def model_choose(net, device, env: SelfPlayGame, seat: int, dtype: int, cands: l
 
 
 @torch.no_grad()
-def play_arena_game(net, device, model_team: int, opponent: str, seed: int):
-    """Returns (model_won, score_diff_for_model, hands)."""
+def play_arena_game(net, device, model_team: int, opponent: str, seed: int,
+                    play_only: bool = False):
+    """Returns (model_won, score_diff_for_model, hands). With play_only, the
+    net plays cards while the family heuristic handles its bid/go-down/trump
+    (curriculum stage 1 — mirrors how TS AlphaRook phase 1 was measured)."""
     net.eval()
     env = SelfPlayGame(seed)
     rng = random.Random(seed ^ 0x5EED)
@@ -40,7 +43,9 @@ def play_arena_game(net, device, model_team: int, opponent: str, seed: int):
     pending_gd: list[int] = []
     while not env.done:
         seat, dtype, cands = env.decision()
-        if team_of(seat) == model_team:
+        net_decides = (team_of(seat) == model_team
+                       and (not play_only or dtype == D_PLAY))
+        if net_decides:
             action = model_choose(net, device, env, seat, dtype, cands)
         elif dtype == D_DISCARD:
             # heuristic picks its whole go-down at once; feed it card by card
@@ -57,10 +62,12 @@ def play_arena_game(net, device, model_team: int, opponent: str, seed: int):
     return env.g.winner == model_team, diff, len(env.g.hand_history)
 
 
-def arena(net, device, opponent: str, n_games: int, seed: int = 0):
+def arena(net, device, opponent: str, n_games: int, seed: int = 0,
+          play_only: bool = False):
     wins, diffs, hands = 0, [], 0
     for i in range(n_games):
-        won, diff, h = play_arena_game(net, device, i % 2, opponent, seed + i * 977)
+        won, diff, h = play_arena_game(net, device, i % 2, opponent,
+                                       seed + i * 977, play_only)
         wins += 1 if won else 0
         diffs.append(diff)
         hands += h
@@ -82,13 +89,16 @@ def main():
     ap.add_argument("--games", type=int, default=100)
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--play-only", action="store_true",
+                    help="heuristic handles the net's bid/go-down/trump")
     args = ap.parse_args()
 
     net = QNet()
     state = torch.load(args.ckpt, map_location="cpu", weights_only=True)
     net.load_state_dict(state["model"] if "model" in state else state)
     net.to(args.device)
-    r = arena(net, args.device, args.opponent, args.games, args.seed)
+    r = arena(net, args.device, args.opponent, args.games, args.seed,
+              args.play_only)
     print(f"vs {r['opponent']}: {r['win_rate']:.1%} over {r['games']} games "
           f"(avg score diff {r['avg_diff']:+.1f}, avg hands {r['avg_hands']:.1f})")
 

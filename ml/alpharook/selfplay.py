@@ -34,7 +34,7 @@ import torch
 from rook.cards import team_of
 from rook.bots import next_bot_action, choose_bid
 from rook.observation import observe
-from .encoder import encode_state, encode_action, D_BID, D_DISCARD
+from .encoder import encode_state, encode_action, D_BID, D_DISCARD, D_PLAY
 from .env import SelfPlayGame
 
 WIN_WEIGHT = 0.7
@@ -66,10 +66,18 @@ def hand_targets(env: SelfPlayGame) -> dict[int, tuple[float, float]]:
 
 class VecSelfPlay:
     def __init__(self, n_envs: int, seed: int = 0, opponent_mix: float = 0.0,
-                 opponent_style: str = "basic", bid_eps: float = 0.15):
+                 opponent_style: str = "basic", bid_eps: float = 0.15,
+                 play_only: bool = False):
         self.rng = random.Random(seed)
         self.opponent_mix = opponent_mix
         self.opponent_style = opponent_style
+        # Curriculum stage 1: script bid/go-down/trump to the family heuristic
+        # for EVERY seat and train card play alone. Weak declarer play makes
+        # bidding genuinely -EV, so a bid-learning net correctly collapses to
+        # pass-always (gen4: 0/141 bids won) and then never gets declarer
+        # practice — the same chicken-and-egg the TS AlphaRook broke by
+        # shipping search play first (phase 1) and search bidding second.
+        self.play_only = play_only
         # Exploration floor for BID decisions specifically. Bidding's downside
         # (going set) arrives long before its upside is learnable, so a greedy
         # net collapses into pass-always — 0 bids won in 92 hands vs Standard —
@@ -101,7 +109,9 @@ class VecSelfPlay:
         env, mode = self.envs[i], self.modes[i]
         while not env.done:
             seat, dtype, cands = env.decision()
-            if mode is None or team_of(seat) == mode:
+            scripted_seat = mode is not None and team_of(seat) != mode
+            scripted_phase = self.play_only and dtype != D_PLAY
+            if not scripted_seat and not scripted_phase:
                 return seat, dtype, cands
             if dtype == D_DISCARD:
                 if not self.pending_gd[i]:
