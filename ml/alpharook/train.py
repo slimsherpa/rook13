@@ -60,6 +60,9 @@ def main():
                          "everywhere, net learns card play only")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--init-from", default=None,
+                    help="warm-start model weights (e.g. a behavior-cloned "
+                         "runs/bc.pt); ignored when --resume finds a checkpoint")
     args = ap.parse_args()
 
     run_dir = RUNS_DIR / args.run
@@ -74,6 +77,10 @@ def main():
     best_win = -1.0
 
     latest = run_dir / "latest.pt"
+    if args.init_from and not (args.resume and latest.exists()):
+        ck = torch.load(args.init_from, map_location="cpu", weights_only=True)
+        net.load_state_dict(ck["model"] if "model" in ck else ck)
+        print(f"warm-started from {args.init_from}")
     if args.resume and latest.exists():
         ck = torch.load(latest, map_location="cpu", weights_only=True)
         net.load_state_dict(ck["model"])
