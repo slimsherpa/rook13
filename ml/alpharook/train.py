@@ -53,6 +53,8 @@ def main():
     ap.add_argument("--opponent-mix", type=float, default=0.5,
                     help="fraction of games where the opposing team is scripted bots")
     ap.add_argument("--opponent-style", default="basic")
+    ap.add_argument("--bid-eps", type=float, default=0.15,
+                    help="exploration floor for bid decisions (see selfplay.py)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", action="store_true")
     args = ap.parse_args()
@@ -79,7 +81,8 @@ def main():
 
     vec = VecSelfPlay(args.envs, seed=args.seed * 7919 + start_iter,
                       opponent_mix=args.opponent_mix,
-                      opponent_style=args.opponent_style)
+                      opponent_style=args.opponent_style,
+                      bid_eps=args.bid_eps)
 
     def log(rec: dict):
         rec["ts"] = time.time()

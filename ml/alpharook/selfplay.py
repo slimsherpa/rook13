@@ -34,7 +34,7 @@ import torch
 from rook.cards import team_of
 from rook.bots import next_bot_action
 from rook.observation import observe
-from .encoder import encode_state, encode_action, D_DISCARD
+from .encoder import encode_state, encode_action, D_BID, D_DISCARD
 from .env import SelfPlayGame
 
 WIN_WEIGHT = 0.7
@@ -66,10 +66,16 @@ def hand_targets(env: SelfPlayGame) -> dict[int, tuple[float, float]]:
 
 class VecSelfPlay:
     def __init__(self, n_envs: int, seed: int = 0, opponent_mix: float = 0.0,
-                 opponent_style: str = "basic"):
+                 opponent_style: str = "basic", bid_eps: float = 0.15):
         self.rng = random.Random(seed)
         self.opponent_mix = opponent_mix
         self.opponent_style = opponent_style
+        # Exploration floor for BID decisions specifically. Bidding's downside
+        # (going set) arrives long before its upside is learnable, so a greedy
+        # net collapses into pass-always — 0 bids won in 92 hands vs Standard —
+        # and then never practices declarer play at all. Card-play epsilon can
+        # decay; bid exploration must not.
+        self.bid_eps = bid_eps
         self.styles = [opponent_style] * 4
         n = n_envs
         self.envs: list[SelfPlayGame] = [None] * n  # type: ignore[list-item]
@@ -162,7 +168,8 @@ class VecSelfPlay:
             # ---- pick, record, apply ----
             for i, env in enumerate(self.envs):
                 lo, hi = seg[i], seg[i + 1]
-                if self.rng.random() < epsilon:
+                eff_eps = max(epsilon, self.bid_eps) if dtypes[i] == D_BID else epsilon
+                if self.rng.random() < eff_eps:
                     j = self.rng.randrange(hi - lo)
                 else:
                     j = int(np.argmax(q[lo:hi]))
