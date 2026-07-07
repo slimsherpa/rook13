@@ -15,12 +15,13 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { useGame } from '@/lib/hooks/useGame';
 import SeatLobby from './SeatLobby';
 import TableView from './TableView';
+import SyncStatusPill from './SyncStatusPill';
 import LoadingPage from '@/components/LoadingPage';
 
 export default function GameRoom({ gameId }: { gameId: string }) {
     const { user, loading: authLoading, signInWithGoogle } = useAuth();
     // don't subscribe until we know who's asking — unauthenticated reads are denied
-    const { game, loading, error, mySeat, isHost, act, actionError } = useGame(user ? gameId : null);
+    const { game, loading, error, mySeat, isHost, act, actionError, synced, pendingCount } = useGame(user ? gameId : null);
     const router = useRouter();
     const [signingIn, setSigningIn] = useState(false);
 
@@ -73,19 +74,22 @@ export default function GameRoom({ gameId }: { gameId: string }) {
         );
     }
 
-    if (game.status === 'lobby') {
-        return (
-            <SeatLobby
-                game={game}
-                myUid={user.uid}
-                myName={user.displayName || 'Player'}
-                myPhotoURL={user.photoURL || undefined}
-                isHost={isHost}
-                act={act}
-                actionError={actionError}
-            />
-        );
-    }
-
-    return <TableView game={game} mySeat={mySeat} act={act} actionError={actionError} />;
+    return (
+        <>
+            <SyncStatusPill synced={synced} pendingCount={pendingCount} />
+            {game.status === 'lobby' ? (
+                <SeatLobby
+                    game={game}
+                    myUid={user.uid}
+                    myName={user.displayName || 'Player'}
+                    myPhotoURL={user.photoURL || undefined}
+                    isHost={isHost}
+                    act={act}
+                    actionError={actionError}
+                />
+            ) : (
+                <TableView game={game} mySeat={mySeat} act={act} actionError={actionError} />
+            )}
+        </>
+    );
 }

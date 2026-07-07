@@ -70,15 +70,27 @@ export const findGameByCode = async (code: string): Promise<GameDoc | null> => {
     return games[0];
 };
 
+export interface GameSnapshotMeta {
+    /** true while this data comes from the local cache, not the live server */
+    fromCache: boolean;
+    hasPendingWrites: boolean;
+}
+
 export const subscribeGame = (
     id: string,
-    onChange: (game: GameDoc | null) => void,
+    onChange: (game: GameDoc | null, meta: GameSnapshotMeta) => void,
     onError?: (error: Error) => void,
 ): Unsubscribe =>
     onSnapshot(
         gameRef(id),
+        // metadata changes tell us when the listener falls back to cached
+        // data (connection lost) and when it's back in sync with the server
+        { includeMetadataChanges: true },
         (snap) => {
-            onChange(snap.exists() ? (snap.data() as GameDoc) : null);
+            onChange(snap.exists() ? (snap.data() as GameDoc) : null, {
+                fromCache: snap.metadata.fromCache,
+                hasPendingWrites: snap.metadata.hasPendingWrites,
+            });
         },
         (error) => {
             console.error('game subscription failed', error);
@@ -92,6 +104,9 @@ export const describeFirestoreError = (e: unknown): string => {
     if (err?.code === 'permission-denied' || /insufficient permissions/i.test(err?.message ?? '')) {
         return 'Firestore denied the request — the security rules in firestore.rules are '
             + 'probably not deployed yet (npx firebase-tools deploy --only firestore).';
+    }
+    if (err?.code === 'unavailable' || err?.code === 'deadline-exceeded') {
+        return "Couldn't reach the game server — check your connection and try again.";
     }
     return err?.message || 'Something went wrong';
 };

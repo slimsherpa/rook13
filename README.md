@@ -24,7 +24,11 @@ Full rules: [Rook13 Game Rules.md](./Rook13%20Game%20Rules.md).
 Next.js 14 (static export) · Tailwind · Firebase Auth (Google) · Cloud Firestore.
 No servers: clients validate every move through the shared engine inside Firestore
 transactions, and bot turns are driven by the connected players' clients (host first,
-others as fallback — exactly-once via optimistic concurrency).
+others as fallback — exactly-once via optimistic concurrency). Your own moves render
+instantly: the pure engine applies them locally the moment you tap (an optimistic
+overlay in [useGame](src/lib/hooks/useGame.ts)) while the transaction confirms in the
+background — a failed submission rolls back visibly, and a "Reconnecting…" pill
+appears when the live listener falls back to cached data.
 
 ## Develop
 
