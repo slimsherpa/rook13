@@ -60,9 +60,29 @@ iters vs Easy and Standard; `best.pt` tracks the best Standard win rate.
 Throughput on the M-series MacBook: ~13k samples/s ≈ 100k+ full games/hour,
 single process, CPU. (`--device mps` is available but small batches favor CPU.)
 
+## Results so far (2026-07-07, full games vs Standard, sides swapped)
+
+| Generation | Recipe | Result |
+|---|---|---|
+| gen1 | pure self-play DMC | 0–4% flatline (self-play meta doesn't transfer) |
+| gen2 | + opponent mixing | 0% (full-game win/loss = reward cliff) |
+| gen3 | + per-hand rewards, bid-eps | ~6%, pass-always bidding (0 bids won/109 hands) |
+| gen4 | + hand features, guided bid explore | 0/141 bids — pacifism is *rational* with weak play |
+| gen5 | play-only curriculum, from scratch | ~8–10%, slow log curve |
+| bc | behavior-clone Standard's play (4 min) | **40%** (92.3% teacher-match) |
+| gen6 | DMC fine-tune of the clone | **62.5% / +98 diff over 200 games** — beats Standard |
+
+Lessons encoded in the code: league mixing (`--opponent-mix`), per-hand
+reward blending, curriculum staging (`--script openings|bid|none`),
+BC warm-start (`imitate.py`, order-invariant go-down labels), and
+per-decision-type exploration (`--bid-eps`).
+
 ## Roadmap
 
-- gen1: beat Standard head-to-head (the phase-1 PIMC bar is 82%)
-- gen2+: self-play ladder — each generation must beat the last, Elo tracked
+- overnight gen6 continuation → close on the phase-1 PIMC bar (82%)
+- unfreeze go-down/trump: net declares trump *intent* before discarding
+  (naive sequential discard cloning tops out at 59.5% — the heuristic
+  brute-forces the joint discard+trump plan)
+- unfreeze bidding last, with competent declarer play priced in
 - distill into PIMC's rollout policy (search + learning compound)
 - export ONNX → onnxruntime-web → ships as the in-browser AlphaRook brain
