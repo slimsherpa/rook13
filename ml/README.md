@@ -71,6 +71,7 @@ single process, CPU. (`--device mps` is available but small batches favor CPU.)
 | gen5 | play-only curriculum, from scratch | ~8–10%, slow log curve |
 | bc | behavior-clone Standard's play (4 min) | **40%** (92.3% teacher-match) |
 | gen6 | DMC fine-tune of the clone | **62.5% / +98 diff over 200 games** — beats Standard |
+| gen6 overnight | +26k iters, 7 workers (2026-07-08) | **81% / +276 diff over 200 games** — ties the phase-1 PIMC search bot (81.7%), in one forward pass instead of 25 rollouts. Makes 79% of contracts at avg bid 98; sets Standard 42% (Standard sets it 21%) |
 
 Lessons encoded in the code: league mixing (`--opponent-mix`), per-hand
 reward blending, curriculum staging (`--script openings|bid|none`),
