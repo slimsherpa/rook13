@@ -44,3 +44,6 @@ public-deploy/
 __pycache__/
 *.pt
 .pytest_cache/
+# ...but frozen champion models ship with the repo
+!/ml/models/*.pt
+!/ml/models/*.onnx

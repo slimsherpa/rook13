@@ -57,6 +57,14 @@ def main():
     ap.add_argument("--opponent-mix", type=float, default=0.5,
                     help="fraction of games where the opposing team is scripted bots")
     ap.add_argument("--opponent-style", default="basic")
+    ap.add_argument("--opponent-ckpt", default=None,
+                    help="frozen net checkpoint as the mixed-game opponent "
+                         "(champion-ladder training); overrides opponent-style "
+                         "for the decisions its script mode doesn't cover")
+    ap.add_argument("--opponent-script", default="godown",
+                    choices=["openings", "godown", "bid", "none"],
+                    help="which decisions the heuristic still makes for a "
+                         "net opponent")
     ap.add_argument("--bid-eps", type=float, default=0.15,
                     help="exploration floor for bid decisions (see selfplay.py)")
     ap.add_argument("--script", default="openings",
@@ -97,20 +105,27 @@ def main():
         print(f"resumed {args.run} at iter {start_iter}")
 
     script_dtypes = SCRIPT_MODES[args.script]
+    opp_script = SCRIPT_MODES[args.opponent_script]
     pool = None
     if args.workers > 0:
         pool = WorkerPool(args.workers, args.envs,
                           seed=args.seed * 7919 + start_iter,
                           opponent_mix=args.opponent_mix,
                           opponent_style=args.opponent_style,
-                          bid_eps=args.bid_eps, script_dtypes=script_dtypes)
-        print(f"self-play across {args.workers} worker processes")
+                          bid_eps=args.bid_eps, script_dtypes=script_dtypes,
+                          opponent_ckpt=args.opponent_ckpt,
+                          opponent_script=opp_script)
+        print(f"self-play across {args.workers} worker processes"
+              + (f", champion opponent {args.opponent_ckpt}"
+                 if args.opponent_ckpt else ""))
     else:
         vec = VecSelfPlay(args.envs, seed=args.seed * 7919 + start_iter,
                           opponent_mix=args.opponent_mix,
                           opponent_style=args.opponent_style,
                           bid_eps=args.bid_eps,
-                          script_dtypes=script_dtypes)
+                          script_dtypes=script_dtypes,
+                          opponent_ckpt=args.opponent_ckpt,
+                          opponent_script=opp_script)
 
     tb = None
     try:

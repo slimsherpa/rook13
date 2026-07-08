@@ -20,13 +20,16 @@ STAT_KEYS = ("games", "hands", "sets", "bids", "mix_games", "mix_wins")
 
 def _worker_main(conn, worker_id: int, n_envs: int, seed: int,
                  opponent_mix: float, opponent_style: str, bid_eps: float,
-                 script_dtypes_list: list[int]):
+                 script_dtypes_list: list[int], opponent_ckpt: str | None,
+                 opponent_script_list: list[int]):
     torch.set_num_threads(1)
     from .model import QNet  # construct after spawn, inside the child
     net = QNet()
     vec = VecSelfPlay(n_envs, seed=seed, opponent_mix=opponent_mix,
                       opponent_style=opponent_style, bid_eps=bid_eps,
-                      script_dtypes=frozenset(script_dtypes_list))
+                      script_dtypes=frozenset(script_dtypes_list),
+                      opponent_ckpt=opponent_ckpt,
+                      opponent_script=frozenset(opponent_script_list))
     while True:
         msg = conn.recv()
         if msg[0] == "stop":
@@ -44,7 +47,8 @@ def _worker_main(conn, worker_id: int, n_envs: int, seed: int,
 class WorkerPool:
     def __init__(self, n_workers: int, n_envs: int, seed: int,
                  opponent_mix: float, opponent_style: str, bid_eps: float,
-                 script_dtypes: frozenset):
+                 script_dtypes: frozenset, opponent_ckpt: str | None = None,
+                 opponent_script: frozenset = frozenset()):
         ctx = mp.get_context("spawn")
         self.conns = []
         self.procs = []
@@ -54,7 +58,8 @@ class WorkerPool:
                 target=_worker_main,
                 args=(child, w, n_envs, seed * 7919 + w * 104729 + 1,
                       opponent_mix, opponent_style, bid_eps,
-                      sorted(script_dtypes)),
+                      sorted(script_dtypes), opponent_ckpt,
+                      sorted(opponent_script)),
                 daemon=True)
             p.start()
             child.close()

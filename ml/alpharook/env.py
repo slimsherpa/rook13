@@ -25,9 +25,14 @@ class SelfPlayGame:
             env.apply(chosen_candidate)
     """
 
-    def __init__(self, seed: int | None = None):
+    def __init__(self, seed: int | None = None, deck_fn=None, dealer: int | None = None):
+        """deck_fn(i) -> the i-th deal's 40-card deck. Passing the same
+        deck_fn to two games gives them identical deal sequences regardless
+        of how play unfolds — duplicate-bridge style evaluation."""
         self.rng = random.Random(seed)
-        self.g = Game(dealer=self.rng.randrange(4))
+        self.deck_fn = deck_fn
+        self.deal_count = 0
+        self.g = Game(dealer=self.rng.randrange(4) if dealer is None else dealer)
         self.picks: list[int] = []  # go-down cards picked so far this widow
         self._advance()
 
@@ -40,8 +45,12 @@ class SelfPlayGame:
         g = self.g
         while True:
             if g.phase in (DEALING, REDEAL):
-                deck = create_deck()
-                self.rng.shuffle(deck)
+                if self.deck_fn is not None:
+                    deck = self.deck_fn(self.deal_count)
+                else:
+                    deck = create_deck()
+                    self.rng.shuffle(deck)
+                self.deal_count += 1
                 g.deal(deck)
             elif g.phase == HAND_DONE:
                 g.next_hand()

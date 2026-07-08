@@ -77,10 +77,26 @@ def hand_targets(env: SelfPlayGame) -> dict[int, tuple[float, float]]:
 class VecSelfPlay:
     def __init__(self, n_envs: int, seed: int = 0, opponent_mix: float = 0.0,
                  opponent_style: str = "basic", bid_eps: float = 0.15,
-                 script_dtypes: frozenset = frozenset()):
+                 script_dtypes: frozenset = frozenset(),
+                 opponent_ckpt: str | None = None,
+                 opponent_script: frozenset = frozenset()):
         self.rng = random.Random(seed)
         self.opponent_mix = opponent_mix
         self.opponent_style = opponent_style
+        # Champion-ladder training: mixed games can seat a FROZEN net as the
+        # opposing team instead of the scripted heuristic. The learner's live
+        # mix_win_rate then reads "am I beating the reigning champion".
+        self.opp_net = None
+        self.opp_script = opponent_script
+        if opponent_ckpt:
+            import torch as _torch
+            from .model import QNet
+            self.opp_net = QNet()
+            ck = _torch.load(opponent_ckpt, map_location="cpu",
+                             weights_only=True)
+            self.opp_net.load_state_dict(
+                ck["model"] if "model" in ck else ck)
+            self.opp_net.eval()
         # Curriculum control: decision types in script_dtypes are made by the
         # family heuristic for EVERY seat (no training samples). Weak declarer
         # play makes bidding genuinely -EV, so a bid-learning net correctly
@@ -126,6 +142,20 @@ class VecSelfPlay:
             scripted_phase = dtype in self.script_dtypes
             if not scripted_seat and not scripted_phase:
                 return seat, dtype, cands
+            if (scripted_seat and self.opp_net is not None
+                    and dtype not in self.opp_script):
+                # frozen champion opponent decides
+                import numpy as _np
+                import torch as _torch
+                from rook.observation import observe as _obs
+                s = encode_state(_obs(env.g, seat), env.picks, dtype, env.g)
+                S = _torch.from_numpy(_np.stack([s] * len(cands)))
+                A = _torch.from_numpy(
+                    _np.stack([encode_action(dtype, a) for a in cands]))
+                with _torch.no_grad():
+                    q = self.opp_net(S, A)
+                env.apply(cands[int(q.argmax().item())])
+                continue
             if dtype == D_DISCARD:
                 if not self.pending_gd[i]:
                     _, _, cards = next_bot_action(env.g, self.styles, self.rng)
