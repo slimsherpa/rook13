@@ -59,25 +59,55 @@ def play_arena_game(net, device, model_team: int, opponent: str, seed: int,
 
     s = env.g.scores
     diff = s[model_team] - s[1 - model_team]
-    return env.g.winner == model_team, diff, len(env.g.hand_history)
+
+    # Role split — the four "mental models" of the family game, team view:
+    # hands where the net's team held the contract (declarer + partner
+    # chairs) vs hands where it defended (the before/after-declarer chairs;
+    # the net sees its position via the bid-winner-relative encoding).
+    roles = {"decl_hands": 0, "decl_made": 0, "decl_bid_sum": 0,
+             "def_hands": 0, "def_sets": 0, "def_pts": 0}
+    for h in env.g.hand_history:
+        went_set = h[6]
+        net_delta = h[4] if model_team == 0 else h[5]
+        if team_of(h[1]) == model_team:
+            roles["decl_hands"] += 1
+            roles["decl_made"] += 0 if went_set else 1
+            roles["decl_bid_sum"] += h[2]
+        else:
+            roles["def_hands"] += 1
+            roles["def_sets"] += 1 if went_set else 0
+            roles["def_pts"] += net_delta
+    return env.g.winner == model_team, diff, len(env.g.hand_history), roles
 
 
 def arena(net, device, opponent: str, n_games: int, seed: int = 0,
           script_dtypes: frozenset = frozenset()):
     wins, diffs, hands = 0, [], 0
+    roles = {"decl_hands": 0, "decl_made": 0, "decl_bid_sum": 0,
+             "def_hands": 0, "def_sets": 0, "def_pts": 0}
     for i in range(n_games):
-        won, diff, h = play_arena_game(net, device, i % 2, opponent,
-                                       seed + i * 977, script_dtypes)
+        won, diff, h, r = play_arena_game(net, device, i % 2, opponent,
+                                          seed + i * 977, script_dtypes)
         wins += 1 if won else 0
         diffs.append(diff)
         hands += h
+        for k in roles:
+            roles[k] += r[k]
     n = max(1, n_games)
+    dh, fh = max(1, roles["decl_hands"]), max(1, roles["def_hands"])
     return {
         "opponent": opponent,
         "games": n_games,
         "win_rate": wins / n,
         "avg_diff": sum(diffs) / n,
         "avg_hands": hands / n,
+        # role report: contract-holding vs defending
+        "decl_hands": roles["decl_hands"],
+        "decl_make_rate": round(roles["decl_made"] / dh, 3),
+        "decl_avg_bid": round(roles["decl_bid_sum"] / dh, 1),
+        "def_hands": roles["def_hands"],
+        "def_set_rate": round(roles["def_sets"] / fh, 3),
+        "def_avg_pts": round(roles["def_pts"] / fh, 1),
     }
 
 
@@ -104,6 +134,10 @@ def main():
               SCRIPT_MODES[args.script])
     print(f"vs {r['opponent']}: {r['win_rate']:.1%} over {r['games']} games "
           f"(avg score diff {r['avg_diff']:+.1f}, avg hands {r['avg_hands']:.1f})")
+    print(f"  holding the contract: {r['decl_hands']} hands, "
+          f"made {r['decl_make_rate']:.0%} at avg bid {r['decl_avg_bid']}")
+    print(f"  defending: {r['def_hands']} hands, set them {r['def_set_rate']:.0%}, "
+          f"stole {r['def_avg_pts']:.0f} pts/hand")
 
 
 if __name__ == "__main__":
