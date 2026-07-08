@@ -60,7 +60,7 @@ def main():
     ap.add_argument("--bid-eps", type=float, default=0.15,
                     help="exploration floor for bid decisions (see selfplay.py)")
     ap.add_argument("--script", default="openings",
-                    choices=["openings", "bid", "none"],
+                    choices=["openings", "godown", "bid", "none"],
                     help="curriculum stage: which decisions the family "
                          "heuristic still makes for every seat (openings = "
                          "bid+go-down+trump, bid = bid only, none = net "
@@ -128,12 +128,23 @@ def main():
         torch.save({"model": net.state_dict(), "opt": opt.state_dict(),
                     "iter": it, "best_win": best_win}, latest)
 
+    if pool is not None:
+        pool.request(net, epsilon_at(start_iter, args.eps_start, args.eps_end,
+                                     args.eps_decay_iters),
+                     args.samples_per_iter)
+
     for it in range(start_iter, args.iters):
         t0 = time.time()
         eps = epsilon_at(it, args.eps_start, args.eps_end, args.eps_decay_iters)
         if pool is not None:
-            S_np, A_np, Y_np, stats = pool.collect(net, eps, args.samples_per_iter)
+            # double buffering: take the batch in flight, immediately start
+            # the next one, then train while the workers stay busy
+            S_np, A_np, Y_np, stats = pool.gather()
             games_done = pool.games_done
+            if it + 1 < args.iters:
+                eps_next = epsilon_at(it + 1, args.eps_start, args.eps_end,
+                                      args.eps_decay_iters)
+                pool.request(net, eps_next, args.samples_per_iter)
         else:
             samples, stats = vec.play(net, device, eps, args.samples_per_iter)
             S_np = np.stack([s for s, _, _ in samples])

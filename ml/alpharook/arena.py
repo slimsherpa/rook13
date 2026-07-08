@@ -120,7 +120,7 @@ def main():
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--script", default="none",
-                    choices=["openings", "bid", "none"],
+                    choices=["openings", "godown", "bid", "none"],
                     help="decisions the family heuristic makes for the net's "
                          "team too (curriculum-stage evals)")
     args = ap.parse_args()

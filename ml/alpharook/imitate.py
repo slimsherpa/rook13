@@ -29,11 +29,14 @@ import torch
 
 from rook.bots import next_bot_action
 from rook.observation import observe
-from .encoder import encode_state, encode_action, D_DISCARD, D_TRUMP, D_PLAY
+from .encoder import (
+    encode_state, encode_action, D_BID, D_DISCARD, D_TRUMP, D_PLAY,
+)
 from .env import SelfPlayGame
 from .model import QNet
 
-DTYPE_BY_NAME = {"discard": D_DISCARD, "trump": D_TRUMP, "play": D_PLAY}
+DTYPE_BY_NAME = {"bid": D_BID, "discard": D_DISCARD, "trump": D_TRUMP,
+                 "play": D_PLAY}
 
 
 def generate(n_games: int, seed: int = 0, style: str = "basic",

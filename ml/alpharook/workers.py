@@ -62,13 +62,17 @@ class WorkerPool:
             self.procs.append(p)
         self.games_done = 0
 
-    def collect(self, net, epsilon: float, total_samples: int):
-        """Broadcast weights, gather ~total_samples across all workers.
-        Returns (S, A, Y) numpy arrays and merged stats."""
+    def request(self, net, epsilon: float, total_samples: int) -> None:
+        """Kick off collection without waiting — lets the learner train on
+        the previous batch while workers gather the next one (double
+        buffering; weights are one iteration stale, which DMC tolerates)."""
         state_dict = {k: v.cpu() for k, v in net.state_dict().items()}
         per_worker = max(1, total_samples // len(self.conns))
         for c in self.conns:
             c.send(("collect", state_dict, epsilon, per_worker))
+
+    def gather(self):
+        """Wait for the in-flight request; returns (S, A, Y, stats)."""
         S_l, A_l, Y_l = [], [], []
         stats = {k: 0 for k in STAT_KEYS}
         games_done = 0
@@ -82,6 +86,11 @@ class WorkerPool:
             games_done += gd
         self.games_done = games_done
         return np.concatenate(S_l), np.concatenate(A_l), np.concatenate(Y_l), stats
+
+    def collect(self, net, epsilon: float, total_samples: int):
+        """Synchronous request+gather (used for the first batch)."""
+        self.request(net, epsilon, total_samples)
+        return self.gather()
 
     def close(self):
         for c in self.conns:

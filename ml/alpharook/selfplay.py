@@ -46,8 +46,9 @@ GAME_WEIGHT = 0.5
 
 # curriculum stages, by what the family heuristic still handles
 SCRIPT_MODES = {
-    "openings": frozenset({D_BID, D_DISCARD, D_TRUMP}),
-    "bid": frozenset({D_BID}),
+    "openings": frozenset({D_BID, D_DISCARD, D_TRUMP}),  # net learns play only
+    "godown": frozenset({D_DISCARD, D_TRUMP}),  # net learns bidding + play
+    "bid": frozenset({D_BID}),                  # net learns go-down + play
     "none": frozenset(),
 }
 
