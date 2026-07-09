@@ -72,6 +72,8 @@ single process, CPU. (`--device mps` is available but small batches favor CPU.)
 | bc | behavior-clone Standard's play (4 min) | **40%** (92.3% teacher-match) |
 | gen6 | DMC fine-tune of the clone | **62.5% / +98 diff over 200 games** — beats Standard |
 | gen6 overnight | +26k iters, 7 workers (2026-07-08) | **81% / +276 diff over 200 games** — ties the phase-1 PIMC search bot (81.7%), in one forward pass instead of 25 rollouts. Makes 79% of contracts at avg bid 98; sets Standard 42% (Standard sets it 21%) |
+| gen7 | + learned bidding (script godown) | **94.5% vs Standard**; beats gen6 + scripted bidding 63/37 on duplicate decks — frozen as `models/gen7` |
+| gen8 | champion-ladder vs frozen gen7 | beats gen7 **63/37** over 300 duplicate-deck games (87.5% vs Standard) — frozen as `models/gen8`, the reigning champion |
 
 Lessons encoded in the code: league mixing (`--opponent-mix`), per-hand
 reward blending, curriculum staging (`--script openings|bid|none`),
@@ -86,4 +88,9 @@ per-decision-type exploration (`--bid-eps`).
   brute-forces the joint discard+trump plan)
 - unfreeze bidding last, with competent declarer play priced in
 - distill into PIMC's rollout policy (search + learning compound)
-- export ONNX → onnxruntime-web → ships as the in-browser AlphaRook brain
+- ~~ships as the in-browser AlphaRook brain~~ **done** — QNet is a plain MLP,
+  so `export_web.py` dumps raw weights (`public/models/<gen>.bin`) and the
+  browser runs them with a hand-rolled forward pass (src/lib/alpharook/
+  qnet.ts + encoder.ts) — no onnxruntime needed. `neural.test.ts` replays a
+  Python-traced game and proves the live bots match the arena
+  decision-for-decision. Freezing a new champion = re-run export_web.py.

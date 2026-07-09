@@ -163,6 +163,20 @@ export const PERSONALITIES: Record<BotStyle, BotPersonality> = {
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
         feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
     },
+    // The trained brains bid and play cards neurally (agent.ts); these knobs
+    // only cover their heuristic go-down/trump — Standard's, matching the
+    // scripted go-down their arena results were measured with — and serve as
+    // the whole-seat fallback if the weights can't be fetched.
+    gen7: {
+        bidCushion: 3, minBidTricks: 0.8, widowTricks: 0, warStretch: 0, jumpGap: 20, jumpReserve: 5, partnerOverbidMargin: 15,
+        pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
+        feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
+    },
+    gen8: {
+        bidCushion: 3, minBidTricks: 0.8, widowTricks: 0, warStretch: 0, jumpGap: 20, jumpReserve: 5, partnerOverbidMargin: 15,
+        pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
+        feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
+    },
 };
 
 // ---------------------------------------------------------------------------

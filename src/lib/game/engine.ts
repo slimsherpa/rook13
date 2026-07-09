@@ -301,7 +301,7 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
         case 'START_GAME': {
             for (const s of SEATS) {
                 if (next.seats[s].kind === 'open') {
-                    next.seats[s] = { kind: 'bot', name: DEFAULT_BOT_NAMES[s], botStyle: 'alpharook' };
+                    next.seats[s] = { kind: 'bot', name: DEFAULT_BOT_NAMES[s], botStyle: 'gen8' };
                 }
             }
             next.status = 'active';

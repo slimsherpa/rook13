@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GameDoc, Seat, SeatInfo, GameAction, BotStyle, BOT_STYLE_LABELS } from '@/lib/game/types';
+import { GameDoc, Seat, SeatInfo, GameAction, BotStyle, BOT_STYLE_LABELS, PLAYABLE_BOT_STYLES } from '@/lib/game/types';
 
 interface SeatLobbyProps {
     game: GameDoc;
@@ -71,18 +71,24 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     <div className="text-white/50 text-[11px] font-orbitron">
                         {seat}{info.kind === 'bot' ? ` · ${BOT_STYLE_LABELS[info.botStyle ?? 'basic']} Bot` : ''}
                     </div>
-                    {/* bot mode picker (host only) */}
-                    {isHost && info.kind === 'bot' && (
-                        <select
-                            value={info.botStyle ?? 'basic'}
-                            onChange={(e) => act({ type: 'SET_BOT', seat, botStyle: e.target.value as BotStyle, name: info.name })}
-                            className="mt-1.5 w-full max-w-[9rem] rounded-md bg-navy-950 border border-white/15 text-white text-xs px-2 py-1 focus:outline-none focus:border-sky-400"
-                        >
-                            {(Object.keys(BOT_STYLE_LABELS) as BotStyle[]).map((s) => (
-                                <option key={s} value={s}>{BOT_STYLE_LABELS[s]}</option>
-                            ))}
-                        </select>
-                    )}
+                    {/* bot mode picker (host only) — the trained AlphaRook brains */}
+                    {isHost && info.kind === 'bot' && (() => {
+                        const current = info.botStyle ?? 'basic';
+                        const styles = PLAYABLE_BOT_STYLES.includes(current)
+                            ? PLAYABLE_BOT_STYLES
+                            : [...PLAYABLE_BOT_STYLES, current]; // legacy doc: keep its style selectable
+                        return (
+                            <select
+                                value={current}
+                                onChange={(e) => act({ type: 'SET_BOT', seat, botStyle: e.target.value as BotStyle, name: info.name })}
+                                className="mt-1.5 w-full max-w-[9rem] rounded-md bg-navy-950 border border-white/15 text-white text-xs px-2 py-1 focus:outline-none focus:border-sky-400"
+                            >
+                                {styles.map((s) => (
+                                    <option key={s} value={s}>{BOT_STYLE_LABELS[s]}</option>
+                                ))}
+                            </select>
+                        );
+                    })()}
                 </div>
                 <div className="flex gap-1.5">
                     {info.kind !== 'human' && !isMe && (
@@ -103,7 +109,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     )}
                     {isHost && info.kind === 'open' && (
                         <button
-                            onClick={() => act({ type: 'SET_BOT', seat, botStyle: 'alpharook' })}
+                            onClick={() => act({ type: 'SET_BOT', seat, botStyle: 'gen8' })}
                             className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-orbitron flex items-center gap-1 whitespace-nowrap"
                         >
                             <span className="material-symbols-outlined text-sm">smart_toy</span>

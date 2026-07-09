@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GameDoc, GameAction, Seat, SEATS } from '../game/types';
 import { validateAction } from '../game/engine';
-import { nextAgentAction } from '../alpharook/agent';
+import { nextAgentActionAsync, preloadNets } from '../alpharook/agent';
 import { overlayPending, sameAction, PendingAction } from '../game/optimistic';
 import { subscribeGame, submitAction, isExpectedRaceError, describeFirestoreError } from '../firebase/gameService';
 import { recordCompletedGame } from '../firebase/userService';
@@ -172,31 +172,41 @@ export const useGame = (gameId: string | null): UseGameResult => {
         if (!serverGame || !gameId || !user || serverGame.status !== 'active') return;
         if (!mySeat && !isHost) return; // spectators never drive bots
 
-        const action = nextAgentAction(serverGame);
-        if (!action) return;
+        // warm the neural-bot weight cache so the first bid doesn't wait on it
+        preloadNets(serverGame);
 
-        const leadsNextTrick =
-            action.type === 'PLAY_CARD' &&
-            serverGame.trickPlays.length === 0 &&
-            serverGame.completedTricks.length > 0;
-        const baseDelay =
-            action.type === 'ACK_REDEAL' ? BOT_REDEAL_PAUSE_MS :
-            action.type === 'DEAL' ? BOT_DEAL_DELAY_MS :
-            leadsNextTrick ? BOT_TRICK_LEAD_DELAY_MS :
-            BOT_BASE_DELAY_MS;
-        const jitter = Math.random() * 400;
-        const delay = baseDelay + jitter + (isHost ? 0 : FALLBACK_EXTRA_MS);
-        const expected = serverGame.actionCount;
+        // Computing the move may await weight loading (neural bots), so the
+        // pacing timer is armed once the action is known; a newer snapshot
+        // cancels both the wait and the timer.
+        let cancelled = false;
+        (async () => {
+            const action = await nextAgentActionAsync(serverGame);
+            if (cancelled || !action) return;
 
-        botTimer.current = setTimeout(async () => {
-            try {
-                await submitAction(gameId, action, 'bot', expected);
-            } catch (e) {
-                if (!isExpectedRaceError(e)) console.error('bot move failed', e);
-            }
-        }, delay);
+            const leadsNextTrick =
+                action.type === 'PLAY_CARD' &&
+                serverGame.trickPlays.length === 0 &&
+                serverGame.completedTricks.length > 0;
+            const baseDelay =
+                action.type === 'ACK_REDEAL' ? BOT_REDEAL_PAUSE_MS :
+                action.type === 'DEAL' ? BOT_DEAL_DELAY_MS :
+                leadsNextTrick ? BOT_TRICK_LEAD_DELAY_MS :
+                BOT_BASE_DELAY_MS;
+            const jitter = Math.random() * 400;
+            const delay = baseDelay + jitter + (isHost ? 0 : FALLBACK_EXTRA_MS);
+            const expected = serverGame.actionCount;
+
+            botTimer.current = setTimeout(async () => {
+                try {
+                    await submitAction(gameId, action, 'bot', expected);
+                } catch (e) {
+                    if (!isExpectedRaceError(e)) console.error('bot move failed', e);
+                }
+            }, delay);
+        })();
 
         return () => {
+            cancelled = true;
             if (botTimer.current) clearTimeout(botTimer.current);
         };
     }, [serverGame, gameId, user, mySeat, isHost]);

@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { GameAction, GameDoc } from '@/lib/game/types';
 import { createGameDoc, applyAction, InvalidActionError } from '@/lib/game/engine';
-import { nextAgentAction } from '@/lib/alpharook/agent';
+import { nextAgentActionAsync, preloadNets } from '@/lib/alpharook/agent';
 import TableView from '@/components/table/TableView';
 
 const freshGame = (spectate = false): GameDoc => {
@@ -21,8 +21,8 @@ const freshGame = (spectate = false): GameDoc => {
     if (spectate) {
         // all-bots game so the table plays itself while we watch
         // (swapped after START_GAME, which insists on one human);
-        // seat the search bot so /dev?spectate doubles as an AlphaRook demo
-        g = { ...g, seats: { ...g.seats, A1: { kind: 'bot', name: 'AlphaRook', botStyle: 'alpharook' } } };
+        // seat a second champion so /dev?spectate doubles as a gen8 demo
+        g = { ...g, seats: { ...g.seats, A1: { kind: 'bot', name: 'AlphaRook', botStyle: 'gen8' } } };
     }
     return g;
 };
@@ -38,28 +38,36 @@ export default function DevTablePage() {
         setGame(freshGame(isSpectate));
     }, []);
 
-    // local bot loop
+    // local bot loop (async: neural seats may await their weight download)
     useEffect(() => {
         if (!game || game.status !== 'active') return;
-        const action = nextAgentAction(game);
-        if (!action) return;
-        // leading a new trick waits out the previous trick's linger + sweep
-        const leadsNextTrick =
-            action.type === 'PLAY_CARD' &&
-            game.trickPlays.length === 0 &&
-            game.completedTricks.length > 0;
-        const delay = action.type === 'ACK_REDEAL' ? 4000 : leadsNextTrick ? 3200 : 900;
-        const t = setTimeout(() => {
-            setGame((g) => {
-                if (!g) return g;
-                try {
-                    return applyAction(g, action);
-                } catch {
-                    return g;
-                }
-            });
-        }, delay);
-        return () => clearTimeout(t);
+        preloadNets(game);
+        let cancelled = false;
+        let t: ReturnType<typeof setTimeout> | null = null;
+        (async () => {
+            const action = await nextAgentActionAsync(game);
+            if (cancelled || !action) return;
+            // leading a new trick waits out the previous trick's linger + sweep
+            const leadsNextTrick =
+                action.type === 'PLAY_CARD' &&
+                game.trickPlays.length === 0 &&
+                game.completedTricks.length > 0;
+            const delay = action.type === 'ACK_REDEAL' ? 4000 : leadsNextTrick ? 3200 : 900;
+            t = setTimeout(() => {
+                setGame((g) => {
+                    if (!g) return g;
+                    try {
+                        return applyAction(g, action);
+                    } catch {
+                        return g;
+                    }
+                });
+            }, delay);
+        })();
+        return () => {
+            cancelled = true;
+            if (t) clearTimeout(t);
+        };
     }, [game]);
 
     if (!game) return null;

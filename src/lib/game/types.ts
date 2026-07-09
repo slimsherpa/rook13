@@ -21,27 +21,31 @@ export interface Card {
     number: number; // 5..14
 }
 
-// Bot personalities, selectable per seat in the lobby. Each style maps to a
-// knob table in bots.ts (PERSONALITIES) covering bidding appetite and table
-// manners:
-//   random     — "Easy": any legal move (the floor for future AlphaRook comparisons)
-//   basic      — "Standard": bids what the hand is worth minus a small cushion,
-//                pulls trump with purpose, saves boss cards, feeds counters
-//   aggressive — bids to the estimate, stretches in bidding wars, will take
-//                the bid off a partner with a monster, hunts every trick
-//   cautious   — bids well under the estimate, never outbids partner,
-//                hoards trump for sure things
-//   alpharook  — bids like Standard, but plays cards by determinized Monte
-//                Carlo search (src/lib/alpharook) — the strongest table
-export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook';
+// Bot styles. The lobby offers the trained AlphaRook brains (gen7/gen8, the
+// frozen champions from ml/ self-play training — neural bidding & card play
+// via src/lib/alpharook); the rest are kept so game docs created before them
+// keep working:
+//   gen8       — reigning champion (beat gen7 63/37 over 300 duplicate-deck
+//                games; 87.5% vs the old Standard heuristic)
+//   gen7       — first neural champion (94.5% vs Standard)
+//   alpharook  — legacy: phase-1/2 Monte Carlo search bot
+//   random/basic/aggressive/cautious — legacy heuristic personalities
+//                (bots.ts PERSONALITIES); 'basic' is also the fallback brain
+//                for go-down/trump and for neural seats if weights fail to load
+export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8';
 
 export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     random: 'Easy',
     basic: 'Standard',
     aggressive: 'Aggressive',
     cautious: 'Cautious',
-    alpharook: 'AlphaRook',
+    alpharook: 'AlphaRook Classic',
+    gen7: 'AlphaRook Gen7',
+    gen8: 'AlphaRook Gen8',
 };
+
+/** What the lobby's bot picker offers (strongest first); legacy styles live on only in old games. */
+export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen8', 'gen7'];
 
 export interface SeatInfo {
     kind: 'human' | 'bot' | 'open';
