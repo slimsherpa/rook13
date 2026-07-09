@@ -32,7 +32,8 @@ import numpy as np
 import torch
 
 from rook.cards import team_of
-from rook.bots import next_bot_action, choose_bid
+from rook.bots import next_bot_action, choose_bid, best_trump_suit
+from rook.engine import WIDOW as PHASE_WIDOW
 from rook.observation import observe
 from .encoder import (
     encode_state, encode_action, D_BID, D_DISCARD, D_TRUMP, D_PLAY,
@@ -148,13 +149,18 @@ class VecSelfPlay:
                 import numpy as _np
                 import torch as _torch
                 from rook.observation import observe as _obs
-                s = encode_state(_obs(env.g, seat), env.picks, dtype, env.g)
+                s = encode_state(_obs(env.g, seat), env.picks, dtype, env.g,
+                                 env.trump_intent)
                 S = _torch.from_numpy(_np.stack([s] * len(cands)))
                 A = _torch.from_numpy(
                     _np.stack([encode_action(dtype, a) for a in cands]))
                 with _torch.no_grad():
                     q = self.opp_net(S, A)
                 env.apply(cands[int(q.argmax().item())])
+                continue
+            if dtype == D_TRUMP and env.g.phase == PHASE_WIDOW:
+                # trump intent for a scripted seat: the family law
+                env.apply(best_trump_suit(env.g.hands[seat]))
                 continue
             if dtype == D_DISCARD:
                 if not self.pending_gd[i]:
@@ -205,7 +211,8 @@ class VecSelfPlay:
                     dec = self._next_net_decision(i)
                 seat, dtype, cands = dec
                 env = self.envs[i]
-                s = encode_state(observe(env.g, seat), env.picks, dtype, env.g)
+                s = encode_state(observe(env.g, seat), env.picks, dtype, env.g,
+                                 env.trump_intent)
                 seats.append(seat)
                 dtypes.append(dtype)
                 cands_all.append(cands)

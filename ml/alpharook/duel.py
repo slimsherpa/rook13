@@ -24,8 +24,9 @@ import random
 import torch
 
 from rook.cards import team_of, create_deck
-from rook.bots import next_bot_action
-from .encoder import D_DISCARD
+from rook.bots import next_bot_action, best_trump_suit
+from rook.engine import WIDOW as PHASE_WIDOW
+from .encoder import D_DISCARD, D_TRUMP
 from .env import SelfPlayGame
 from .model import QNet
 from .selfplay import SCRIPT_MODES
@@ -78,6 +79,8 @@ def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool):
         scripted = dtype in side.script or side.style is not None
         if not scripted:
             action = model_choose(side.net, "cpu", env, seat, dtype, cands)
+        elif dtype == D_TRUMP and env.trump_intent is None and env.g.phase == PHASE_WIDOW:
+            action = best_trump_suit(env.g.hands[seat])
         elif dtype == D_DISCARD:
             if not pending[team]:
                 styles = [side.style or "basic"] * 4

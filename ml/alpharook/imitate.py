@@ -27,7 +27,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from rook.bots import next_bot_action
+from rook.bots import next_bot_action, best_trump_suit
+from rook.engine import WIDOW as PHASE_WIDOW
 from rook.observation import observe
 from .encoder import (
     encode_state, encode_action, D_BID, D_DISCARD, D_TRUMP, D_PLAY,
@@ -52,7 +53,8 @@ def generate(n_games: int, seed: int = 0, style: str = "basic",
     def record(env, seat, dtype, cands, positives):
         nonlocal decisions
         if dtype in dtypes and len(cands) > 1:
-            s = encode_state(observe(env.g, seat), env.picks, dtype, env.g)
+            s = encode_state(observe(env.g, seat), env.picks, dtype, env.g,
+                             env.trump_intent)
             acts = np.stack([encode_action(dtype, a) for a in cands])
             pos = np.zeros(len(cands), dtype=np.float32)
             for p in positives:
@@ -66,7 +68,11 @@ def generate(n_games: int, seed: int = 0, style: str = "basic",
         pending: list[int] = []
         while not env.done:
             seat, dtype, cands = env.decision()
-            if dtype == D_DISCARD:
+            if dtype == D_TRUMP and env.g.phase == PHASE_WIDOW:
+                # trump intent: the teacher's plan is the family law
+                action = best_trump_suit(env.g.hands[seat])
+                positives = [action]
+            elif dtype == D_DISCARD:
                 if not pending:
                     _, _, cards = next_bot_action(env.g, styles, rng)
                     pending = list(cards)

@@ -34,6 +34,11 @@ class SelfPlayGame:
         self.deal_count = 0
         self.g = Game(dealer=self.rng.randrange(4) if dealer is None else dealer)
         self.picks: list[int] = []  # go-down cards picked so far this widow
+        # Trump-intent-first (how humans think): the bid winner declares the
+        # trump they INTEND before choosing discards, so discard decisions
+        # are conditioned on the plan; the intent is applied automatically
+        # when the engine reaches the trump phase. Private to the bid winner.
+        self.trump_intent: int | None = None
         self._advance()
 
     @property
@@ -54,6 +59,9 @@ class SelfPlayGame:
                 g.deal(deck)
             elif g.phase == HAND_DONE:
                 g.next_hand()
+            elif g.phase == TRUMP and self.trump_intent is not None:
+                g.select_trump(g.turn, self.trump_intent)
+                self.trump_intent = None
             else:
                 return  # bidding / widow / trump / playing / game_over
 
@@ -71,10 +79,12 @@ class SelfPlayGame:
                 cands = [PASS] + cands
             return seat, D_BID, cands
         if g.phase == WIDOW:
+            if self.trump_intent is None:
+                return seat, D_TRUMP, list(SUITS)  # declare intent first
             hand = g.hands[seat]
             return seat, D_DISCARD, [c for c in hand if c not in self.picks]
         if g.phase == TRUMP:
-            return seat, D_TRUMP, list(SUITS)
+            return seat, D_TRUMP, list(SUITS)  # only reached without an intent
         if g.phase == PLAYING:
             return seat, D_PLAY, g.legal_cards(seat)
         raise ValueError(f"no decision in phase {g.phase}")
@@ -84,6 +94,9 @@ class SelfPlayGame:
         if g.phase == BIDDING:
             g.bid(g.turn, action)
         elif g.phase == WIDOW:
+            if self.trump_intent is None:
+                self.trump_intent = action
+                return  # no engine transition; discards come next
             self.picks.append(action)
             if len(self.picks) == 4:
                 g.select_go_down(g.turn, self.picks)

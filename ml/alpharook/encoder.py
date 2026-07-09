@@ -53,9 +53,11 @@ STATE_DIM = 40 + 40 + 160 + 160 + 5 + 1 + 5 + 4 + 12 + 1 + 1 + 1 + 5 + 1 + 16 + 
 
 
 def encode_state(o: Observation, picks: list[int], decision_type: int,
-                 g: Game) -> np.ndarray:
+                 g: Game, trump_intent: int | None = None) -> np.ndarray:
     """`g` is used ONLY for public auction context (must_bid / min_next_bid),
-    which derives from the public bids — never hidden zones."""
+    which derives from the public bids — never hidden zones. `trump_intent`
+    is the observer's OWN declared plan during their widow decisions (their
+    private information; other seats never receive it)."""
     me = o.seat
     rel = lambda s: (s - me) % 4  # noqa: E731
     x = np.zeros(STATE_DIM, dtype=np.float32)
@@ -95,9 +97,10 @@ def encode_state(o: Observation, picks: list[int], decision_type: int,
     x[base] = len(o.trick_plays) / 4.0
     base += 1
 
-    # trump
-    if o.trump is not None:
-        x[base + o.trump] = 1.0
+    # trump (declared, or my own intent while shaping the go-down)
+    known_trump = o.trump if o.trump is not None else trump_intent
+    if known_trump is not None:
+        x[base + known_trump] = 1.0
     else:
         x[base + 4] = 1.0
     base += 5

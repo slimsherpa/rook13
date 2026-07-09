@@ -14,16 +14,18 @@ import numpy as np
 import torch
 
 from rook.cards import team_of
-from rook.bots import next_bot_action
+from rook.bots import next_bot_action, best_trump_suit
+from rook.engine import WIDOW as PHASE_WIDOW
 from rook.observation import observe
-from .encoder import encode_state, encode_action, D_DISCARD, D_PLAY
+from .encoder import encode_state, encode_action, D_DISCARD, D_TRUMP, D_PLAY
 from .env import SelfPlayGame
 from .model import QNet
 
 
 @torch.no_grad()
 def model_choose(net, device, env: SelfPlayGame, seat: int, dtype: int, cands: list):
-    s = encode_state(observe(env.g, seat), env.picks, dtype, env.g)
+    s = encode_state(observe(env.g, seat), env.picks, dtype, env.g,
+                     env.trump_intent)
     S = torch.from_numpy(np.stack([s] * len(cands))).to(device)
     A = torch.from_numpy(
         np.stack([encode_action(dtype, a) for a in cands])).to(device)
@@ -47,6 +49,8 @@ def play_arena_game(net, device, model_team: int, opponent: str, seed: int,
                        and dtype not in script_dtypes)
         if net_decides:
             action = model_choose(net, device, env, seat, dtype, cands)
+        elif dtype == D_TRUMP and env.trump_intent is None and env.g.phase == PHASE_WIDOW:
+            action = best_trump_suit(env.g.hands[seat])  # scripted intent
         elif dtype == D_DISCARD:
             # heuristic picks its whole go-down at once; feed it card by card
             if not pending_gd:
