@@ -69,13 +69,20 @@ export const neuralChoice = (g: GameDoc, seat: Seat, net: QNetWeights): NeuralCh
     return { dtype, cands, q, chosen: cands[best] };
 };
 
-const neuralAction = (g: GameDoc, seat: Seat, net: QNetWeights): GameAction | null => {
+const neuralAction = (g: GameDoc, seat: Seat, gen: NeuralGen, net: QNetWeights): GameAction | null => {
     const d = neuralChoice(g, seat, net);
     if (!d) return null;
+    // one console line per decision — open DevTools on rook13.com and watch
+    // the brain think; q is the net's expected game result for the choice
+    const q = Math.max(...d.q).toFixed(3);
     if (d.dtype === D_BID) {
+        const bid = d.chosen === PASS ? 'pass' : d.chosen;
+        console.info(`🧠 ${gen} ${seat} bids ${bid} (q ${q}, ${d.cands.length} options)`);
         return { type: 'BID', seat, bid: d.chosen === PASS ? 'pass' : d.chosen };
     }
-    return { type: 'PLAY_CARD', seat, card: intToCard(d.chosen) };
+    const card = intToCard(d.chosen);
+    console.info(`🧠 ${gen} ${seat} plays ${card.suit} ${card.number} (q ${q}, ${d.cands.length} options)`);
+    return { type: 'PLAY_CARD', seat, card };
 };
 
 /** Warm the weight cache for any neural bots seated in this game. */
@@ -95,7 +102,7 @@ export const nextAgentActionAsync = async (g: GameDoc): Promise<GameAction | nul
             (g.phase === 'bidding' || g.phase === 'playing')) {
             try {
                 const net = await loadQNet(info.botStyle);
-                const action = neuralAction(g, g.turn, net);
+                const action = neuralAction(g, g.turn, info.botStyle, net);
                 if (action) return action;
             } catch (e) {
                 console.error(`AlphaRook ${info.botStyle} weights unavailable — playing the hand heuristically`, e);

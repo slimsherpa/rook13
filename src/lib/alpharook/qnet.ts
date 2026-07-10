@@ -85,7 +85,12 @@ export const loadQNet = (gen: NeuralGen): Promise<QNetWeights> => {
     if (!p) {
         p = fetch(`/models/${gen}.bin`).then(async (res) => {
             if (!res.ok) throw new Error(`weights ${gen}: HTTP ${res.status}`);
-            return parseWeights(await res.arrayBuffer());
+            const buf = await res.arrayBuffer();
+            const net = parseWeights(buf);
+            // proof-of-life for anyone watching the console: the trained
+            // brain is in memory, not the heuristic fallback
+            console.info(`🧠 AlphaRook ${gen} brain loaded (${(buf.byteLength / 1e6).toFixed(1)}MB, ${net.layers.length} layers)`);
+            return net;
         });
         // a failed fetch must not poison the session — retry on next call
         p.catch(() => cache.delete(gen));
