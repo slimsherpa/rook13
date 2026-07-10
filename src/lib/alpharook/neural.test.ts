@@ -19,7 +19,7 @@ import * as path from 'path';
 import { GameDoc, SEATS, SUITS } from '../game/types';
 import { createGameDoc, applyAction } from '../game/engine';
 import { bestTrumpSuit, chooseGoDown, PERSONALITIES } from '../game/bots';
-import { neuralChoice } from './agent';
+import { neuralChoice, neuralWidow, neuralTrumpIntent } from './agent';
 import { cardToInt, intToCard, suitToInt, D_BID, D_TRUMP, D_DISCARD, D_PLAY, PASS } from './encoder';
 import { parseWeights, qForward, QNetWeights } from './qnet';
 
@@ -63,7 +63,9 @@ interface GameFixture {
     handsPlayed: number;
 }
 
-const GENS = ['gen7', 'gen8'] as const;
+const GENS = ['gen7', 'gen8', 'gen9'] as const;
+/** gen9 makes widow decisions neurally; earlier gens script them. */
+const FULLY_NEURAL = new Set<string>(['gen9']);
 
 describe('QNet forward pass matches torch', () => {
     const golden = loadFixture<GoldenFixture>('qnet.golden.json');
@@ -130,22 +132,41 @@ describe('full-game decision parity with the training arena', () => {
                         g = applyAction(g, { type: 'PLAY_CARD', seat, card: intToCard(step.chosen) }, 0);
                     }
                 } else if (phase === 'widow') {
-                    // scripted in the arena and in the live bots: trump intent
-                    // (one fixture step), then the heuristic go-down (four)
                     const seat = g.turn!;
                     const intent = nextStep();
                     expect(intent.dtype).toBe(D_TRUMP);
-                    const trump = bestTrumpSuit(g.hands[seat]);
-                    expect(suitToInt(trump)).toBe(intent.chosen);
-
                     const picks = [0, 1, 2, 3].map(() => nextStep());
                     picks.forEach((p) => expect(p.dtype).toBe(D_DISCARD));
-                    const goDown = chooseGoDown(g.hands[seat], trump, PERSONALITIES.basic.goDownBuryPenalty);
-                    expect(goDown.map(cardToInt).sort((a, b) => a - b))
-                        .toEqual(picks.map((p) => p.chosen).sort((a, b) => a - b));
 
-                    g = applyAction(g, { type: 'SELECT_GODOWN', seat, cards: picks.map((p) => intToCard(p.chosen)) }, 0);
-                    g = applyAction(g, { type: 'SELECT_TRUMP', seat, suit: SUITS[intent.chosen] }, 0);
+                    if (FULLY_NEURAL.has(gen)) {
+                        // gen9: intent + all four discards are net decisions
+                        const w = neuralWidow(g, seat, net);
+                        expect(w.intent.cands).toEqual(intent.cands);
+                        w.intent.q.forEach((qv, i) =>
+                            expect(Math.abs(qv - intent.q![i]), `intent q[${i}]`).toBeLessThan(Q_TOL));
+                        expect(w.intent.chosen, 'trump intent').toBe(intent.chosen);
+                        w.picks.forEach((p, k) => {
+                            expect(p.cands).toEqual(picks[k].cands);
+                            p.q.forEach((qv, i) =>
+                                expect(Math.abs(qv - picks[k].q![i]), `pick ${k} q[${i}]`).toBeLessThan(Q_TOL));
+                            expect(p.chosen, `discard ${k}`).toBe(picks[k].chosen);
+                        });
+                        g = applyAction(g, { type: 'SELECT_GODOWN', seat, cards: w.goDown.map(intToCard) }, 0);
+                        // the live driver re-derives the intent at the trump
+                        // phase from hand+go-down — must equal the widow-time plan
+                        const rederived = neuralTrumpIntent(g, seat, net);
+                        expect(rederived.chosen, 'trump intent re-derivation').toBe(intent.chosen);
+                        g = applyAction(g, { type: 'SELECT_TRUMP', seat, suit: SUITS[rederived.chosen] }, 0);
+                    } else {
+                        // gen7/gen8: scripted family openings
+                        const trump = bestTrumpSuit(g.hands[seat]);
+                        expect(suitToInt(trump)).toBe(intent.chosen);
+                        const goDown = chooseGoDown(g.hands[seat], trump, PERSONALITIES.basic.goDownBuryPenalty);
+                        expect(goDown.map(cardToInt).sort((a, b) => a - b))
+                            .toEqual(picks.map((p) => p.chosen).sort((a, b) => a - b));
+                        g = applyAction(g, { type: 'SELECT_GODOWN', seat, cards: picks.map((p) => intToCard(p.chosen)) }, 0);
+                        g = applyAction(g, { type: 'SELECT_TRUMP', seat, suit: SUITS[intent.chosen] }, 0);
+                    }
                 } else {
                     throw new Error(`unexpected phase ${phase}`);
                 }

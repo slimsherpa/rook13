@@ -36,9 +36,20 @@ import torch
 from rook.bots import next_bot_action, best_trump_suit
 from rook.engine import WIDOW as PHASE_WIDOW, DEALING, REDEAL
 from rook.observation import observe
-from .encoder import STATE_DIM, ACTION_DIM, encode_state, encode_action, D_BID, D_PLAY
+from .encoder import (
+    STATE_DIM, ACTION_DIM, encode_state, encode_action,
+    D_BID, D_DISCARD, D_TRUMP, D_PLAY,
+)
 from .env import SelfPlayGame
 from .model import QNet
+
+# gen9+ champions decide everything neurally (trump intent + go-down too);
+# gen7/gen8 were frozen with scripted openings and must replay that way.
+FULLY_NEURAL = {"gen9"}
+NEURAL_DTYPES = {
+    True: (D_BID, D_DISCARD, D_TRUMP, D_PLAY),
+    False: (D_BID, D_PLAY),
+}
 
 REPO = Path(__file__).resolve().parents[2]
 MODELS_DIR = REPO / "ml" / "models"
@@ -109,9 +120,10 @@ def trace_game(gen: str, net: QNet, seed: int, path: Path) -> None:
     pending_gd: list[int] = []
     steps: list[dict] = []
 
+    neural_dtypes = NEURAL_DTYPES[gen in FULLY_NEURAL]
     while not env.done:
         seat, dtype, cands = env.decision()
-        if dtype in (D_BID, D_PLAY):
+        if dtype in neural_dtypes:
             s = encode_state(observe(env.g, seat), env.picks, dtype, env.g,
                              env.trump_intent)
             S = torch.from_numpy(np.stack([s] * len(cands)))
@@ -150,7 +162,7 @@ def trace_game(gen: str, net: QNet, seed: int, path: Path) -> None:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gens", nargs="+", default=["gen7", "gen8"])
+    ap.add_argument("--gens", nargs="+", default=["gen7", "gen8", "gen9"])
     args = ap.parse_args()
 
     OUT_BIN.mkdir(parents=True, exist_ok=True)
