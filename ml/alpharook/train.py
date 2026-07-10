@@ -51,6 +51,11 @@ def main():
     ap.add_argument("--device", default="cpu", help="cpu | mps")
     ap.add_argument("--eval-every", type=int, default=20)
     ap.add_argument("--eval-games", type=int, default=40)
+    ap.add_argument("--duel-every", type=int, default=0,
+                    help="every N iters, duel the frozen --opponent-ckpt and "
+                         "bank best_duel.pt on a new high (the promotion "
+                         "metric, so peaks aren't lost to later drift)")
+    ap.add_argument("--duel-pairs", type=int, default=20)
     ap.add_argument("--eps-start", type=float, default=0.20)
     ap.add_argument("--eps-end", type=float, default=0.02)
     ap.add_argument("--eps-decay-iters", type=int, default=200)
@@ -211,6 +216,32 @@ def main():
             tb.add_scalar("train/set_rate", rec["set_rate"], it)
             tb.add_scalar("train/samples_per_sec", n / max(0.01, t_total), it)
             tb.add_scalar("train/epsilon", eps, it)
+
+        if (args.duel_every and args.opponent_ckpt
+                and ((it + 1) % args.duel_every == 0 or it == args.iters - 1)):
+            from .duel import Side, duel as run_duel
+            net.eval()
+            wr = run_duel(Side("learner", args.script, net=net),
+                          Side(args.opponent_ckpt, args.opponent_script),
+                          args.duel_pairs, seed=it * 7919, verbose=False)
+            log({"kind": "duel", "iter": it, "win_rate": wr,
+                 "pairs": args.duel_pairs})
+            if tb:
+                tb.add_scalar("duel/vs_champion", wr, it)
+            best_duel_path = run_dir / "best_duel.pt"
+            prev = getattr(main, "_best_duel", -1.0)
+            if not hasattr(main, "_best_duel") and best_duel_path.exists():
+                prev_ck = torch.load(best_duel_path, map_location="cpu",
+                                     weights_only=True)
+                prev = prev_ck.get("duel_win_rate", -1.0)
+            if wr > prev:
+                main._best_duel = wr
+                torch.save({"model": net.state_dict(), "iter": it,
+                            "duel_win_rate": wr}, best_duel_path)
+                print(f"  duel vs champion: {wr:.1%} — new best banked")
+            else:
+                main._best_duel = max(prev, getattr(main, "_best_duel", -1.0))
+                print(f"  duel vs champion: {wr:.1%}")
 
         if (it + 1) % args.eval_every == 0 or it == args.iters - 1:
             for opp in ("random", "basic"):

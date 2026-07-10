@@ -34,14 +34,16 @@ from .arena import model_choose
 
 
 class Side:
-    """One competitor: a QNet checkpoint or a heuristic bot style."""
+    """One competitor: a QNet checkpoint, a live net, or a heuristic style."""
 
-    def __init__(self, spec: str, script: str):
+    def __init__(self, spec: str, script: str, net: QNet | None = None):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
-        self.net = None
+        self.net = net
         self.style = None
-        if spec in ("random", "basic", "aggressive", "cautious"):
+        if net is not None:
+            pass  # live net passed in (e.g. the training learner)
+        elif spec in ("random", "basic", "aggressive", "cautious"):
             self.style = spec
         else:
             self.net = QNet()
@@ -107,7 +109,8 @@ def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool):
     return winner_side, diff0, stats
 
 
-def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0):
+def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
+         verbose: bool = True):
     a_wins = b_wins = sweeps_a = sweeps_b = 0
     diffs = []
     auct = {0: dict(contracts=0, made=0, bid_sum=0),
@@ -132,6 +135,8 @@ def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0):
             sweeps_b += 1
 
     games = 2 * n_pairs
+    if not verbose:
+        return a_wins / games
     print(f"{side_a.name()} vs {side_b.name()} — {n_pairs} deal-pairs "
           f"({games} games, duplicate decks, seats swapped):")
     print(f"  {side_a.name()}: {a_wins / games:.1%} wins "
