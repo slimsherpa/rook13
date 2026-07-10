@@ -159,14 +159,18 @@ def encode_state(o: Observation, picks: list[int], decision_type: int,
     x[base + 1] = o.points_taken[opp] / 100.0
     base += 2
 
-    # game context: the reason we train on full games (-250..500)
+    # game context: the reason we train on full games. Normalized as
+    # fraction-of-the-way so marathon evaluation games (2000/-1000) present
+    # the same feature ranges the net trained on at 500/-250.
     mine, theirs = o.scores[my_team], o.scores[opp]
-    x[base] = mine / 500.0
-    x[base + 1] = theirs / 500.0
-    x[base + 2] = (500 - mine) / 750.0     # our distance to winning
-    x[base + 3] = (500 - theirs) / 750.0   # their distance to winning
-    x[base + 4] = (mine + 250) / 750.0     # our distance from elimination
-    x[base + 5] = (theirs + 250) / 750.0
+    win, lose = g.win_score, g.lose_score
+    span = win - lose
+    x[base] = mine / win
+    x[base + 1] = theirs / win
+    x[base + 2] = (win - mine) / span      # our distance to winning
+    x[base + 3] = (win - theirs) / span    # their distance to winning
+    x[base + 4] = (mine - lose) / span     # our distance from elimination
+    x[base + 5] = (theirs - lose) / span
     x[base + 6] = min(o.hand_number, 20) / 20.0
     base += 7
 

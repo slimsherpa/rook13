@@ -25,14 +25,16 @@ class SelfPlayGame:
             env.apply(chosen_candidate)
     """
 
-    def __init__(self, seed: int | None = None, deck_fn=None, dealer: int | None = None):
+    def __init__(self, seed: int | None = None, deck_fn=None, dealer: int | None = None,
+                 win_score: int = 500, lose_score: int = -250):
         """deck_fn(i) -> the i-th deal's 40-card deck. Passing the same
         deck_fn to two games gives them identical deal sequences regardless
         of how play unfolds — duplicate-bridge style evaluation."""
         self.rng = random.Random(seed)
         self.deck_fn = deck_fn
         self.deal_count = 0
-        self.g = Game(dealer=self.rng.randrange(4) if dealer is None else dealer)
+        self.g = Game(dealer=self.rng.randrange(4) if dealer is None else dealer,
+                      win_score=win_score, lose_score=lose_score)
         self.picks: list[int] = []  # go-down cards picked so far this widow
         # Trump-intent-first (how humans think): the bid winner declares the
         # trump they INTEND before choosing discards, so discard decisions

@@ -62,9 +62,15 @@ class Game:
         "trick_plays", "trick_leader", "completed_tricks",
         "tricks_won", "points_taken", "scores",
         "hand_history", "redeal_seat", "redeal_count", "winner",
+        "win_score", "lose_score",
     )
 
-    def __init__(self, dealer: int):
+    def __init__(self, dealer: int, win_score: int = WIN_SCORE,
+                 lose_score: int = LOSE_SCORE):
+        # Family rules are 500/-250; marathon evaluation games (e.g.
+        # 2000/-1000) pack ~4x the hands per game, shrinking card luck.
+        self.win_score = win_score
+        self.lose_score = lose_score
         self.phase = DEALING
         self.hand_number = 1
         self.dealer = dealer
@@ -253,8 +259,8 @@ class Game:
             (self.hand_number, self.bid_winner, bid, self.trump,
              hand_score[0], hand_score[1], went_set))
 
-        over = (self.scores[0] >= WIN_SCORE or self.scores[1] >= WIN_SCORE
-                or self.scores[0] <= LOSE_SCORE or self.scores[1] <= LOSE_SCORE)
+        over = (self.scores[0] >= self.win_score or self.scores[1] >= self.win_score
+                or self.scores[0] <= self.lose_score or self.scores[1] <= self.lose_score)
         if over and self.scores[0] != self.scores[1]:
             self.winner = 0 if self.scores[0] > self.scores[1] else 1
             self.phase = GAME_OVER

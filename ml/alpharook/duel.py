@@ -64,12 +64,14 @@ def deck_stream(pair_seed: int):
 
 
 @torch.no_grad()
-def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool):
+def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
+                   win_score: int = 500, lose_score: int = -250):
     """side0 is team A unless flip. Returns (winning_side_idx, diff_for_side0,
     per-side auction stats)."""
     sides = [side1, side0] if flip else [side0, side1]  # index by team
     env = SelfPlayGame(seed=pair_seed, deck_fn=deck_stream(pair_seed),
-                       dealer=pair_seed % 4)
+                       dealer=pair_seed % 4,
+                       win_score=win_score, lose_score=lose_score)
     rng = random.Random(pair_seed ^ 0xD0E1)
     pending: dict[int, list[int]] = {0: [], 1: []}
     heur_styles = ["basic"] * 4
@@ -110,7 +112,7 @@ def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool):
 
 
 def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
-         verbose: bool = True):
+         verbose: bool = True, win_score: int = 500, lose_score: int = -250):
     a_wins = b_wins = sweeps_a = sweeps_b = 0
     diffs = []
     auct = {0: dict(contracts=0, made=0, bid_sum=0),
@@ -119,7 +121,8 @@ def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
         pair_seed = seed + p * 104729 + 1
         results = []
         for flip in (False, True):
-            w, d, st = play_duel_game(side_a, side_b, pair_seed, flip)
+            w, d, st = play_duel_game(side_a, side_b, pair_seed, flip,
+                                      win_score, lose_score)
             results.append(w)
             diffs.append(d)
             for i in (0, 1):
@@ -161,9 +164,14 @@ def main():
                     choices=list(SCRIPT_MODES))
     ap.add_argument("--pairs", type=int, default=100)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--win-score", type=int, default=500,
+                    help="marathon evals (e.g. 2000) pack more hands per "
+                         "game — less card luck, sharper skill signal")
+    ap.add_argument("--lose-score", type=int, default=None)
     args = ap.parse_args()
+    lose = args.lose_score if args.lose_score is not None else -args.win_score // 2
     duel(Side(args.a, args.script_a), Side(args.b, args.script_b),
-         args.pairs, args.seed)
+         args.pairs, args.seed, win_score=args.win_score, lose_score=lose)
 
 
 if __name__ == "__main__":
