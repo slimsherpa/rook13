@@ -78,6 +78,16 @@ def main():
                          "heuristic still makes for every seat (openings = "
                          "bid+go-down+trump, bid = bid only, none = net "
                          "decides everything)")
+    ap.add_argument("--freeze-trunk-iters", type=int, default=0,
+                    help="two-stage belief graft (gen13): for the first N "
+                         "iters only the layer-one BELIEF columns learn — "
+                         "the donor trunk stays exactly gen10, so strength "
+                         "can't crater while the new senses find their "
+                         "linear use. Full-net DMC at lr 3e-4 from a "
+                         "converged champion demonstrably declines instead "
+                         "of climbing (gen13 run 1: 37.5%% -> 17%% by 9k).")
+    ap.add_argument("--unfreeze-lr", type=float, default=5e-5,
+                    help="learning rate after the trunk unfreezes")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--init-from", default=None,
@@ -188,6 +198,13 @@ def main():
         A = torch.from_numpy(A_np).to(device)
         Y = torch.from_numpy(Y_np).to(device)
 
+        frozen = it < args.freeze_trunk_iters
+        if args.freeze_trunk_iters and it == args.freeze_trunk_iters:
+            for grp in opt.param_groups:
+                grp["lr"] = args.unfreeze_lr
+            print(f"[{args.run}] trunk unfrozen at it {it}, "
+                  f"lr -> {args.unfreeze_lr}")
+
         net.train()
         n = len(Y_np)
         losses = []
@@ -199,6 +216,18 @@ def main():
                 loss = torch.nn.functional.mse_loss(pred, Y[idx])
                 opt.zero_grad()
                 loss.backward()
+                if frozen:
+                    # stage one of the graft: only the belief columns move
+                    from .encoder import STATE_DIM as _SD, BELIEF_DIM as _BD
+                    for name, p in net.named_parameters():
+                        if p.grad is None:
+                            continue
+                        if name == "net.0.weight":
+                            keep = p.grad[:, _SD:_SD + _BD].clone()
+                            p.grad.zero_()
+                            p.grad[:, _SD:_SD + _BD] = keep
+                        else:
+                            p.grad.zero_()
                 torch.nn.utils.clip_grad_norm_(net.parameters(), 5.0)
                 opt.step()
                 losses.append(loss.item())
