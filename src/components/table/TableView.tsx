@@ -19,6 +19,7 @@ import RedealOverlay from './RedealOverlay';
 import GameOverOverlay from './GameOverOverlay';
 import LastTrickPanel from './LastTrickPanel';
 import PlayingCard from '@/components/ui/PlayingCard';
+import ConfettiBurst from '@/components/ui/ConfettiBurst';
 import { useWatchers } from '@/lib/hooks/useWatchers';
 import { paced } from '@/lib/settings';
 import SettingsModal from './SettingsModal';
@@ -70,8 +71,10 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
             ? `${game.seats.A1.name.split(' ')[0]} & ${game.seats.A2.name.split(' ')[0]}`
             : `${game.seats.B1.name.split(' ')[0]} & ${game.seats.B2.name.split(' ')[0]}`;
 
-    // live "got set" / "maxxed" announcements, once each per hand
-    const [announcement, setAnnouncement] = useState<{ text: string; tone: 'set' | 'maxxed' } | null>(null);
+    // live "got set" / "maxxed" announcements, once each per hand — and they
+    // know whose side you're on: heartbreak when it's your team, a party when
+    // it's the other one, straight reporting for spectators
+    const [announcement, setAnnouncement] = useState<{ text: string; emoji: string; tone: 'bad' | 'good' | 'info' } | null>(null);
     const announcedRef = useRef<Set<string>>(new Set());
     const announceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => () => { if (announceTimer.current) clearTimeout(announceTimer.current); }, []);
@@ -80,14 +83,22 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
         const maxPts = bidTeamMaxPoints(game);
         if (maxPts === null) return;
         const bidTeam = teamOf(game.bidWinner);
+        const myTeam: Team | null = mySeat ? teamOf(mySeat) : null;
+        const mine = myTeam === bidTeam;
         let key: string | null = null;
-        let next: { text: string; tone: 'set' | 'maxxed' } | null = null;
+        let next: typeof announcement = null;
         if (maxPts < game.highBid) {
             key = `set-${game.handNumber}`;
-            next = { text: `Oh no! ${teamLabel(bidTeam)} got set!`, tone: 'set' };
+            next = mine
+                ? { text: 'Oh no! We got SET!', emoji: '😭', tone: 'bad' }
+                : myTeam
+                    ? { text: `${teamLabel(bidTeam)} got SET!`, emoji: '🎉', tone: 'good' }
+                    : { text: `${teamLabel(bidTeam)} got set!`, emoji: '💥', tone: 'info' };
         } else if (maxPts === game.highBid) {
             key = `maxxed-${game.handNumber}`;
-            next = { text: `${teamLabel(bidTeam)} is maxxed!`, tone: 'maxxed' };
+            next = mine
+                ? { text: "We're maxxed — every counter counts!", emoji: '😬', tone: 'bad' }
+                : { text: `${teamLabel(bidTeam)} is maxxed!`, emoji: '👀', tone: 'info' };
         }
         if (!key || !next || announcedRef.current.has(key)) return;
         announcedRef.current.add(key);
@@ -238,17 +249,25 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                     );
                 })()}
 
-                {/* set / maxxed announcement */}
+                {/* set / maxxed announcement — sized for drama */}
                 {announcement && (
-                    <div
-                        className={`absolute top-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl border text-center font-orbitron text-sm font-bold shadow-xl animate-card-reveal max-w-[90%] bg-black/75 ${
-                            announcement.tone === 'set'
-                                ? 'border-red-400/70 text-red-300'
-                                : 'border-yellow-400/70 text-yellow-300'
-                        }`}
-                    >
-                        {announcement.text}
-                    </div>
+                    <>
+                        {announcement.tone === 'good' && <ConfettiBurst count={36} spread={280} origin={{ x: 50, y: 30 }} />}
+                        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 max-w-[92%] animate-announce-pop">
+                            <div
+                                className={`flex items-center gap-3 px-5 py-3 rounded-2xl border-2 text-center font-orbitron font-bold shadow-2xl bg-black/80 ${
+                                    announcement.tone === 'bad'
+                                        ? 'border-red-400/80 text-red-300 animate-announce-shake'
+                                        : announcement.tone === 'good'
+                                            ? 'border-yellow-400/80 text-yellow-300 shadow-[0_0_30px_rgba(234,179,8,0.35)]'
+                                            : 'border-white/40 text-white/90'
+                                }`}
+                            >
+                                <span className="text-3xl leading-none">{announcement.emoji}</span>
+                                <span className="text-base sm:text-lg leading-snug">{announcement.text}</span>
+                            </div>
+                        </div>
+                    </>
                 )}
 
                 {/* bottom-right corner: hand facts (your bid, who deals) above
@@ -358,6 +377,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
             {game.phase === 'hand_done' && recapReady && !showScores && (
                 <HandRecapModal
                     game={game}
+                    mySeat={mySeat}
                     onNextHand={() => act({ type: 'NEXT_HAND' })}
                     onShowScores={() => setShowScores(true)}
                 />

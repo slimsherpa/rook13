@@ -92,8 +92,16 @@ export default function PlayersPage() {
                                         </span>
                                     )}
                                     <span className="min-w-0">
-                                        <span className="block text-white font-orbitron text-sm truncate">
-                                            {p.displayName}{isMe ? ' (you)' : ''}
+                                        <span className="flex items-center gap-1.5 text-white font-orbitron text-sm">
+                                            <span className="truncate">{p.displayName}{isMe ? ' (you)' : ''}</span>
+                                            {p.jayCupYears && p.jayCupYears.length > 0 && (
+                                                <span
+                                                    className="material-symbols-outlined text-sm text-yellow-400 flex-shrink-0"
+                                                    title={`Jay Cup Champion ${p.jayCupYears.join(', ')}`}
+                                                >
+                                                    trophy
+                                                </span>
+                                            )}
                                         </span>
                                         <span className="block text-white/50 text-[11px]">
                                             {s?.gamesPlayed ?? 0} games · {s?.gamesWon ?? 0} wins

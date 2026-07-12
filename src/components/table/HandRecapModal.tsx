@@ -7,15 +7,60 @@
 // in v1. The Next Hand button stays pinned at the bottom no matter how far
 // you scroll. Any player can start the next hand.
 
-import { Card, GameDoc, Seat, Team, HandSummary, teamOf, nextSeat } from '@/lib/game/types';
+import { Card, GameDoc, Seat, Team, HandSummary, teamOf, nextSeat, getCardPoints } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
 import PlayingCard from '@/components/ui/PlayingCard';
+import ConfettiBurst from '@/components/ui/ConfettiBurst';
 
 interface HandRecapModalProps {
     game: GameDoc;
+    mySeat: Seat | null;
     onNextHand: () => void;
     onShowScores: () => void;
 }
+
+interface TrophyMoment {
+    emoji: string;
+    text: string;
+    /** big ones get the confetti */
+    big: boolean;
+}
+
+/** The brag-worthy things that happened to YOU this hand — mirrors the
+ *  Trophy Case stats so the celebration lands the moment you earn it. */
+const trophyMoments = (h: HandSummary, mySeat: Seat | null): TrophyMoment[] => {
+    if (!mySeat) return [];
+    const out: TrophyMoment[] = [];
+    const myTeam = teamOf(mySeat);
+    const dealt = h.dealtHands?.[mySeat];
+    if (dealt && dealt.length > 0) {
+        const pts = dealt.reduce((sum, c) => sum + getCardPoints(c), 0);
+        const byNumber = new Map<number, number>();
+        const bySuit = new Map<string, number>();
+        for (const c of dealt) {
+            byNumber.set(c.number, (byNumber.get(c.number) ?? 0) + 1);
+            bySuit.set(c.suit, (bySuit.get(c.suit) ?? 0) + 1);
+        }
+        for (const [num, n] of Array.from(byNumber.entries())) {
+            if (n === 4) out.push({ emoji: '🌈', text: `Rainbow ${num} — dealt all four!`, big: true });
+        }
+        if (pts >= 40) out.push({ emoji: '🔥', text: `${pts} count dealt to you!`, big: true });
+        else if (pts === 0) out.push({ emoji: '🃏', text: 'Zero count — a hand full of air!', big: false });
+        for (const [suit, n] of Array.from(bySuit.entries())) {
+            if (n >= 7) out.push({ emoji: '📏', text: `${n} ${suit} in one deal!`, big: n >= 8 });
+        }
+    }
+    if (h.bidWinner === mySeat && !h.wentSet && h.bid >= 100) {
+        out.push({ emoji: '🏆', text: `Bid ${h.bid} and MADE IT!`, big: true });
+    }
+    if (teamOf(h.bidWinner) !== myTeam && h.wentSet) {
+        out.push({ emoji: '🛡️', text: `You set them! That's −${h.bid} they'll remember.`, big: false });
+    }
+    if (h.tricksWon[myTeam] === 9) {
+        out.push({ emoji: '🧹', text: 'Swept all nine tricks!', big: true });
+    }
+    return out;
+};
 
 type Seats = GameDoc['seats'];
 
@@ -108,12 +153,14 @@ export function DealBreakdown({ seats, h, goDown, tricksSource }: {
     );
 }
 
-export default function HandRecapModal({ game, onNextHand, onShowScores }: HandRecapModalProps) {
+export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores }: HandRecapModalProps) {
     const h = game.handHistory[game.handHistory.length - 1];
     if (!h) return null;
 
     const bidTeam = teamOf(h.bidWinner);
     const bidderName = firstName(game.seats, h.bidWinner);
+    const moments = trophyMoments(h, mySeat);
+    const bigMoment = moments.some((m) => m.big);
 
     const teamLabel = (t: Team) =>
         t === 'A'
@@ -122,7 +169,8 @@ export default function HandRecapModal({ game, onNextHand, onShowScores }: HandR
 
     return (
         <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-navy-950 border border-white/15 rounded-2xl shadow-2xl w-full max-w-md max-h-[92dvh] flex flex-col overflow-hidden">
+            <div className="relative bg-navy-950 border border-white/15 rounded-2xl shadow-2xl w-full max-w-md max-h-[92dvh] flex flex-col overflow-hidden">
+                {bigMoment && <ConfettiBurst count={34} spread={260} origin={{ x: 50, y: 20 }} />}
                 {/* verdict */}
                 <div className={`px-5 py-3.5 text-center flex-shrink-0 ${h.wentSet ? 'bg-red-900/60' : 'bg-sky-800/60'}`}>
                     <div className="font-orbitron text-white text-xl font-bold">
@@ -134,6 +182,24 @@ export default function HandRecapModal({ game, onNextHand, onShowScores }: HandR
                 </div>
 
                 <div className="px-5 py-4 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+                    {/* your trophy moments, celebrated the second they happen */}
+                    {moments.length > 0 && (
+                        <div className="rounded-xl border border-yellow-400/50 bg-gradient-to-r from-yellow-500/15 via-yellow-400/10 to-yellow-500/15 p-3 space-y-1.5 animate-card-reveal">
+                            <div className="flex items-center gap-1.5 text-yellow-300 font-orbitron text-[11px] uppercase tracking-widest">
+                                <span className="material-symbols-outlined text-sm animate-trophy-shine">trophy</span>
+                                Trophy moments
+                            </div>
+                            {moments.map((m, i) => (
+                                <div key={i} className="flex items-center gap-2.5">
+                                    <span className="text-xl leading-none">{m.emoji}</span>
+                                    <span className={`font-orbitron text-sm ${m.big ? 'text-yellow-300 font-bold' : 'text-white/90'}`}>
+                                        {m.text}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     {/* one scoreboard: hand score → updated game score */}
                     <div className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
                         <div className="grid grid-cols-2 divide-x divide-white/10">

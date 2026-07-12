@@ -20,6 +20,7 @@ const CHAMPIONS: Champions[] = [
     { year: 2018, names: ['Norm Gardner', 'Darrell Gardner'] },
     { year: 2022, names: ['Carson Gardner', 'Mike Weaver'] },
     { year: 2024, names: ['Carson Gardner', 'Mike Weaver'] },
+    { year: 2026, names: ['Brandon Chambers', 'JD Gardner'] },
 ];
 
 export default function JayCupModal({ onClose }: { onClose: () => void }) {

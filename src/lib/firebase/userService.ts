@@ -35,6 +35,14 @@ export interface UserProfile {
     photoURL: string | null;
     createdAt: unknown;
     stats: UserStats;
+    /**
+     * Real-world JAY CUP championship years, e.g. [2026]. The app never
+     * writes this — Riley grants it by hand in the Firebase console
+     * (Firestore → users → the winner's doc → add field `jayCupYears`,
+     * type array of numbers) for verified winners only. The Trophy Case
+     * renders it as the crown jewel.
+     */
+    jayCupYears?: number[];
 }
 
 const emptyStats = (): UserStats => ({

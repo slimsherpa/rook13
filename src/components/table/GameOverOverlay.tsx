@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { GameDoc, Seat, teamOf } from '@/lib/game/types';
+import ConfettiBurst from '@/components/ui/ConfettiBurst';
 
 interface GameOverOverlayProps {
     game: GameDoc;
@@ -20,6 +21,8 @@ export default function GameOverOverlay({ game, mySeat, onShowScores }: GameOver
 
     return (
         <div className="fixed inset-0 z-40 bg-black/75 backdrop-blur flex flex-col items-center justify-center p-6 text-center">
+            {/* winners get the ticker tape (spectators celebrate whoever won) */}
+            {(iWon || mySeat === null) && <ConfettiBurst count={48} spread={420} origin={{ x: 50, y: 35 }} />}
             <span className={`material-symbols-outlined text-7xl ${iWon ? 'text-yellow-400 animate-bounce' : 'text-white/60'}`}>
                 {iWon ? 'trophy' : 'sentiment_calm'}
             </span>

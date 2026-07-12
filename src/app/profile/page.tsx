@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { getUserProfile, UserProfile, UserStats } from '@/lib/firebase/userService';
 import LoadingPage from '@/components/LoadingPage';
+import ConfettiBurst from '@/components/ui/ConfettiBurst';
 
 const pct = (num: number, den: number) => (den > 0 ? `${Math.round((num / den) * 100)}%` : '—');
 
@@ -126,6 +127,39 @@ function TrophyCase({ s }: { s: UserStats }) {
     );
 }
 
+/** The crown jewel: a real-world JAY CUP title, granted by hand to verified
+ *  winners (see UserProfile.jayCupYears). Styled after the walnut-and-silver
+ *  trophy itself. */
+function JayCupTrophy({ years }: { years: number[] }) {
+    return (
+        <div className="relative mb-6 rounded-xl bg-gradient-to-b from-[#3b2314] to-[#241209] border border-[#5a3a22] p-1.5 shadow-lg overflow-hidden">
+            <ConfettiBurst count={22} spread={160} origin={{ x: 50, y: 40 }} />
+            <div className="rounded-lg bg-black/85 border border-gray-500/40 px-4 py-4 text-center">
+                <span
+                    className="material-symbols-outlined text-5xl animate-trophy-shine"
+                    style={{
+                        background: 'linear-gradient(160deg, #f8fafc 10%, #94a3b8 45%, #e2e8f0 60%, #64748b 90%)',
+                        WebkitBackgroundClip: 'text',
+                        backgroundClip: 'text',
+                        color: 'transparent',
+                    }}
+                >
+                    trophy
+                </span>
+                <div className="font-serif text-gray-100 text-lg font-bold tracking-[0.25em] mt-1">
+                    JAY CUP CHAMPION
+                </div>
+                <div className="text-yellow-300/90 font-orbitron text-sm font-bold mt-1">
+                    {[...years].sort((a, b) => a - b).join(' · ')}
+                </div>
+                <div className="text-gray-400 text-[10px] tracking-wide mt-1.5">
+                    Gardner Family Rook Tournament — verified champion
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function ProfileInner() {
     const { user, loading } = useAuth();
     const router = useRouter();
@@ -189,6 +223,10 @@ function ProfileInner() {
                                 Trophy Case
                             </div>
                         </div>
+
+                        {profile?.jayCupYears && profile.jayCupYears.length > 0 && (
+                            <JayCupTrophy years={profile.jayCupYears} />
+                        )}
 
                         {!s || s.gamesPlayed === 0 ? (
                             <div className="text-center text-white/60 font-orbitron text-sm py-8">

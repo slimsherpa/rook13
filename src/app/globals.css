@@ -65,6 +65,49 @@ body {
   animation: points-bing 0.9s ease-out;
 }
 
+/* Confetti pieces fly out from their origin along per-piece CSS vars. */
+@keyframes confetti-fly {
+  0%   { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(0.7); }
+}
+
+/* Announcements bounce in big, then settle. */
+@keyframes announce-pop {
+  0%   { opacity: 0; transform: scale(0.4); }
+  55%  { opacity: 1; transform: scale(1.12); }
+  75%  { transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.animate-announce-pop {
+  animation: announce-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Bad news rattles the sign. */
+@keyframes announce-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-7px) rotate(-1.5deg); }
+  30% { transform: translateX(6px) rotate(1deg); }
+  45% { transform: translateX(-5px) rotate(-1deg); }
+  60% { transform: translateX(4px) rotate(0.5deg); }
+  75% { transform: translateX(-2px); }
+}
+
+.animate-announce-shake {
+  animation: announce-shake 0.55s ease-in-out 0.45s;
+}
+
+/* Trophy-moment chips shimmer like the real hardware. */
+@keyframes trophy-shine {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.35); }
+}
+
+.animate-trophy-shine {
+  animation: trophy-shine 1.6s ease-in-out infinite;
+}
+
 /* Cyberpunk Animation Effects */
 @keyframes glitch {
   0%, 100% { transform: translate(0); }

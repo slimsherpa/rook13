@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { GameDoc, teamOf, Seat, SEATS } from '@/lib/game/types';
-import { createGame, findGameByCode, listMyGames, listOpenGames } from '@/lib/firebase/gameService';
+import { createGame, findGameByCode, listActiveGames, listMyGames, listOpenGames } from '@/lib/firebase/gameService';
 import { subscribeMyInvites, clearInvite, InviteDoc } from '@/lib/firebase/inviteService';
 import JayCupModal from './JayCupModal';
 import RookBird from '@/components/ui/RookBird';
@@ -20,6 +20,7 @@ export default function HomeScreen() {
     const [joining, setJoining] = useState(false);
     const [myGames, setMyGames] = useState<GameDoc[]>([]);
     const [openGames, setOpenGames] = useState<GameDoc[]>([]);
+    const [liveGames, setLiveGames] = useState<GameDoc[]>([]);
     const [menuOpen, setMenuOpen] = useState(false);
     const [jayCupOpen, setJayCupOpen] = useState(false);
     const [invites, setInvites] = useState<InviteDoc[]>([]);
@@ -36,6 +37,10 @@ export default function HomeScreen() {
             listMyGames(user.uid).then(setMyGames).catch(() => {});
             listOpenGames().then((games) => {
                 setOpenGames(games.filter((g) => !g.playerUids.includes(user.uid)));
+            }).catch(() => {});
+            // tables mid-game that aren't yours — wander over and watch
+            listActiveGames().then((games) => {
+                setLiveGames(games.filter((g) => !g.playerUids.includes(user.uid)));
             }).catch(() => {});
         };
         refresh();
@@ -253,6 +258,48 @@ export default function HomeScreen() {
                     </section>
                 )}
 
+                {/* live tables — wander over and watch, like leaning on the
+                    back of a chair at the family reunion */}
+                {liveGames.length > 0 && (
+                    <section className="mt-6">
+                        <h2 className="text-white/70 font-orbitron text-xs uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                            Live Tables
+                        </h2>
+                        <div className="space-y-2">
+                            {liveGames.slice(0, 5).map((g) => {
+                                const names = SEATS
+                                    .map((s) => g.seats[s])
+                                    .filter((si) => si.kind === 'human')
+                                    .map((si) => si.name.split(' ')[0])
+                                    .join(', ');
+                                return (
+                                    <button
+                                        key={g.id}
+                                        onClick={() => router.push(`/game?id=${g.id}`)}
+                                        className="w-full rounded-xl bg-navy-950/50 border border-white/15 hover:border-red-400/70 p-3 flex items-center gap-3 text-left transition"
+                                    >
+                                        <span className="material-symbols-outlined text-red-400/90">visibility</span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-white font-orbitron text-sm truncate">{names || 'Bot battle'}</div>
+                                            <div className="text-white/50 text-[11px]">
+                                                <span className="text-sky-300 font-bold">{g.scores.A}</span>
+                                                {' – '}
+                                                <span className="text-orange-300 font-bold">{g.scores.B}</span>
+                                                {' · hand '}{g.handNumber}
+                                                {g.trump ? ` · ${g.trump} trump` : ''}
+                                            </div>
+                                        </div>
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-orbitron bg-red-500/15 text-red-300 border border-red-400/40">
+                                            WATCH
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </section>
+                )}
+
                 {/* JAY CUP */}
                 <button
                     onClick={() => setJayCupOpen(true)}
@@ -261,7 +308,7 @@ export default function HomeScreen() {
                     <span className="material-symbols-outlined text-yellow-400 text-4xl">trophy</span>
                     <div className="text-left">
                         <div className="font-orbitron text-white font-bold">THE JAY CUP</div>
-                        <div className="text-white/60 text-xs">Hall of Champions · 2008–2024</div>
+                        <div className="text-white/60 text-xs">Hall of Champions · 2008–2026</div>
                     </div>
                 </button>
             </div>

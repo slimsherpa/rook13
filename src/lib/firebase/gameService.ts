@@ -179,6 +179,23 @@ export const listOpenGames = async (max = 20): Promise<GameDoc[]> => {
         .slice(0, max);
 };
 
+/** Games being played right now — the tables you can wander over and watch.
+ *  Freshest first; stale actives (abandoned mid-game) drop off after a day. */
+export const listActiveGames = async (max = 10): Promise<GameDoc[]> => {
+    const q = query(
+        collection(db, GAMES),
+        where('status', '==', 'active'),
+        limit(50),
+    );
+    const snap = await getDocs(q);
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    return snap.docs
+        .map((d) => d.data() as GameDoc)
+        .filter((g) => g.updatedAt > cutoff)
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, max);
+};
+
 export const loadActionLog = async (gameId: string) => {
     const snap = await getDocs(query(actionsRef(gameId), orderBy('index', 'asc')));
     return snap.docs.map((d) => d.data());
