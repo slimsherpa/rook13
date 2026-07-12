@@ -169,6 +169,15 @@ def train(args) -> None:
             y = z["y"].astype(np.float32)
             w = z["w"].astype(np.float32)
             di = z["di"]
+            if args.anchor_scale != 1.0:
+                # anchors were stored at weight<1; rescale or drop them to
+                # test how much of the search signal they dilute
+                anchor = w < 1.0
+                if args.anchor_scale == 0.0:
+                    keep = ~anchor
+                    A, y, w, di = A[keep], y[keep], w[keep], di[keep]
+                else:
+                    w = np.where(anchor, w * args.anchor_scale, w)
             n = len(y)
             perm = rng.permutation(n)
             net.train()
@@ -191,12 +200,13 @@ def train(args) -> None:
         print(f"epoch {epoch}: loss {np.mean(ep_losses):.5f} "
               f"({step} steps)", flush=True)
         torch.save({"model": net.state_dict(), "epoch": epoch},
-                   run_dir / "distilled.pt")
+                   run_dir / f"distilled{args.tag}.pt")
         wr = duel_vs_teacher(f"epoch {epoch}", step)
         if wr > best:
             best = wr
             torch.save({"model": net.state_dict(), "epoch": epoch,
-                        "duel_win_rate": wr}, run_dir / "distilled_best.pt")
+                        "duel_win_rate": wr},
+                       run_dir / f"distilled{args.tag}_best.pt")
     if tb:
         tb.close()
     print(f"distilled.pt saved; best epoch duel {best:.1%}")
@@ -224,6 +234,11 @@ def main():
     ap.add_argument("--batch-size", type=int, default=512)
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--duel-pairs", type=int, default=25)
+    ap.add_argument("--anchor-scale", type=float, default=1.0,
+                    help="rescale stored anchor-row weights (0 = search "
+                         "rows only)")
+    ap.add_argument("--tag", default="",
+                    help="suffix for the saved checkpoint name")
     args = ap.parse_args()
     if args.generate:
         generate(args)
