@@ -24,9 +24,14 @@ export interface Card {
 // Bot styles. The lobby offers the trained AlphaRook brains (the frozen
 // champions from ml/ self-play training, via src/lib/alpharook); the rest are
 // kept so game docs created before them keep working:
-//   gen10      — the ladder's latest: trained against frozen gen9, fully
-//                neural like it (edges gen9 head-to-head; beats every older
-//                generation harder than gen9 does)
+//   gen11      — gen10's brain inside PIMC look-ahead: endgame card plays
+//                are chosen by imagining 8 hidden-card worlds and playing
+//                each out with the net (beats pure gen10 54% duplicate-deck,
+//                65/35 at marathon rules in the Python lab). Same weights
+//                as gen10 — the strength is calculation, not new training
+//   gen10      — the ladder's latest reflex net: trained against frozen
+//                gen9, fully neural like it (edges gen9 head-to-head; beats
+//                every older generation harder than gen9 does)
 //   gen9       — first FULLY neural brain: bids, trump intent, go-down, and
 //                card play all learned (beat gen8 57.5% over 400
 //                duplicate-deck games)
@@ -38,7 +43,7 @@ export interface Card {
 //                (bots.ts PERSONALITIES); 'basic' is also the fallback brain
 //                for gen7/gen8 go-down/trump and for neural seats if weights
 //                fail to load
-export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10';
+export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen11';
 
 export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     random: 'Easy',
@@ -50,10 +55,11 @@ export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     gen8: 'AlphaRook Gen8',
     gen9: 'AlphaRook Gen9',
     gen10: 'AlphaRook Gen10',
+    gen11: 'AlphaRook Gen11',
 };
 
 /** What the lobby's bot picker offers (strongest first); legacy styles live on only in old games. */
-export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen10', 'gen9', 'gen8', 'gen7'];
+export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen11', 'gen10', 'gen9', 'gen8', 'gen7'];
 
 export interface SeatInfo {
     kind: 'human' | 'bot' | 'open';

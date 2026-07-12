@@ -1,6 +1,11 @@
 // The AlphaRook seat drivers.
 //
-// 'gen9' — the reigning champion and the first FULLY neural brain: bids,
+// 'gen11' — the champion: gen10's weights with PIMC look-ahead bolted onto
+// endgame card play (search.ts). Same brain file as gen10 — the strength is
+// calculation. Beats pure gen10 54% duplicate-deck (65/35 marathon in the
+// Python lab, ml/alpharook/search.py).
+//
+// 'gen9' — the first FULLY neural brain: bids,
 // trump intent, go-down, and card play are all QNet decisions (beat gen8
 // 57.5% over 400 duplicate-deck games). At the widow it declares a private
 // trump intent first, then picks its four discards knowing the plan — and at
@@ -29,16 +34,24 @@ import {
     D_BID, D_DISCARD, D_TRUMP, D_PLAY, PASS,
 } from './encoder';
 import { QNetWeights, qForward, loadQNet, NeuralGen } from './qnet';
+import { chooseSearchCard, GEN11_SEARCH } from './search';
 
 export const ALPHAROOK_SAMPLES = 25;
 export const ALPHAROOK_BID_SAMPLES = 20;
 
-export const isNeuralStyle = (s: BotStyle | undefined): s is NeuralGen =>
-    s === 'gen7' || s === 'gen8' || s === 'gen9' || s === 'gen10';
+/** Styles driven by a QNet (gen11 runs on gen10's weight file). */
+export type NeuralStyle = NeuralGen | 'gen11';
+
+export const isNeuralStyle = (s: BotStyle | undefined): s is NeuralStyle =>
+    s === 'gen7' || s === 'gen8' || s === 'gen9' || s === 'gen10' || s === 'gen11';
+
+/** Which weight file a neural style runs on. */
+export const weightsGenFor = (s: NeuralStyle): NeuralGen =>
+    s === 'gen11' ? 'gen10' : s;
 
 /** Generations whose go-down/trump are ALSO net decisions (gen9+). */
 export const isFullyNeural = (s: BotStyle | undefined): boolean =>
-    s === 'gen9' || s === 'gen10';
+    s === 'gen9' || s === 'gen10' || s === 'gen11';
 
 export interface NeuralChoice {
     dtype: number;
@@ -138,7 +151,18 @@ export const neuralTrumpIntent = (g: GameDoc, seat: Seat, net: QNetWeights): Neu
     return argmaxChoice(net, o13, [], D_TRUMP, [0, 1, 2, 3], auctionCtx(g), null);
 };
 
-const neuralAction = (g: GameDoc, seat: Seat, gen: NeuralGen, net: QNetWeights): GameAction | null => {
+const neuralAction = (g: GameDoc, seat: Seat, gen: NeuralStyle, net: QNetWeights): GameAction | null => {
+    // gen11 = gen10 + look-ahead: endgame card plays go through PIMC search
+    // (8 imagined worlds, net rollouts); everything else is the gen10 reflex
+    if (gen === 'gen11' && g.phase === 'playing'
+            && g.completedTricks.length >= GEN11_SEARCH.minTrick) {
+        const d = chooseSearchCard(g, net, GEN11_SEARCH);
+        const note = d.overrode ? ', search overrode the reflex' : '';
+        console.info(`🔮 gen11 ${seat} searched ${GEN11_SEARCH.worlds} worlds, `
+            + `plays ${d.card.suit} ${d.card.number} `
+            + `(score ${Math.max(...d.scores).toFixed(3)}${note})`);
+        return { type: 'PLAY_CARD', seat, card: d.card };
+    }
     if (isFullyNeural(gen)) {
         if (g.phase === 'widow' && g.bidWinner === seat) {
             const w = neuralWidow(g, seat, net);
@@ -170,7 +194,7 @@ const neuralAction = (g: GameDoc, seat: Seat, gen: NeuralGen, net: QNetWeights):
 export const preloadNets = (g: GameDoc): void => {
     for (const seat of Object.values(g.seats)) {
         if (seat.kind === 'bot' && isNeuralStyle(seat.botStyle)) {
-            loadQNet(seat.botStyle).catch(() => {});
+            loadQNet(weightsGenFor(seat.botStyle)).catch(() => {});
         }
     }
 };
@@ -183,7 +207,7 @@ export const nextAgentActionAsync = async (g: GameDoc): Promise<GameAction | nul
             (g.phase === 'bidding' || g.phase === 'playing' ||
              (isFullyNeural(info.botStyle) && (g.phase === 'widow' || g.phase === 'trump')))) {
             try {
-                const net = await loadQNet(info.botStyle);
+                const net = await loadQNet(weightsGenFor(info.botStyle));
                 const action = neuralAction(g, g.turn, info.botStyle, net);
                 if (action) return action;
             } catch (e) {

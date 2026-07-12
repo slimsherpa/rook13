@@ -17,10 +17,10 @@ export interface World {
     goDown: Card[];
 }
 
-const shuffle = <T>(arr: T[]): T[] => {
+const shuffle = <T>(arr: T[], rand: () => number = Math.random): T[] => {
     const a = [...arr];
     for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = Math.floor(rand() * (i + 1));
         [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
@@ -39,7 +39,7 @@ interface Slot {
  * observation. Cards with the fewest eligible slots go first, and slot order
  * is shuffled per card so repeated calls still sample varied worlds.
  */
-const solveWorld = (pool: Card[], slots: Slot[]): Map<Card, Slot> | null => {
+const solveWorld = (pool: Card[], slots: Slot[], rand: () => number = Math.random): Map<Card, Slot> | null => {
     const eligible = (c: Card) => slots.filter((s) => !s.banned.has(c.suit)).length;
     const cards = [...pool].sort((a, b) => eligible(a) - eligible(b));
     const assignment = new Map<Card, Slot>();
@@ -47,7 +47,7 @@ const solveWorld = (pool: Card[], slots: Slot[]): Map<Card, Slot> | null => {
     const solve = (idx: number): boolean => {
         if (idx === cards.length) return true;
         const card = cards[idx];
-        for (const slot of shuffle(slots)) {
+        for (const slot of shuffle(slots, rand)) {
             if (slot.left === 0 || slot.banned.has(card.suit)) continue;
             slot.left--;
             assignment.set(card, slot);
@@ -66,7 +66,7 @@ const solveWorld = (pool: Card[], slots: Slot[]): Map<Card, Slot> | null => {
  * When the endgame squeezes those constraints hard enough that greedy tries
  * keep colliding, fall back to the exact backtracking solver.
  */
-export const sampleWorld = (o: Observation): World => {
+export const sampleWorld = (o: Observation, rand: () => number = Math.random): World => {
     const pool = unseenCards(o);
     const sizes = handSizes(o);
     const voids = knownVoids(o);
@@ -76,7 +76,7 @@ export const sampleWorld = (o: Observation): World => {
     const goDownNeeded = o.myGoDown ? 0 : 4;
 
     for (let attempt = 0; attempt < 20; attempt++) {
-        const deck = shuffle(pool);
+        const deck = shuffle(pool, rand);
         const hands: Partial<Record<Seat, Card[]>> = { [o.seat]: [...o.hand] };
         const goDown: Card[] = o.myGoDown ? [...o.myGoDown] : [];
         let ok = true;
@@ -105,7 +105,7 @@ export const sampleWorld = (o: Observation): World => {
         seat, left: size, banned: new Set<string>(Array.from(voids[seat])),
     }));
     slots.push({ seat: null, left: goDownNeeded, banned: new Set() });
-    const solved = solveWorld(pool, slots);
+    const solved = solveWorld(pool, slots, rand);
     if (!solved) throw new Error('sampleWorld: observation is internally inconsistent');
 
     const hands: Record<Seat, Card[]> = {
