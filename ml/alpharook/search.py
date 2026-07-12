@@ -211,7 +211,11 @@ class SearchAgent:
     def _net_choose(self, env, seat: int, dtype: int, cands: list):
         s = encode_state(observe(env.g, seat), env.picks, dtype, env.g,
                          env.trump_intent)
-        return cands[int(np.argmax(self._q_values(s, dtype, cands)))]
+        q = self._q_values(s, dtype, cands)
+        # distillation taps: reflex decisions expose gen10's own Q so a
+        # student can be anchored on the decisions search never touches
+        self.last_reflex = (s, dtype, list(cands), [float(v) for v in q])
+        return cands[int(np.argmax(q))]
 
     def _prune_bids(self, env, seat: int, cands: list) -> list:
         if len(cands) <= self.max_bid_cands:
@@ -290,6 +294,11 @@ class SearchAgent:
 
     @torch.no_grad()
     def choose(self, env, seat: int, dtype: int, cands: list):
+        # distillation taps, refreshed per decision: last_search carries the
+        # blended per-candidate scores of a searched decision, last_reflex
+        # the bare-net Q of an unsearched one (see distill.py)
+        self.last_search = None
+        self.last_reflex = None
         if len(cands) == 1:
             return cands[0]
         if dtype not in self.search_dtypes:
@@ -366,4 +375,5 @@ class SearchAgent:
         w = self.prior_weight
         score = [(totals[i] + w * float(prior[i])) / (self.worlds + w)
                  for i in range(len(cands))]
+        self.last_search = (root_state, dtype, list(cands), score)
         return cands[int(np.argmax(score))]
