@@ -7,10 +7,10 @@
 
 import {
     GameDoc, GameAction, Card, Seat, Suit, Team, SeatInfo, HandSummary,
-    SEATS, VALID_BIDS, TRICKS_PER_HAND, WIN_SCORE, LOSE_SCORE, TAKING_TRICKS_BONUS,
-    getCardPoints, teamOf, nextSeat, sameCard,
+    SEATS, SUITS, VALID_BIDS, TRICKS_PER_HAND, WIN_SCORE, LOSE_SCORE, TAKING_TRICKS_BONUS,
+    DEFAULT_BOT_STYLE, getCardPoints, teamOf, nextSeat, sameCard,
 } from './types';
-import { splitDeal, isRedealHand, isValidDeck } from './deck';
+import { splitDeal, isRedealHand, isValidDeck, sortHand } from './deck';
 
 export class InvalidActionError extends Error {}
 
@@ -137,6 +137,26 @@ export const goDownPoints = (g: GameDoc): number =>
 export const bidLead = (dealer: Seat): Seat => nextSeat(dealer);
 
 /**
+ * True when every card left in `seat`'s hand is a guaranteed winner — nothing
+ * in ANY other hand (partner included) could ever beat one of them, in any
+ * order of play. A non-trump card additionally requires that nobody else
+ * holds trump at all, since a void could develop in some order of leads.
+ * Only meaningful on lead: the player must be starting the trick.
+ */
+export const isLaydown = (g: GameDoc, seat: Seat): boolean => {
+    if (g.phase !== 'playing' || g.turn !== seat || g.trickPlays.length > 0) return false;
+    const hand = g.hands[seat];
+    if (hand.length === 0) return false;
+    const others = SEATS.filter((s) => s !== seat).flatMap((s) => g.hands[s]);
+    return hand.every((c) => {
+        if (c.suit === g.trump) {
+            return !others.some((d) => d.suit === g.trump && d.number > c.number);
+        }
+        return !others.some((d) => d.suit === g.trump || (d.suit === c.suit && d.number > c.number));
+    });
+};
+
+/**
  * The highest point total the bidding team can still reach this hand
  * (they win everything left: every remaining trick, the go-down, and the
  * 5-trick bonus if it's still reachable). null outside of trick play.
@@ -238,6 +258,13 @@ export const validateAction = (g: GameDoc, action: GameAction): string | null =>
             if (!legal.some((c) => sameCard(c, action.card))) return 'You must follow suit';
             return null;
         }
+        case 'LAYDOWN': {
+            if (g.phase !== 'playing') return 'Not in playing phase';
+            if (g.turn !== action.seat) return 'Not your turn';
+            if (g.trickPlays.length > 0) return 'You can only lay down when leading';
+            if (!isLaydown(g, action.seat)) return 'Your cards are not all guaranteed winners';
+            return null;
+        }
         case 'NEXT_HAND': {
             if (g.phase !== 'hand_done') return 'Hand is not finished';
             return null;
@@ -301,7 +328,7 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
         case 'START_GAME': {
             for (const s of SEATS) {
                 if (next.seats[s].kind === 'open') {
-                    next.seats[s] = { kind: 'bot', name: DEFAULT_BOT_NAMES[s], botStyle: 'gen10' };
+                    next.seats[s] = { kind: 'bot', name: DEFAULT_BOT_NAMES[s], botStyle: DEFAULT_BOT_STYLE };
                 }
             }
             next.status = 'active';
@@ -329,6 +356,10 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
                 return next;
             }
             next.redealSeat = null;
+            // remember the deal itself — the recap shows what everyone was
+            // dealt long after the widow pickup has reshuffled the hands
+            next.dealtHands = JSON.parse(JSON.stringify(hands));
+            next.dealtWidow = JSON.parse(JSON.stringify(widow));
             next.phase = 'bidding';
             next.turn = bidLead(next.dealer!);
             next.bids = {};
@@ -389,32 +420,21 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
             return next;
         }
         case 'PLAY_CARD': {
-            next.hands[action.seat] = next.hands[action.seat].filter((c) => !sameCard(c, action.card));
-            next.trickPlays = [...next.trickPlays, { seat: action.seat, card: action.card }];
-
-            if (next.trickPlays.length < 4) {
-                next.turn = nextSeat(action.seat);
-                return next;
-            }
-
-            // --- trick complete ---
-            const winner = winningCardSeat(next.trickPlays, next.trump);
-            const points = trickPoints(next.trickPlays);
-            const winningTeam = teamOf(winner);
-            next.completedTricks = [...next.completedTricks, {
-                leader: next.trickLeader!,
-                plays: next.trickPlays,
-                winner,
-                points,
-            }];
-            next.tricksWon[winningTeam] += 1;
-            next.pointsTaken[winningTeam] += points;
-            next.trickPlays = [];
-            next.trickLeader = winner;
-            next.turn = winner;
-
-            if (next.completedTricks.length === TRICKS_PER_HAND) {
-                scoreHand(next, winner);
+            playCardOnDraft(next, action.seat, action.card);
+            return next;
+        }
+        case 'LAYDOWN': {
+            // Deterministic fast-forward: the claimant leads every remaining
+            // card (strongest first, for a satisfying trick record) and
+            // everyone else follows with their lowest legal card. isLaydown
+            // guaranteed each lead wins, so this is just the PLAY_CARD path
+            // run to the end of the hand — replays reproduce it exactly.
+            while (next.phase === 'playing') {
+                const turn = next.turn!;
+                const card = turn === action.seat
+                    ? sortHand(next.hands[turn], next.trump)[0]
+                    : lowestLegalCard(next, turn);
+                playCardOnDraft(next, turn, card);
             }
             return next;
         }
@@ -440,6 +460,43 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
         }
     }
 };
+
+/** Play `card` from `seat` on the draft: trick bookkeeping + end-of-hand scoring. */
+const playCardOnDraft = (next: GameDoc, seat: Seat, card: Card): void => {
+    next.hands[seat] = next.hands[seat].filter((c) => !sameCard(c, card));
+    next.trickPlays = [...next.trickPlays, { seat, card }];
+
+    if (next.trickPlays.length < 4) {
+        next.turn = nextSeat(seat);
+        return;
+    }
+
+    // --- trick complete ---
+    const winner = winningCardSeat(next.trickPlays, next.trump);
+    const points = trickPoints(next.trickPlays);
+    const winningTeam = teamOf(winner);
+    next.completedTricks = [...next.completedTricks, {
+        leader: next.trickLeader!,
+        plays: next.trickPlays,
+        winner,
+        points,
+    }];
+    next.tricksWon[winningTeam] += 1;
+    next.pointsTaken[winningTeam] += points;
+    next.trickPlays = [];
+    next.trickLeader = winner;
+    next.turn = winner;
+
+    if (next.completedTricks.length === TRICKS_PER_HAND) {
+        scoreHand(next, winner);
+    }
+};
+
+/** Deterministic follower's card for a laydown: lowest legal, suits tie-broken in SUITS order. */
+const lowestLegalCard = (g: GameDoc, seat: Seat): Card =>
+    [...legalCards(g, seat)].sort(
+        (a, b) => a.number - b.number || SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit),
+    )[0];
 
 /** Score a finished hand (mutates the draft). `lastTrickWinner` claims the go-down. */
 const scoreHand = (g: GameDoc, lastTrickWinner: Seat): void => {
@@ -472,6 +529,9 @@ const scoreHand = (g: GameDoc, lastTrickWinner: Seat): void => {
         handScore,
         wentSet,
         goDownPoints: gdPoints,
+        bids: { ...g.bids },
+        // no spread-of-undefined: Firestore rejects undefined fields
+        ...(g.dealtHands ? { dealtHands: g.dealtHands, dealtWidow: g.dealtWidow ?? [] } : {}),
     };
     g.handHistory = [...g.handHistory, summary];
 

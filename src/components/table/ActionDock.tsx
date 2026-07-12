@@ -5,7 +5,7 @@
 // from *this* player. Renders a status line when it's someone else's move.
 
 import { Card, GameDoc, Seat, Suit, SUITS, VALID_BIDS } from '@/lib/game/types';
-import { minNextBid, mustBid } from '@/lib/game/engine';
+import { minNextBid, mustBid, isLaydown } from '@/lib/game/engine';
 import { createShuffledDeck } from '@/lib/game/deck';
 import { GameAction } from '@/lib/game/types';
 
@@ -61,23 +61,27 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
                             Everyone passed — you must bid!
                         </div>
                     )}
-                    <div className="flex gap-1.5 items-center overflow-x-auto pb-1 custom-scrollbar">
-                        <button
-                            onClick={() => onAct({ type: 'BID', seat: mySeat, bid: 'pass' })}
-                            disabled={forced}
-                            className="flex-shrink-0 px-4 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white font-orbitron text-sm"
-                        >
-                            Pass
-                        </button>
-                        {options.map((bid) => (
+                    <div className="overflow-x-auto pb-1 custom-scrollbar">
+                        {/* w-max + mx-auto: centered when the options fit
+                            (desktop), scrollable when they don't (phones) */}
+                        <div className="flex gap-1.5 items-center w-max mx-auto">
                             <button
-                                key={bid}
-                                onClick={() => onAct({ type: 'BID', seat: mySeat, bid })}
-                                className="flex-shrink-0 px-3.5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-orbitron font-bold text-sm active:scale-95 transition"
+                                onClick={() => onAct({ type: 'BID', seat: mySeat, bid: 'pass' })}
+                                disabled={forced}
+                                className="flex-shrink-0 px-4 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white font-orbitron text-sm"
                             >
-                                {bid}
+                                Pass
                             </button>
-                        ))}
+                            {options.map((bid) => (
+                                <button
+                                    key={bid}
+                                    onClick={() => onAct({ type: 'BID', seat: mySeat, bid })}
+                                    className="flex-shrink-0 px-3.5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-orbitron font-bold text-sm active:scale-95 transition"
+                                >
+                                    {bid}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             );
@@ -122,6 +126,21 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
 
         case 'playing': {
             if (!myTurn) return <Status text={`${turnName}'s turn…`} />;
+            // every card left is a lock — offer to claim the rest of the hand
+            if (isLaydown(game, mySeat)) {
+                return (
+                    <div className="flex items-center justify-center gap-3 py-1.5">
+                        <span className="text-white/90 font-orbitron text-xs sm:text-sm">All winners!</span>
+                        <button
+                            onClick={() => onAct({ type: 'LAYDOWN', seat: mySeat })}
+                            className="px-5 py-2.5 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-navy-950 font-orbitron text-sm font-bold shadow-[0_0_14px_rgba(234,179,8,0.45)] active:scale-95 transition flex items-center gap-1.5"
+                        >
+                            <span className="material-symbols-outlined text-lg">celebration</span>
+                            Lay Them Down
+                        </button>
+                    </div>
+                );
+            }
             return <Status text="Your turn — tap a card" />;
         }
 

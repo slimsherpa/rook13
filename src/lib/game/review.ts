@@ -3,7 +3,7 @@
 // the deterministic engine. The live GameDoc only keeps the current hand's
 // tricks, so this is how the family gets to argue about hand 3 afterwards.
 
-import { GameDoc, GameAction, Card, Suit, TrickRecord, HandSummary } from './types';
+import { GameDoc, GameAction, Card, Seat, Suit, TrickRecord, HandSummary } from './types';
 import { createGameDoc, applyAction } from './engine';
 
 export interface HandReview {
@@ -13,6 +13,9 @@ export interface HandReview {
     trump: Suit;
     /** bids in the order they happened this hand */
     bids: { seat: string; bid: number | 'pass' }[];
+    /** the deal as it landed (replays always have it — DEAL actions carry the deck) */
+    dealtHands?: Record<Seat, Card[]>;
+    dealtWidow?: Card[];
 }
 
 export interface GameReviewData {
@@ -63,6 +66,8 @@ export const reconstructGame = (
                 goDown: next.goDown,
                 trump: next.trump!,
                 bids,
+                dealtHands: next.dealtHands,
+                dealtWidow: next.dealtWidow,
             });
             bids = [];
         }

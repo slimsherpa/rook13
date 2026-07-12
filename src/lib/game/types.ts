@@ -61,6 +61,9 @@ export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
 /** What the lobby's bot picker offers (strongest first); legacy styles live on only in old games. */
 export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen11', 'gen10', 'gen9', 'gen8', 'gen7'];
 
+/** Every new bot starts as the hottest brain we've shipped. */
+export const DEFAULT_BOT_STYLE: BotStyle = PLAYABLE_BOT_STYLES[0];
+
 export interface SeatInfo {
     kind: 'human' | 'bot' | 'open';
     uid?: string; // for humans, the Firebase auth uid
@@ -98,6 +101,13 @@ export interface HandSummary {
     handScore: Record<Team, number>;   // what was added to the game score
     wentSet: boolean;
     goDownPoints: number;
+    // Snapshot of how the hand started (absent on games from before this
+    // was recorded): what everyone was dealt, the widow, and each seat's
+    // final word in the auction. Feeds the recap's deal view and the
+    // Trophy Case stats.
+    dealtHands?: Record<Seat, Card[]>;
+    dealtWidow?: Card[];
+    bids?: Partial<Record<Seat, number | 'pass'>>;
 }
 
 export interface GameDoc {
@@ -123,6 +133,10 @@ export interface GameDoc {
     hands: Record<Seat, Card[]>;
     widow: Card[];
     goDown: Card[];
+    /** The deal as it left the dealer's hands (before the widow pickup),
+     *  kept for the hand recap. Absent on games created before it existed. */
+    dealtHands?: Record<Seat, Card[]>;
+    dealtWidow?: Card[];
 
     // bidding
     bids: Partial<Record<Seat, number | 'pass'>>;
@@ -166,6 +180,7 @@ export type GameAction =
     | { type: 'SELECT_GODOWN'; seat: Seat; cards: Card[] }
     | { type: 'SELECT_TRUMP'; seat: Seat; suit: Suit }
     | { type: 'PLAY_CARD'; seat: Seat; card: Card }
+    | { type: 'LAYDOWN'; seat: Seat }     // every remaining card is a lock — claim the rest
     | { type: 'NEXT_HAND' };              // from hand_done -> dealing
 
 export interface LoggedAction {

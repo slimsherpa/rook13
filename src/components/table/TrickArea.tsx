@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Card, GameDoc, Seat, Suit, TrickRecord } from '@/lib/game/types';
+import { paced } from '@/lib/settings';
 import { TablePosition, positionOfSeat } from './layout';
 import { themeFor } from './theme';
 import PlayingCard from '@/components/ui/PlayingCard';
@@ -25,7 +26,7 @@ const FLIP_MS = 250;
 function TrickCard({ card, trump, highlight }: { card: Card; trump: Suit | null; highlight: boolean }) {
     const [faceUp, setFaceUp] = useState(false);
     useEffect(() => {
-        const t = setTimeout(() => setFaceUp(true), FLIP_HOLD_MS);
+        const t = setTimeout(() => setFaceUp(true), paced(FLIP_HOLD_MS));
         return () => clearTimeout(t);
     }, []);
     return (
@@ -33,7 +34,7 @@ function TrickCard({ card, trump, highlight }: { card: Card; trump: Suit | null;
             className="relative [transform-style:preserve-3d]"
             style={{
                 transform: faceUp ? 'rotateY(0deg)' : 'rotateY(180deg)',
-                transition: `transform ${FLIP_MS}ms ease-out`,
+                transition: `transform ${paced(FLIP_MS)}ms ease-out`,
             }}
         >
             <PlayingCard
@@ -99,9 +100,9 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
             const last = game.completedTricks[count - 1];
             setLingering(last);
             setSweeping(false);
-            const linger = game.phase === 'playing' ? LINGER_MS : LAST_TRICK_LINGER_MS;
+            const linger = paced(game.phase === 'playing' ? LINGER_MS : LAST_TRICK_LINGER_MS);
             const t1 = setTimeout(() => setSweeping(true), linger);
-            const t2 = setTimeout(() => { setLingering(null); setSweeping(false); }, linger + SWEEP_MS);
+            const t2 = setTimeout(() => { setLingering(null); setSweeping(false); }, linger + paced(SWEEP_MS));
             return () => { clearTimeout(t1); clearTimeout(t2); };
         }
         if (count < seenTricks.current) {
@@ -200,7 +201,7 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
                         style={{ perspective: '700px' }}
                     >
                         <div
-                            style={{ transition: `transform ${SWEEP_MS}ms ease-in, opacity ${SWEEP_MS}ms ease-in`, ...sweepStyle }}
+                            style={{ transition: `transform ${paced(SWEEP_MS)}ms ease-in, opacity ${paced(SWEEP_MS)}ms ease-in`, ...sweepStyle }}
                         >
                             <TrickCard card={card} trump={trump} highlight={winner === seat} />
                         </div>

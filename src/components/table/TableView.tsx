@@ -20,6 +20,8 @@ import GameOverOverlay from './GameOverOverlay';
 import LastTrickPanel from './LastTrickPanel';
 import PlayingCard from '@/components/ui/PlayingCard';
 import { useWatchers } from '@/lib/hooks/useWatchers';
+import { paced } from '@/lib/settings';
+import SettingsModal from './SettingsModal';
 
 interface TableViewProps {
     game: GameDoc;
@@ -28,6 +30,7 @@ interface TableViewProps {
     actionError: string | null;
 }
 
+// both run through paced(): the game-speed setting scales the theater
 const HAND_RECAP_DELAY_MS = 3000; // let the last trick sink in before the recap
 const ANNOUNCE_MS = 4500;
 
@@ -37,6 +40,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     const pos = positionsFor(bottomSeat);
     const [selectedGoDown, setSelectedGoDown] = useState<Card[]>([]);
     const [showScores, setShowScores] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
     const [showLastTrick, setShowLastTrick] = useState(false);
     const [goDownPeek, setGoDownPeek] = useState(false);
     const [showWatchers, setShowWatchers] = useState(false);
@@ -55,7 +59,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     useEffect(() => {
         if (game.phase === 'hand_done' || game.phase === 'game_over') {
             setRecapReady(false);
-            const t = setTimeout(() => setRecapReady(true), HAND_RECAP_DELAY_MS);
+            const t = setTimeout(() => setRecapReady(true), paced(HAND_RECAP_DELAY_MS));
             return () => clearTimeout(t);
         }
         setRecapReady(false);
@@ -89,7 +93,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
         announcedRef.current.add(key);
         setAnnouncement(next);
         if (announceTimer.current) clearTimeout(announceTimer.current);
-        announceTimer.current = setTimeout(() => setAnnouncement(null), ANNOUNCE_MS);
+        announceTimer.current = setTimeout(() => setAnnouncement(null), paced(ANNOUNCE_MS));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [game]);
 
@@ -179,6 +183,9 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                         <span className="text-white/40 text-xs">·</span>
                         <span className="text-orange-300 font-bold">{game.scores.B}</span>
                         <span className="material-symbols-outlined text-white/70 text-lg">receipt_long</span>
+                    </button>
+                    <button onClick={() => setShowSettings(true)} className="flex items-center text-white/70 hover:text-white" title="Settings">
+                        <span className="material-symbols-outlined text-lg">settings</span>
                     </button>
                 </div>
             </header>
@@ -359,6 +366,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                 <GameOverOverlay game={game} mySeat={mySeat} onShowScores={() => setShowScores(true)} />
             )}
             {showScores && <ScoreSheetModal game={game} onClose={() => setShowScores(false)} />}
+            {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
             {showWatchers && (
                 <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowWatchers(false)}>
                     <div className="bg-navy-950 border border-white/15 rounded-2xl p-5 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>

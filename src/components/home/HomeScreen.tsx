@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { GameDoc, teamOf, Seat, SEATS } from '@/lib/game/types';
 import { createGame, findGameByCode, listMyGames, listOpenGames } from '@/lib/firebase/gameService';
+import { subscribeMyInvites, clearInvite, InviteDoc } from '@/lib/firebase/inviteService';
 import JayCupModal from './JayCupModal';
 import RookBird from '@/components/ui/RookBird';
 
@@ -21,6 +22,13 @@ export default function HomeScreen() {
     const [openGames, setOpenGames] = useState<GameDoc[]>([]);
     const [menuOpen, setMenuOpen] = useState(false);
     const [jayCupOpen, setJayCupOpen] = useState(false);
+    const [invites, setInvites] = useState<InviteDoc[]>([]);
+
+    // live "come play" invites from other players
+    useEffect(() => {
+        if (!user) return;
+        return subscribeMyInvites(user.uid, setInvites);
+    }, [user]);
 
     useEffect(() => {
         if (!user) return;
@@ -143,7 +151,13 @@ export default function HomeScreen() {
                                         onClick={() => router.push('/profile')}
                                         className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-white/10 flex items-center gap-2"
                                     >
-                                        <span className="material-symbols-outlined text-base">person</span> My Stats
+                                        <span className="material-symbols-outlined text-base">trophy</span> Trophy Case
+                                    </button>
+                                    <button
+                                        onClick={() => router.push('/players')}
+                                        className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-white/10 flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-base">groups</span> Players
                                     </button>
                                     <button
                                         onClick={signOut}
@@ -156,6 +170,43 @@ export default function HomeScreen() {
                         )}
                     </div>
                 </div>
+
+                {/* incoming table invites — accepting is always the player's call */}
+                {invites.length > 0 && (
+                    <div className="space-y-2 mb-4">
+                        {invites.map((inv) => (
+                            <div key={inv.id} className="rounded-xl border border-yellow-500/50 bg-yellow-500/10 p-3 flex items-center gap-3 animate-card-reveal">
+                                {inv.fromPhotoURL ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={inv.fromPhotoURL} alt="" className="w-9 h-9 rounded-full border border-white/25 flex-shrink-0" referrerPolicy="no-referrer" />
+                                ) : (
+                                    <span className="w-9 h-9 rounded-full bg-navy-950 border border-white/25 flex items-center justify-center text-white font-orbitron text-sm flex-shrink-0">
+                                        {inv.fromName.charAt(0)}
+                                    </span>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-white font-orbitron text-xs truncate">
+                                        {inv.fromName.split(' ')[0]} invited you to play!
+                                    </div>
+                                    <div className="text-white/50 text-[11px]">table <span className="font-code text-yellow-400">{inv.joinCode}</span></div>
+                                </div>
+                                <button
+                                    onClick={() => { clearInvite(inv); router.push(`/game?id=${inv.gameId}`); }}
+                                    className="px-3.5 py-2 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-navy-950 text-xs font-orbitron font-bold whitespace-nowrap"
+                                >
+                                    Join
+                                </button>
+                                <button
+                                    onClick={() => clearInvite(inv)}
+                                    className="text-white/50 hover:text-white flex items-center"
+                                    title="Dismiss"
+                                >
+                                    <span className="material-symbols-outlined text-lg">close</span>
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
                 {/* primary actions */}
                 <button

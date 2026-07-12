@@ -11,7 +11,7 @@ import {
     runTransaction, setDoc, where, Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { GameDoc, GameAction, Seat } from '../game/types';
+import { GameDoc, GameAction, Seat, DEFAULT_BOT_STYLE } from '../game/types';
 import { createGameDoc, applyAction, InvalidActionError } from '../game/engine';
 
 const GAMES = 'games';
@@ -239,7 +239,7 @@ export const leaveSeat = (gameId: string, seat: Seat, uid: string) =>
     submitAction(gameId, { type: 'LEAVE_SEAT', seat, uid }, uid);
 
 export const setBot = (gameId: string, seat: Seat, byUid: string) =>
-    submitAction(gameId, { type: 'SET_BOT', seat, botStyle: 'gen8' }, byUid);
+    submitAction(gameId, { type: 'SET_BOT', seat, botStyle: DEFAULT_BOT_STYLE }, byUid);
 
 export const openSeat = (gameId: string, seat: Seat, byUid: string) =>
     submitAction(gameId, { type: 'OPEN_SEAT', seat }, byUid);

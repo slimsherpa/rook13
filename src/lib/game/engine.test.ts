@@ -4,7 +4,7 @@ import {
 } from './types';
 import { createDeck, createShuffledDeck, splitDeal, isRedealHand, isValidDeck, sortHand } from './deck';
 import {
-    createGameDoc, applyAction, validateAction, legalCards, minNextBid, mustBid,
+    createGameDoc, applyAction, validateAction, legalCards, minNextBid, mustBid, isLaydown,
     winningCardSeat, InvalidActionError, replay, bidTeamMaxPoints,
 } from './engine';
 import { nextBotAction, bestTrumpSuit, chooseGoDown } from './bots';
@@ -662,5 +662,130 @@ describe('bidTeamMaxPoints (set / maxxed detection)', () => {
         g.completedTricks = new Array(6).fill({ leader: 'B1', plays: [], winner: 'B1', points: 0 });
         g.tricksWon = { A: 1, B: 5 }; // A can finish with at most 4 tricks
         expect(bidTeamMaxPoints(g)).toBe(100 - 40); // no bonus
+    });
+});
+
+describe('deal snapshot (dealtHands / dealtWidow)', () => {
+    it('DEAL records what everyone was dealt, before the widow pickup', () => {
+        let g = startedGame();
+        const deck = blockDeck();
+        g = applyAction(g, { type: 'DEAL', deck });
+        const { hands, widow } = splitDeal(deck);
+        expect(g.dealtHands).toEqual(hands);
+        expect(g.dealtWidow).toEqual(widow);
+
+        // the pickup reshuffles live hands but not the snapshot
+        const bidder = g.turn!;
+        g = applyAction(g, { type: 'BID', seat: bidder, bid: 65 });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        expect(g.hands[bidder]).toHaveLength(13);
+        expect(g.dealtHands![bidder]).toHaveLength(9);
+        expect(g.dealtWidow).toEqual(widow);
+    });
+
+    it('the hand summary carries the deal and the auction', () => {
+        let g = startedGame();
+        g = applyAction(g, { type: 'DEAL', deck: blockDeck() });
+        const bidder = g.turn!;
+        const dealt = JSON.parse(JSON.stringify(g.dealtHands));
+        g = applyAction(g, { type: 'BID', seat: bidder, bid: 70 });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        // keep the bidder's own suit + its 14; ditch the other three 14s + the 5
+        const suit = g.dealtHands![bidder][0].suit;
+        const goDown = g.hands[bidder].filter((card) => card.suit !== suit || card.number === 5);
+        g = applyAction(g, { type: 'SELECT_GODOWN', seat: bidder, cards: goDown });
+        g = applyAction(g, { type: 'SELECT_TRUMP', seat: bidder, suit });
+        g = applyAction(g, { type: 'LAYDOWN', seat: bidder });
+
+        const h = g.handHistory[0];
+        expect(h.dealtHands).toEqual(dealt);
+        expect(h.dealtWidow).toHaveLength(4);
+        expect(h.bids![bidder]).toBe(70);
+        expect(Object.values(h.bids!).filter((b) => b === 'pass')).toHaveLength(3);
+    });
+});
+
+describe('laydown', () => {
+    /** blockDeck game where the bidder ends up holding trump 6..14 (all locks). */
+    const laydownReady = (): { g: GameDoc; bidder: Seat } => {
+        let g = startedGame();
+        g = applyAction(g, { type: 'DEAL', deck: blockDeck() });
+        const bidder = g.turn!;
+        g = applyAction(g, { type: 'BID', seat: bidder, bid: 65 });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        const suit = g.dealtHands![bidder][0].suit;
+        // go-down: the three off-suit 14s + the trump 5 → hand is trump 6..14
+        const goDown = g.hands[bidder].filter((card) => card.suit !== suit || card.number === 5);
+        expect(goDown).toHaveLength(4);
+        g = applyAction(g, { type: 'SELECT_GODOWN', seat: bidder, cards: goDown });
+        g = applyAction(g, { type: 'SELECT_TRUMP', seat: bidder, suit });
+        return { g, bidder };
+    };
+
+    it('isLaydown: true when holding only unbeatable trump', () => {
+        const { g, bidder } = laydownReady();
+        expect(g.turn).toBe(bidder); // bid winner's side leads (left of dealer = bidder here)
+        expect(isLaydown(g, bidder)).toBe(true);
+        expect(validateAction(g, { type: 'LAYDOWN', seat: bidder })).toBeNull();
+    });
+
+    it('isLaydown: false when others still hold trump against non-trump cards', () => {
+        let g = startedGame();
+        g = applyAction(g, { type: 'DEAL', deck: blockDeck() });
+        const bidder = g.turn!;
+        g = applyAction(g, { type: 'BID', seat: bidder, bid: 65 });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        // ditch the four widow 14s, then trump SOMEONE ELSE'S suit:
+        // the bidder holds 9 non-trump cards while an opponent holds all trump
+        const mySuit = g.dealtHands![bidder][0].suit;
+        const fourteens = g.hands[bidder].filter((card) => card.number === 14);
+        g = applyAction(g, { type: 'SELECT_GODOWN', seat: bidder, cards: fourteens });
+        const otherSuit = SEATS.map((s) => g.dealtHands![s][0].suit).find((s) => s !== mySuit)!;
+        g = applyAction(g, { type: 'SELECT_TRUMP', seat: bidder, suit: otherSuit });
+        expect(isLaydown(g, bidder)).toBe(false);
+        expect(validateAction(g, { type: 'LAYDOWN', seat: bidder }))
+            .toBe('Your cards are not all guaranteed winners');
+    });
+
+    it('laydown is only offered on lead', () => {
+        const { g, bidder } = laydownReady();
+        const mid = applyAction(g, { type: 'PLAY_CARD', seat: bidder, card: g.hands[bidder][0] });
+        expect(validateAction(mid, { type: 'LAYDOWN', seat: mid.turn! }))
+            .toBe('You can only lay down when leading');
+    });
+
+    it('LAYDOWN finishes the hand: 9 legal tricks, all points to the claimant', () => {
+        const { g, bidder } = laydownReady();
+        const done = applyAction(g, { type: 'LAYDOWN', seat: bidder });
+        const team = teamOf(bidder);
+        expect(done.phase === 'hand_done' || done.phase === 'game_over').toBe(true);
+        expect(done.completedTricks).toHaveLength(9);
+        expect(done.completedTricks.every((t) => t.winner === bidder)).toBe(true);
+        // every synthesized play followed suit
+        for (const trick of done.completedTricks) {
+            expect(trick.plays).toHaveLength(4);
+        }
+        const h = done.handHistory[0];
+        expect(h.tricksWon[team]).toBe(9);
+        // 95 pts in play + 5 in the go-down + 20 bonus, defenders take nothing
+        expect(h.pointsTaken[team]).toBe(120);
+        expect(h.wentSet).toBe(false);
+        // all four hands are empty
+        SEATS.forEach((s) => expect(done.hands[s]).toHaveLength(0));
+    });
+
+    it('LAYDOWN is deterministic (replay-safe)', () => {
+        const { g, bidder } = laydownReady();
+        const a = applyAction(g, { type: 'LAYDOWN', seat: bidder }, 42);
+        const b = applyAction(g, { type: 'LAYDOWN', seat: bidder }, 42);
+        expect(a).toEqual(b);
     });
 });

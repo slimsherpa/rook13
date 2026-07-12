@@ -22,8 +22,11 @@ import { nextAgentActionAsync, preloadNets } from '../alpharook/agent';
 import { overlayPending, sameAction, PendingAction } from '../game/optimistic';
 import { subscribeGame, submitAction, isExpectedRaceError, describeFirestoreError } from '../firebase/gameService';
 import { recordCompletedGame } from '../firebase/userService';
+import { paced } from '../settings';
 import { useAuth } from './useAuth';
 
+// Base pacing; every delay runs through paced() so the device's game-speed
+// setting scales the theater without touching what the bots play.
 const BOT_BASE_DELAY_MS = 1100;      // natural pacing for bot moves
 const BOT_DEAL_DELAY_MS = 1400;
 const BOT_REDEAL_PAUSE_MS = 6500;    // let the redeal celebration breathe
@@ -193,7 +196,7 @@ export const useGame = (gameId: string | null): UseGameResult => {
                 leadsNextTrick ? BOT_TRICK_LEAD_DELAY_MS :
                 BOT_BASE_DELAY_MS;
             const jitter = Math.random() * 400;
-            const delay = baseDelay + jitter + (isHost ? 0 : FALLBACK_EXTRA_MS);
+            const delay = paced(baseDelay + jitter) + (isHost ? 0 : paced(FALLBACK_EXTRA_MS));
             const expected = serverGame.actionCount;
 
             botTimer.current = setTimeout(async () => {

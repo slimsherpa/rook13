@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { GameAction, GameDoc } from '@/lib/game/types';
 import { createGameDoc, applyAction, InvalidActionError } from '@/lib/game/engine';
 import { nextAgentActionAsync, preloadNets } from '@/lib/alpharook/agent';
+import { paced } from '@/lib/settings';
 import TableView from '@/components/table/TableView';
 
 const freshGame = (spectate = false): GameDoc => {
@@ -52,7 +53,7 @@ export default function DevTablePage() {
                 action.type === 'PLAY_CARD' &&
                 game.trickPlays.length === 0 &&
                 game.completedTricks.length > 0;
-            const delay = action.type === 'ACK_REDEAL' ? 4000 : leadsNextTrick ? 3200 : 900;
+            const delay = paced(action.type === 'ACK_REDEAL' ? 4000 : leadsNextTrick ? 3200 : 900);
             t = setTimeout(() => {
                 setGame((g) => {
                     if (!g) return g;

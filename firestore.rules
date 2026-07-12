@@ -31,6 +31,16 @@ service cloud.firestore {
       }
     }
 
+    // Table invites: created by the sender, retired (accepted/declined) by
+    // either side. Doc ids are {gameId}_{toUid}, so re-invites overwrite
+    // rather than pile up.
+    match /invites/{inviteId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.resource.data.fromUid == request.auth.uid;
+      allow delete: if signedIn()
+        && (resource.data.toUid == request.auth.uid || resource.data.fromUid == request.auth.uid);
+    }
+
     // Profiles: readable by any signed-in user, writable only by the owner.
     match /users/{uid} {
       allow read: if signedIn();

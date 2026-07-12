@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GameDoc, Seat, SeatInfo, GameAction, BotStyle, BOT_STYLE_LABELS, PLAYABLE_BOT_STYLES } from '@/lib/game/types';
+import { GameDoc, Seat, SeatInfo, GameAction, BotStyle, BOT_STYLE_LABELS, PLAYABLE_BOT_STYLES, DEFAULT_BOT_STYLE } from '@/lib/game/types';
 
 interface SeatLobbyProps {
     game: GameDoc;
@@ -109,7 +109,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     )}
                     {isHost && info.kind === 'open' && (
                         <button
-                            onClick={() => act({ type: 'SET_BOT', seat, botStyle: 'gen8' })}
+                            onClick={() => act({ type: 'SET_BOT', seat, botStyle: DEFAULT_BOT_STYLE })}
                             className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-orbitron flex items-center gap-1 whitespace-nowrap"
                         >
                             <span className="material-symbols-outlined text-sm">smart_toy</span>
