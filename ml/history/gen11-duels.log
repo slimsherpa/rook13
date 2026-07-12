@@ -1,0 +1,107 @@
+=== A: play-only search K=8 prior=4 ===
+  [20/20 pairs] A 15-25 (37.5%), sweeps 2-7, 0.9s/game
+gen10.pt+search8(play,w4) vs gen10.pt — 20 deal-pairs (40 games, duplicate decks, seats swapped):
+  gen10.pt+search8(play,w4): 37.5% wins (avg diff -93.8)
+  pairs swept: gen10.pt+search8(play,w4) 2, gen10.pt 7, split 11
+  gen10.pt+search8(play,w4) auctions: won 234 contracts, made 61% at avg bid 100.8
+  gen10.pt auctions: won 217 contracts, made 68% at avg bid 100.5
+=== B: play-only search K=8 prior=0 (raw PIMC) ===
+  [20/20 pairs] A 7-33 (17.5%), sweeps 0-13, 0.8s/game
+gen10.pt+search8(play,w0) vs gen10.pt — 20 deal-pairs (40 games, duplicate decks, seats swapped):
+  gen10.pt+search8(play,w0): 17.5% wins (avg diff -260.2)
+  pairs swept: gen10.pt+search8(play,w0) 0, gen10.pt 13, split 7
+  gen10.pt+search8(play,w0) auctions: won 261 contracts, made 57% at avg bid 100.5
+  gen10.pt auctions: won 239 contracts, made 73% at avg bid 100.9
+=== C: full search (bid,trump,play) K=8 prior=4 ===
+  [20/20 pairs] A 11-29 (27.5%), sweeps 0-9, 1.6s/game
+gen10.pt+search8(bid,trump,play,w4) vs gen10.pt — 20 deal-pairs (40 games, duplicate decks, seats swapped):
+  gen10.pt+search8(bid,trump,play,w4): 27.5% wins (avg diff -271.4)
+  pairs swept: gen10.pt+search8(bid,trump,play,w4) 0, gen10.pt 9, split 11
+  gen10.pt+search8(bid,trump,play,w4) auctions: won 285 contracts, made 52% at avg bid 102.6
+  gen10.pt auctions: won 229 contracts, made 69% at avg bid 100.5
+=== D: endgame search t>=4, K=16, prior=2 ===
+gen10.pt+search16(play,w2,t4) vs gen10.pt — 20 deal-pairs (40 games, duplicate decks, seats swapped):
+  gen10.pt+search16(play,w2,t4): 60.0% wins (avg diff +46.1)
+  pairs swept: gen10.pt+search16(play,w2,t4) 5, gen10.pt 1, split 14
+  gen10.pt+search16(play,w2,t4) auctions: won 238 contracts, made 67% at avg bid 100.5
+  gen10.pt auctions: won 240 contracts, made 65% at avg bid 100.5
+=== E: endgame search t>=6, K=32, prior=1 ===
+gen10.pt+search32(play,w1,t6) vs gen10.pt — 20 deal-pairs (40 games, duplicate decks, seats swapped):
+  gen10.pt+search32(play,w1,t6): 47.5% wins (avg diff +7.8)
+  pairs swept: gen10.pt+search32(play,w1,t6) 2, gen10.pt 3, split 15
+  gen10.pt+search32(play,w1,t6) auctions: won 289 contracts, made 63% at avg bid 100.7
+  gen10.pt auctions: won 269 contracts, made 64% at avg bid 100.6
+=== F: all plays K=32 prior=4 (was K the issue?) ===
+gen10.pt+search32(play,w4,t0) vs gen10.pt — 20 deal-pairs (40 games, duplicate decks, seats swapped):
+  gen10.pt+search32(play,w4,t0): 50.0% wins (avg diff -4.8)
+  pairs swept: gen10.pt+search32(play,w4,t0) 4, gen10.pt 4, split 12
+  gen10.pt+search32(play,w4,t0) auctions: won 249 contracts, made 65% at avg bid 100.6
+  gen10.pt auctions: won 252 contracts, made 65% at avg bid 100.8
+=== G: t>=4 K=16 prior=2 (confirm D, new deals) ===
+gen10.pt+search16(play,w2,t4,i0) vs gen10.pt — 30 deal-pairs (60 games, duplicate decks, seats swapped):
+  gen10.pt+search16(play,w2,t4,i0): 53.3% wins (avg diff +37.2)
+  pairs swept: gen10.pt+search16(play,w2,t4,i0) 5, gen10.pt 3, split 22
+  gen10.pt+search16(play,w2,t4,i0) auctions: won 346 contracts, made 68% at avg bid 100.2
+  gen10.pt auctions: won 344 contracts, made 66% at avg bid 100.2
+=== H: t>=3 K=24 prior=2 ===
+gen10.pt+search24(play,w2,t3,i0) vs gen10.pt — 30 deal-pairs (60 games, duplicate decks, seats swapped):
+  gen10.pt+search24(play,w2,t3,i0): 60.0% wins (avg diff +43.0)
+  pairs swept: gen10.pt+search24(play,w2,t3,i0) 7, gen10.pt 1, split 22
+  gen10.pt+search24(play,w2,t3,i0) auctions: won 354 contracts, made 69% at avg bid 100.2
+  gen10.pt auctions: won 336 contracts, made 66% at avg bid 100.3
+=== I: t>=4 K=16 prior=2 infer=0.05 ===
+gen10.pt+search16(play,w2,t4,i0.05) vs gen10.pt — 30 deal-pairs (60 games, duplicate decks, seats swapped):
+  gen10.pt+search16(play,w2,t4,i0.05): 50.0% wins (avg diff +36.8)
+  pairs swept: gen10.pt+search16(play,w2,t4,i0.05) 4, gen10.pt 4, split 22
+  gen10.pt+search16(play,w2,t4,i0.05) auctions: won 355 contracts, made 66% at avg bid 100.3
+  gen10.pt auctions: won 356 contracts, made 64% at avg bid 100.3
+=== J: all plays K=16 prior=2 infer=0.05 ===
+gen10.pt+search16(play,w2,t0,i0.05) vs gen10.pt — 30 deal-pairs (60 games, duplicate decks, seats swapped):
+  gen10.pt+search16(play,w2,t0,i0.05): 40.0% wins (avg diff -77.4)
+  pairs swept: gen10.pt+search16(play,w2,t0,i0.05) 1, gen10.pt 7, split 22
+  gen10.pt+search16(play,w2,t0,i0.05) auctions: won 338 contracts, made 62% at avg bid 100.1
+  gen10.pt auctions: won 331 contracts, made 67% at avg bid 100.3
+=== K: t>=2 K=32 prior=2 ===
+gen10.pt+search32(play,w2,t2,i0) vs gen10.pt — 30 deal-pairs (60 games, duplicate decks, seats swapped):
+  gen10.pt+search32(play,w2,t2,i0): 53.3% wins (avg diff +9.1)
+  pairs swept: gen10.pt+search32(play,w2,t2,i0) 3, gen10.pt 1, split 26
+  gen10.pt+search32(play,w2,t2,i0) auctions: won 343 contracts, made 66% at avg bid 100.6
+  gen10.pt auctions: won 327 contracts, made 66% at avg bid 100.6
+=== L: t>=3 K=24 prior=2 + trump search ===
+gen10.pt+search24(trump,play,w2,t3,i0) vs gen10.pt — 30 deal-pairs (60 games, duplicate decks, seats swapped):
+  gen10.pt+search24(trump,play,w2,t3,i0): 56.7% wins (avg diff +33.6)
+  pairs swept: gen10.pt+search24(trump,play,w2,t3,i0) 6, gen10.pt 2, split 22
+  gen10.pt+search24(trump,play,w2,t3,i0) auctions: won 349 contracts, made 66% at avg bid 100.3
+  gen10.pt auctions: won 361 contracts, made 63% at avg bid 100.5
+=== M: t>=3 K=24 prior=2 infer=0.2 ===
+gen10.pt+search24(play,w2,t3,i0.2) vs gen10.pt — 30 deal-pairs (60 games, duplicate decks, seats swapped):
+  gen10.pt+search24(play,w2,t3,i0.2): 50.0% wins (avg diff -2.9)
+  pairs swept: gen10.pt+search24(play,w2,t3,i0.2) 3, gen10.pt 3, split 24
+  gen10.pt+search24(play,w2,t3,i0.2) auctions: won 340 contracts, made 66% at avg bid 100.4
+  gen10.pt auctions: won 322 contracts, made 68% at avg bid 100.6
+=== N: t>=3 K=32 prior=3 ===
+gen10.pt+search32(play,w3,t3,i0) vs gen10.pt — 30 deal-pairs (60 games, duplicate decks, seats swapped):
+  gen10.pt+search32(play,w3,t3,i0): 58.3% wins (avg diff +37.2)
+  pairs swept: gen10.pt+search32(play,w3,t3,i0) 6, gen10.pt 1, split 23
+  gen10.pt+search32(play,w3,t3,i0) auctions: won 339 contracts, made 66% at avg bid 100.4
+  gen10.pt auctions: won 317 contracts, made 64% at avg bid 100.6
+=== PROMOTION: gen11 (t>=3 K=24 prior=2) vs gen10, 150 pairs ===
+  [145/150 pairs] A 156-134 (53.8%), sweeps 22-11, 0.6s/game
+  [150/150 pairs] A 160-140 (53.3%), sweeps 23-13, 0.6s/game
+gen10.pt+search24(play,w2,t3,i0) vs gen10.pt — 150 deal-pairs (300 games, duplicate decks, seats swapped):
+  gen10.pt+search24(play,w2,t3,i0): 53.3% wins (avg diff +30.5)
+  pairs swept: gen10.pt+search24(play,w2,t3,i0) 23, gen10.pt 13, split 114
+  gen10.pt+search24(play,w2,t3,i0) auctions: won 1783 contracts, made 67% at avg bid 100.3
+  gen10.pt auctions: won 1811 contracts, made 65% at avg bid 100.3
+=== MARATHON: gen11 vs gen10, 40 pairs at win-score 2000 ===
+  [35/40 pairs] A 45-25 (64.3%), sweeps 11-1, 3.1s/game
+  [40/40 pairs] A 52-28 (65.0%), sweeps 13-1, 3.0s/game
+gen10.pt+search24(play,w2,t3,i0) vs gen10.pt — 40 deal-pairs (80 games, duplicate decks, seats swapped):
+  gen10.pt+search24(play,w2,t3,i0): 65.0% wins (avg diff +286.8)
+  pairs swept: gen10.pt+search24(play,w2,t3,i0) 13, gen10.pt 1, split 26
+  gen10.pt+search24(play,w2,t3,i0) auctions: won 2299 contracts, made 66% at avg bid 100.8
+  gen10.pt auctions: won 2397 contracts, made 62% at avg bid 100.8
+=== ARENA: gen11 vs Standard, 200 games ===
+vs basic: 94.5% over 200 games (avg score diff +416.2, avg hands 9.2)
+  holding the contract: 1183 hands, made 82% at avg bid 98.2
+  defending: 661 hands, set them 52%, stole 26 pts/hand

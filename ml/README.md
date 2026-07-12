@@ -76,6 +76,7 @@ single process, CPU. (`--device mps` is available but small batches favor CPU.)
 | gen8 | champion-ladder vs frozen gen7 | beats gen7 **63/37** over 300 duplicate-deck games (87.5% vs Standard) — frozen as `models/gen8` |
 | gen9 | first FULLY neural (trump-intent go-down; script none) | beats gen8 **57.5/42.5** over 400 games; 94% vs Standard — frozen as `models/gen9` |
 | gen10 | ladder vs frozen gen9, 35k iters | beats gen9 **55/45** over 300 games; 94.5% vs Standard; beats gen7 66/34 (78/22 at marathon rules) — frozen as `models/gen10`, the reigning champion |
+| gen11 | **search + learning**: gen10 inside PIMC (play search from trick 3, K=24 worlds, Q-prior 2) | beats gen10 53.3% over 300 sprint games — and **65.0% (+287, sweeps 13–1) over 80 marathon games**, the most lopsided rung yet once luck compresses; 94.5% vs Standard (saturated). No new weights: gen11 = gen10 × calculation |
 
 League (2026-07-10, 300 duplicate-deck games per pairing): every newer gen
 beats every older gen — no rock-paper-scissors, margins stack in order.
@@ -84,10 +85,50 @@ Marathon games (`duel.py --win-score 2000`, Riley's idea) compress card luck
 
 Lifetime training totals (gen1-gen10): **~19.5M full games, ~253M hands,
 ~8.3B decisions, ~2.3B tricks, ~9.1B cards** (+~42k celebrated redeals at
-the analytic 1-in-5,976 rate). Ladder margins narrow as generations absorb
-their teachers (63 → 57.5 → 55): the 660k-param reflex MLP is approaching
-its ceiling — the next qualitative jump is search + learning (net inside
-PIMC), not another rung.
+the analytic 1-in-5,976 rate). Ladder margins narrowed as generations
+absorbed their teachers (63 → 57.5 → 55) — so gen11 changed the axis:
+instead of another rung of the same MLP, it multiplies the frozen champion
+by look-ahead (`alpharook/search.py`, 2026-07-11).
+
+## gen11: what worked and what didn't (the search notebook)
+
+Raw PIMC with net rollouts LOSES — badly. K=8 search on everything went
+5% vs pure gen10 by over-bidding (winner's curse: argmax over K noisy
+rollout means picks the highest-VARIANCE action, and nothing is higher
+variance than a big bid); K=8 on card play alone still lost 17.5%. Three
+findings turned it around:
+
+1. **Q-prior shrinkage** — score candidates by
+   `(rollout_sum + w·Q) / (K + w)`: the champion's calibrated instinct
+   counts as w pseudo-rollouts, so search only overrides the reflex when
+   the look-ahead evidence is real (17.5% → 37.5% at K=8).
+2. **The endgame gate is the unlock** — search only pays from ~trick 3 on,
+   where voids and played cards pin the hidden hands down and imagined
+   worlds are nearly exact. Early diffuse tricks belong to the reflex net:
+   uniform world-sampling throws away the bid-inference the net learned
+   implicitly ("she bid 105, she has trump"), and even K=32 full-hand
+   search only breaks even (50%) while t≥3 search wins every config tried
+   (60 / 58.3 / 56.7 / 53.3%).
+3. **Likelihood-weighted worlds didn't help (yet)** — weighting each world
+   by how plausibly the net would have made the observed plays inside it
+   (`--infer` softmax temperature) was a wash at τ=0.05 and τ=0.2. The
+   machinery stays in `search.py`, default off; smarter inference (bias
+   the SAMPLER, not the weights) is future work.
+
+Reproduce:
+
+```bash
+python -m alpharook.duel --a models/gen10.pt --worlds-a 24 --search-a play \
+    --prior-a 2 --min-trick-a 3 --b models/gen10.pt \
+    --script-a none --script-b none --pairs 150 --workers 7
+python -m alpharook.arena --ckpt models/gen10.pt --worlds 24 --search play \
+    --prior 2 --min-trick 3 --games 200
+```
+
+gen11 is Python-side only for now (~0.6s/game in 7-worker duels, ~100ms
+per searched decision single-core); shipping it to the browser needs a TS
+port of determinize + materialize + the lockstep rollout loop and a
+per-move latency budget call.
 
 Lessons encoded in the code: league mixing (`--opponent-mix`), per-hand
 reward blending, curriculum staging (`--script openings|bid|none`),
@@ -108,10 +149,14 @@ per-decision-type exploration (`--bid-eps`).
   decision-for-decision (incl. gen9+'s widow flow and the deterministic
   trump-intent re-derivation). Freezing a new champion = add it to
   FULLY_NEURAL (if applicable) + re-run export_web.py + wire the BotStyle.
-- NEXT: search + learning — the champion net as PIMC's rollout/eval policy
-  (instinct × look-ahead, the AlphaZero recipe); duel it vs the pure net
-- maybe: marathon-trained variant (win_score 2000 in training, not just
-  evals) to see if a "grinder" personality emerges
+- ~~search + learning~~ — **done (gen11)**: the champion net as PIMC's
+  rollout/eval policy beats the pure net 65/35 at marathon rules; see the
+  search notebook above
+- NEXT: close the AlphaZero loop — generate training data with gen11's
+  searched play as the target/opponent and distill the calculation back
+  into reflex weights (gen12); TensorBoard via the existing train.py path
+- maybe: ship gen11 to the browser (TS port of search.py); learned world
+  INFERENCE in the sampler; marathon-trained "grinder" variant
 - the real eval set: the family, at the JAY CUP
 
 ## Promotion protocol (for future generations)
