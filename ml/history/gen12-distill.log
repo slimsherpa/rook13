@@ -1,0 +1,153 @@
+=== PHASE 1: generate search-labeled games (Sat Jul 11 22:56:24 MDT 2026) ===
+generated: 5005 games, 57925 hands, 3318978 search rows + 8185621 anchor rows in 1.40h
+=== PHASE 2: distill into reflex weights (Sun Jul 12 00:20:29 MDT 2026) ===
+epoch 0: loss 0.00681 (22572 steps)
+  [epoch 0] duel vs models/gen10.pt: 48.0%
+epoch 1: loss 0.00502 (45144 steps)
+  [epoch 1] duel vs models/gen10.pt: 52.0%
+epoch 2: loss 0.00458 (67716 steps)
+  [epoch 2] duel vs models/gen10.pt: 54.0%
+distilled.pt saved; best epoch duel 54.0%
+=== PHASE 3: DMC champion ladder from distilled start (Sun Jul 12 00:25:47 MDT 2026) ===
+  duel vs champion: 52.5% — new best banked
+  duel vs champion: 30.0%
+  duel vs champion: 47.5%
+  duel vs champion: 45.0%
+  duel vs champion: 45.0%
+  duel vs champion: 40.0%
+  duel vs champion: 47.5%
+  duel vs champion: 45.0%
+  duel vs champion: 47.5%
+  duel vs champion: 30.0%
+  duel vs champion: 50.0%
+  duel vs champion: 30.0%
+  duel vs champion: 35.0%
+  duel vs champion: 42.5%
+  duel vs champion: 52.5%
+  duel vs champion: 45.0%
+  duel vs champion: 55.0% — new best banked
+  duel vs champion: 37.5%
+  duel vs champion: 52.5%
+  duel vs champion: 32.5%
+  duel vs champion: 42.5%
+  duel vs champion: 40.0%
+  duel vs champion: 45.0%
+  duel vs champion: 52.5%
+  duel vs champion: 55.0%
+  duel vs champion: 52.5%
+  duel vs champion: 57.5% — new best banked
+  duel vs champion: 52.5%
+  duel vs champion: 42.5%
+  duel vs champion: 45.0%
+  duel vs champion: 37.5%
+  duel vs champion: 57.5%
+  duel vs champion: 35.0%
+  duel vs champion: 57.5%
+  duel vs champion: 37.5%
+  duel vs champion: 40.0%
+  duel vs champion: 52.5%
+  duel vs champion: 45.0%
+  duel vs champion: 32.5%
+  duel vs champion: 52.5%
+  duel vs champion: 60.0% — new best banked
+  duel vs champion: 42.5%
+  duel vs champion: 32.5%
+  duel vs champion: 42.5%
+  duel vs champion: 45.0%
+  duel vs champion: 50.0%
+  duel vs champion: 55.0%
+  duel vs champion: 45.0%
+  duel vs champion: 60.0%
+  duel vs champion: 50.0%
+  duel vs champion: 55.0%
+  duel vs champion: 50.0%
+  duel vs champion: 60.0%
+  duel vs champion: 45.0%
+  duel vs champion: 55.0%
+  duel vs champion: 47.5%
+  duel vs champion: 55.0%
+  duel vs champion: 62.5% — new best banked
+  duel vs champion: 42.5%
+  duel vs champion: 45.0%
+  duel vs champion: 42.5%
+  duel vs champion: 45.0%
+  duel vs champion: 42.5%
+  duel vs champion: 35.0%
+  duel vs champion: 50.0%
+  duel vs champion: 40.0%
+  duel vs champion: 67.5% — new best banked
+  duel vs champion: 60.0%
+  duel vs champion: 52.5%
+  duel vs champion: 50.0%
+  duel vs champion: 52.5%
+  duel vs champion: 57.5%
+  duel vs champion: 52.5%
+  duel vs champion: 57.5%
+  duel vs champion: 40.0%
+  duel vs champion: 52.5%
+  duel vs champion: 47.5%
+  duel vs champion: 42.5%
+  duel vs champion: 40.0%
+  duel vs champion: 50.0%
+=== PHASE 4: morning promotion duels (Sun Jul 12 05:45:32 MDT 2026) ===
+latest.pt vs gen10.pt — 100 deal-pairs (200 games, duplicate decks, seats swapped):
+  latest.pt: 46.0% wins (avg diff -45.5)
+  pairs swept: latest.pt 19, gen10.pt 27, split 54
+  latest.pt auctions: won 1379 contracts, made 64% at avg bid 101.0
+  gen10.pt auctions: won 1052 contracts, made 68% at avg bid 101.1
+best_duel.pt vs gen10.pt — 100 deal-pairs (200 games, duplicate decks, seats swapped):
+  best_duel.pt: 45.5% wins (avg diff -4.1)
+  pairs swept: best_duel.pt 13, gen10.pt 22, split 65
+  best_duel.pt auctions: won 987 contracts, made 69% at avg bid 99.4
+  gen10.pt auctions: won 1387 contracts, made 66% at avg bid 100.4
+distilled.pt vs gen10.pt — 100 deal-pairs (200 games, duplicate decks, seats swapped):
+  distilled.pt: 54.0% wins (avg diff +23.4)
+  pairs swept: distilled.pt 23, gen10.pt 15, split 62
+  distilled.pt auctions: won 1189 contracts, made 67% at avg bid 100.3
+  gen10.pt auctions: won 1181 contracts, made 66% at avg bid 100.6
+latest.pt+search24(play,w2,t3,i0) vs gen10.pt+search24(play,w2,t3,i0) — 30 deal-pairs (60 games, duplicate decks, seats swapped):
+  latest.pt+search24(play,w2,t3,i0): 48.3% wins (avg diff -26.6)
+  pairs swept: latest.pt+search24(play,w2,t3,i0) 5, gen10.pt+search24(play,w2,t3,i0) 6, split 19
+  latest.pt+search24(play,w2,t3,i0) auctions: won 370 contracts, made 66% at avg bid 100.9
+  gen10.pt+search24(play,w2,t3,i0) auctions: won 304 contracts, made 70% at avg bid 100.9
+=== PIPELINE DONE (Sun Jul 12 05:47:06 MDT 2026) ===
+
+=== MARATHON: distilled vs gen10, 40 pairs at 2000 ===
+distilled.pt vs gen10.pt — 40 deal-pairs (80 games, duplicate decks, seats swapped):
+  distilled.pt: 47.5% wins (avg diff -55.5)
+  pairs swept: distilled.pt 6, gen10.pt 8, split 26
+  distilled.pt auctions: won 2374 contracts, made 63% at avg bid 100.8
+  gen10.pt auctions: won 2396 contracts, made 64% at avg bid 100.9
+=== SPRINT CONFIRM: distilled vs gen10, 50 fresh pairs ===
+distilled.pt vs gen10.pt — 50 deal-pairs (100 games, duplicate decks, seats swapped):
+  distilled.pt: 49.0% wins (avg diff -4.5)
+  pairs swept: distilled.pt 7, gen10.pt 8, split 35
+  distilled.pt auctions: won 611 contracts, made 66% at avg bid 100.6
+  gen10.pt auctions: won 594 contracts, made 67% at avg bid 100.6
+=== GEN13 TEASER: distilled x search vs gen10 x search, 30 pairs ===
+distilled.pt+search24(play,w2,t3,i0) vs gen10.pt+search24(play,w2,t3,i0) — 30 deal-pairs (60 games, duplicate decks, seats swapped):
+  distilled.pt+search24(play,w2,t3,i0): 45.0% wins (avg diff -25.8)
+  pairs swept: distilled.pt+search24(play,w2,t3,i0) 2, gen10.pt+search24(play,w2,t3,i0) 5, split 23
+  distilled.pt+search24(play,w2,t3,i0) auctions: won 342 contracts, made 66% at avg bid 100.6
+  gen10.pt+search24(play,w2,t3,i0) auctions: won 352 contracts, made 68% at avg bid 100.5
+=== DISTILL search-rows-only, 5 epochs ===
+epoch 0: loss 0.01079 (6571 steps)
+  [epoch 0] duel vs models/gen10.pt: 30.0%
+epoch 1: loss 0.00833 (13142 steps)
+  [epoch 1] duel vs models/gen10.pt: 36.0%
+epoch 2: loss 0.00762 (19713 steps)
+  [epoch 2] duel vs models/gen10.pt: 26.0%
+epoch 3: loss 0.00717 (26284 steps)
+  [epoch 3] duel vs models/gen10.pt: 30.0%
+epoch 4: loss 0.00684 (32855 steps)
+  [epoch 4] duel vs models/gen10.pt: 28.0%
+distilled.pt saved; best epoch duel 36.0%
+=== CONFIRM: noanchor_best vs gen10, 50 pairs + 30 marathon pairs ===
+  distilled_noanchor_best.pt: 28.0% wins (avg diff -145.0)
+  pairs swept: distilled_noanchor_best.pt 4, gen10.pt 26, split 20
+  distilled_noanchor_best.pt auctions: won 153 contracts, made 76% at avg bid 99.6
+  gen10.pt auctions: won 911 contracts, made 69% at avg bid 96.7
+  distilled_noanchor_best.pt: 23.3% wins (avg diff -502.9)
+  pairs swept: distilled_noanchor_best.pt 2, gen10.pt 18, split 10
+  distilled_noanchor_best.pt auctions: won 486 contracts, made 74% at avg bid 100.2
+  gen10.pt auctions: won 2624 contracts, made 67% at avg bid 97.5

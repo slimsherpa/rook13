@@ -77,6 +77,7 @@ single process, CPU. (`--device mps` is available but small batches favor CPU.)
 | gen9 | first FULLY neural (trump-intent go-down; script none) | beats gen8 **57.5/42.5** over 400 games; 94% vs Standard — frozen as `models/gen9` |
 | gen10 | ladder vs frozen gen9, 35k iters | beats gen9 **55/45** over 300 games; 94.5% vs Standard; beats gen7 66/34 (78/22 at marathon rules) — frozen as `models/gen10`, the reigning champion |
 | gen11 | **search + learning**: gen10 inside PIMC (play search from trick 3, K=24 worlds, Q-prior 2) | beats gen10 53.3% over 300 sprint games — and **65.0% (+287, sweeps 13–1) over 80 marathon games**, the most lopsided rung yet once luck compresses; 94.5% vs Standard (saturated). No new weights: gen11 = gen10 × calculation |
+| gen12 (attempt) | distill gen11's searched play back into reflex weights (5k games, 3.3M search rows + 8.2M anchor rows, weighted-MSE from gen10) | **parity, not a rung**: 51.5% pooled sprint / 47.5% marathon vs gen10 at confirmation scale. Anchor-free ablation collapses to 28% (bid head drifts pass-ive without anchors); DMC on top of distillation rescales the edge away (46%). The loop machinery works — the signal needs ~10x more games or search-on-everything targets. gen11 remains champion |
 
 League (2026-07-10, 300 duplicate-deck games per pairing): every newer gen
 beats every older gen — no rock-paper-scissors, margins stack in order.
@@ -152,9 +153,15 @@ per-decision-type exploration (`--bid-eps`).
 - ~~search + learning~~ — **done (gen11)**: the champion net as PIMC's
   rollout/eval policy beats the pure net 65/35 at marathon rules; see the
   search notebook above
-- NEXT: close the AlphaZero loop — generate training data with gen11's
-  searched play as the target/opponent and distill the calculation back
-  into reflex weights (gen12); TensorBoard via the existing train.py path
+- AlphaZero loop, first pass (2026-07-12 overnight): `distill.py` — TRIED,
+  parity. What the night taught: (1) 20-pair duel banking reads 15+ points
+  hot (a 67.5% bank confirmed at 45.5%) — trust NOTHING under 100 pairs +
+  a marathon; (2) anchor rows are load-bearing: without them the bid head
+  drifts passive and the student collapses; (3) outcome-target DMC after
+  value-distillation RESCALES the distilled signal away (gen6's BC lesson
+  in new clothing). Next attempt needs 50k+ generated games (overnight
+  generation-only run), search on all tricks for the targets, or repeated
+  short distill cycles
 - maybe: ship gen11 to the browser (TS port of search.py); learned world
   INFERENCE in the sampler; marathon-trained "grinder" variant
 - the real eval set: the family, at the JAY CUP
