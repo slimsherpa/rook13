@@ -21,8 +21,9 @@ import { validateAction } from '../game/engine';
 import { nextAgentActionAsync, preloadNets } from '../alpharook/agent';
 import { overlayPending, sameAction, PendingAction } from '../game/optimistic';
 import { subscribeGame, submitAction, isExpectedRaceError, describeFirestoreError } from '../firebase/gameService';
-import { recordCompletedGame } from '../firebase/userService';
+import { recordGameStats } from '../firebase/userService';
 import { paced } from '../settings';
+import { useTableHold } from '../tableHold';
 import { useAuth } from './useAuth';
 
 // Base pacing; every delay runs through paced() so the device's game-speed
@@ -167,6 +168,8 @@ export const useGame = (gameId: string | null): UseGameResult => {
     }, [gameId, user]);
 
     // ---- bot runner (always off confirmed server state) ----
+    // manual table pace: while this device holds the table, its bots wait too
+    const tableHeld = useTableHold();
     useEffect(() => {
         if (botTimer.current) {
             clearTimeout(botTimer.current);
@@ -174,6 +177,7 @@ export const useGame = (gameId: string | null): UseGameResult => {
         }
         if (!serverGame || !gameId || !user || serverGame.status !== 'active') return;
         if (!mySeat && !isHost) return; // spectators never drive bots
+        if (tableHeld) return; // the player is counting — resume on release
 
         // warm the neural-bot weight cache so the first bid doesn't wait on it
         preloadNets(serverGame);
@@ -212,15 +216,20 @@ export const useGame = (gameId: string | null): UseGameResult => {
             cancelled = true;
             if (botTimer.current) clearTimeout(botTimer.current);
         };
-    }, [serverGame, gameId, user, mySeat, isHost]);
+    }, [serverGame, gameId, user, mySeat, isHost, tableHeld]);
 
-    // ---- stats recording on completion (confirmed state only) ----
-    const recordedRef = useRef(false);
+    // ---- stats recording (confirmed state only) ----
+    // Runs at every hand end AND at completion; recordGameStats is idempotent
+    // (the history doc tracks how many hands are already counted), so the
+    // Trophy Case fills up live while the game is still going.
+    const recordedKeyRef = useRef('');
     useEffect(() => {
-        if (!serverGame || serverGame.status !== 'completed' || recordedRef.current) return;
-        if (!mySeat || !user) return; // only participants record
-        recordedRef.current = true;
-        recordCompletedGame(serverGame, user.uid).catch(() => {});
+        if (!serverGame || !mySeat || !user) return; // only participants record
+        if (serverGame.handHistory.length === 0) return;
+        const key = `${serverGame.handHistory.length}:${serverGame.status}`;
+        if (recordedKeyRef.current === key) return;
+        recordedKeyRef.current = key;
+        recordGameStats(serverGame, user.uid).catch(() => {});
     }, [serverGame, mySeat, user]);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps

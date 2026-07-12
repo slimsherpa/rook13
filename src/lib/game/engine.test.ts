@@ -789,3 +789,43 @@ describe('laydown', () => {
         expect(a).toEqual(b);
     });
 });
+
+describe('bid log (the auction blow-by-blow)', () => {
+    it('records every bid in order and lands in the hand summary', () => {
+        let g = startedGame();
+        g = applyAction(g, { type: 'DEAL', deck: blockDeck() });
+        const first = g.turn!;
+        g = applyAction(g, { type: 'BID', seat: first, bid: 65 });
+        const second = g.turn!;
+        g = applyAction(g, { type: 'BID', seat: second, bid: 70 });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        // back to the opener, who raises, then the raiser passes
+        expect(g.turn).toBe(first);
+        g = applyAction(g, { type: 'BID', seat: first, bid: 75 });
+        g = applyAction(g, { type: 'BID', seat: second, bid: 'pass' });
+
+        expect(g.bidWinner).toBe(first);
+        expect(g.bidLog).toEqual([
+            { seat: first, bid: 65 },
+            { seat: second, bid: 70 },
+            { seat: g.bidLog![2].seat, bid: 'pass' },
+            { seat: g.bidLog![3].seat, bid: 'pass' },
+            { seat: first, bid: 75 },
+            { seat: second, bid: 'pass' },
+        ]);
+
+        // play it out and check the summary carries the log
+        const suit = g.dealtHands![first][0].suit;
+        const goDown = g.hands[first].filter((card) => card.suit !== suit || card.number === 5);
+        g = applyAction(g, { type: 'SELECT_GODOWN', seat: first, cards: goDown });
+        g = applyAction(g, { type: 'SELECT_TRUMP', seat: first, suit });
+        g = applyAction(g, { type: 'LAYDOWN', seat: first });
+        expect(g.handHistory[0].bidLog).toHaveLength(6);
+        expect(g.handHistory[0].bidLog![4]).toEqual({ seat: first, bid: 75 });
+
+        // and NEXT_HAND clears the live log
+        g = applyAction(g, { type: 'NEXT_HAND' });
+        expect(g.bidLog).toEqual([]);
+    });
+});

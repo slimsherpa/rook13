@@ -21,7 +21,8 @@ import LastTrickPanel from './LastTrickPanel';
 import PlayingCard from '@/components/ui/PlayingCard';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
 import { useWatchers } from '@/lib/hooks/useWatchers';
-import { paced } from '@/lib/settings';
+import { paced, useTablePace } from '@/lib/settings';
+import { armTableHold, releaseTableHold, useTableHold } from '@/lib/tableHold';
 import SettingsModal from './SettingsModal';
 
 interface TableViewProps {
@@ -54,17 +55,43 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
         if (game.phase !== 'playing') setGoDownPeek(false);
     }, [game.phase]);
 
+    // ---- manual table pace: hold the theater while the player counts ----
+    const [pace] = useTablePace();
+    const held = useTableHold();
+
+    // a finished trick arms the hold (manual mode only)
+    const seenTrickCount = useRef(game.completedTricks.length);
+    useEffect(() => {
+        const count = game.completedTricks.length;
+        if (count > seenTrickCount.current && pace === 'manual' && game.status === 'active') {
+            armTableHold();
+        }
+        seenTrickCount.current = count;
+    }, [game.completedTricks.length, pace, game.status]);
+
+    // …and ANY new play (yours or anyone's), a hand advancing, or switching
+    // back to auto releases it — a manual device can never gridlock a table
+    useEffect(() => {
+        if (pace === 'auto' || game.trickPlays.length > 0 || game.phase === 'dealing' || game.phase === 'bidding') {
+            releaseTableHold();
+        }
+    }, [pace, game.trickPlays.length, game.phase]);
+    useEffect(() => () => releaseTableHold(), []); // leaving the table
+
     // hold the hand recap / game over screens back a beat so everyone can see
-    // how the last trick landed
+    // how the last trick landed; in manual mode they wait for the advance tap
     const [recapReady, setRecapReady] = useState(false);
     useEffect(() => {
         if (game.phase === 'hand_done' || game.phase === 'game_over') {
             setRecapReady(false);
-            const t = setTimeout(() => setRecapReady(true), paced(HAND_RECAP_DELAY_MS));
+            if (held) return; // manual: the floating button releases us
+            // after a manual hold the player has already counted — short beat only
+            const delay = pace === 'manual' ? 400 : paced(HAND_RECAP_DELAY_MS);
+            const t = setTimeout(() => setRecapReady(true), delay);
             return () => clearTimeout(t);
         }
         setRecapReady(false);
-    }, [game.phase]);
+    }, [game.phase, held, pace]);
 
     const teamLabel = (t: Team) =>
         t === 'A'
@@ -326,6 +353,17 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                         </div>
                     )}
                 </div>
+
+                {/* manual pace: the finished trick is waiting on you */}
+                {held && game.status === 'active' && (
+                    <button
+                        onClick={releaseTableHold}
+                        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-full bg-yellow-400 hover:bg-yellow-300 text-navy-950 font-orbitron text-sm font-bold shadow-[0_0_18px_rgba(234,179,8,0.45)] active:scale-95 transition flex items-center gap-1.5 animate-card-reveal"
+                    >
+                        {game.phase === 'playing' ? 'Next trick' : 'Show recap'}
+                        <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                    </button>
+                )}
 
                 {/* my badge floats above my hand on larger screens; on phones the
                     hand is identity enough. Spectators have no hand, so they get

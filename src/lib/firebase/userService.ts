@@ -4,30 +4,10 @@
 import { collection, doc, getDoc, getDocs, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { db } from './firebase';
-import { GameDoc, Seat, SEATS, getCardPoints, teamOf } from '../game/types';
+import { GameDoc, Seat, SEATS, teamOf } from '../game/types';
+import { UserStats, emptyStats, applyHandStats, applyGameFinalStats } from '../game/stats';
 
-export interface UserStats {
-    gamesPlayed: number;
-    gamesWon: number;
-    handsPlayed: number;
-    bidsWon: number;
-    bidsMade: number;   // bids won that weren't set — the "made its"
-    timesSet: number;
-    redealsWitnessed: number;
-    highestBidMade: number;
-    // Trophy-case extras. Older profiles simply lack them (merged over
-    // emptyStats() on every update), and hand-deal stats only accrue from
-    // games recorded after HandSummary started carrying dealtHands.
-    highestBid: number;                    // highest auction won, made or set
-    setsDefended: number;                  // opposing bidder went set on your watch
-    maxHandPoints: number;                 // most count dealt in one hand (4 tens + a 5 = 45!)
-    zeroCountHands: number;                // dealt a hand with zero count
-    longestSuit: number;                   // most cards of one suit in a deal
-    rainbowCounts: Record<string, number>; // '14' -> times dealt all four 14s
-    madeByBid: Record<string, number>;     // '100' -> times you bid 100 and made it
-    sweeps: number;                        // hands where your team took all 9 tricks
-    pointsCaptured: number;                // lifetime card points your team banked
-}
+export type { UserStats } from '../game/stats';
 
 export interface UserProfile {
     uid: string;
@@ -44,26 +24,6 @@ export interface UserProfile {
      */
     jayCupYears?: number[];
 }
-
-const emptyStats = (): UserStats => ({
-    gamesPlayed: 0,
-    gamesWon: 0,
-    handsPlayed: 0,
-    bidsWon: 0,
-    bidsMade: 0,
-    timesSet: 0,
-    redealsWitnessed: 0,
-    highestBidMade: 0,
-    highestBid: 0,
-    setsDefended: 0,
-    maxHandPoints: 0,
-    zeroCountHands: 0,
-    longestSuit: 0,
-    rainbowCounts: {},
-    madeByBid: {},
-    sweeps: 0,
-    pointsCaptured: 0,
-});
 
 const userRef = (uid: string) => doc(db, 'users', uid);
 
@@ -103,13 +63,20 @@ export const listPlayers = async (): Promise<UserProfile[]> => {
 };
 
 /**
- * Record a completed game into the signed-in player's own stats. Idempotent:
- * the per-game history doc acts as the "already recorded" marker. Each client
- * records only itself, so security rules can stay owner-only; players who
- * were offline at the finish get recorded next time they open the game.
+ * Fold a game's finished hands into the signed-in player's lifetime stats —
+ * incrementally, as they happen, so the Trophy Case updates mid-game instead
+ * of waiting for the final whistle. Idempotent and safe to call on every
+ * snapshot: the per-game history doc tracks `handsRecorded` (and `final`), so
+ * each hand is counted exactly once no matter how many times or from how many
+ * devices this runs. Each client records only itself, keeping the security
+ * rules owner-only; players offline at the finish catch up next time they
+ * open the game.
+ *
+ * History docs written by the pre-incremental code have no `handsRecorded`
+ * field — those games were recorded whole, so they're left alone.
  */
-export const recordCompletedGame = async (game: GameDoc, uid: string): Promise<void> => {
-    if (game.status !== 'completed' || !game.winner) return;
+export const recordGameStats = async (game: GameDoc, uid: string): Promise<void> => {
+    if (game.handHistory.length === 0) return;
 
     const seat = SEATS.find((s) => {
         const info = game.seats[s];
@@ -117,84 +84,45 @@ export const recordCompletedGame = async (game: GameDoc, uid: string): Promise<v
     });
     if (!seat) return;
 
-    {
-        const historyRef = doc(db, 'users', uid, 'history', game.id);
+    const historyRef = doc(db, 'users', uid, 'history', game.id);
+    const isComplete = game.status === 'completed' && !!game.winner;
 
-        try {
-            await runTransaction(db, async (tx) => {
-                const [histSnap, userSnap] = await Promise.all([
-                    tx.get(historyRef),
-                    tx.get(userRef(uid)),
-                ]);
-                if (histSnap.exists()) return; // already recorded
+    try {
+        await runTransaction(db, async (tx) => {
+            const [histSnap, userSnap] = await Promise.all([
+                tx.get(historyRef),
+                tx.get(userRef(uid)),
+            ]);
+            const hist = histSnap.exists()
+                ? (histSnap.data() as { handsRecorded?: number; final?: boolean })
+                : undefined;
+            if (hist && hist.handsRecorded === undefined) return; // legacy: recorded whole
+            const handsRecorded = hist?.handsRecorded ?? 0;
+            const final = hist?.final ?? false;
+            const newHands = game.handHistory.slice(handsRecorded);
+            if (newHands.length === 0 && (final || !isComplete)) return; // nothing new
 
-                const won = teamOf(seat) === game.winner;
-                const myBidHands = game.handHistory.filter((h) => h.bidWinner === seat);
-                const stats: UserStats = userSnap.exists()
-                    ? { ...emptyStats(), ...(userSnap.data() as UserProfile).stats }
-                    : emptyStats();
+            const stats: UserStats = userSnap.exists()
+                ? { ...emptyStats(), ...(userSnap.data() as UserProfile).stats }
+                : emptyStats();
 
-                stats.gamesPlayed += 1;
-                if (won) stats.gamesWon += 1;
-                stats.handsPlayed += game.handHistory.length;
-                stats.bidsWon += myBidHands.length;
-                stats.bidsMade += myBidHands.filter((h) => !h.wentSet).length;
-                stats.timesSet += myBidHands.filter((h) => h.wentSet).length;
-                stats.redealsWitnessed += game.redealCount;
-                stats.highestBidMade = Math.max(
-                    stats.highestBidMade,
-                    ...myBidHands.filter((h) => !h.wentSet).map((h) => h.bid),
-                    0,
-                );
+            for (const h of newHands) applyHandStats(stats, h, seat);
+            if (isComplete && !final) applyGameFinalStats(stats, game, seat);
 
-                // trophy-case extras, hand by hand
-                const myTeam = teamOf(seat);
-                for (const h of game.handHistory) {
-                    stats.pointsCaptured += h.pointsTaken[myTeam];
-                    if (h.tricksWon[myTeam] === 9) stats.sweeps += 1;
-                    if (teamOf(h.bidWinner) !== myTeam && h.wentSet) stats.setsDefended += 1;
-                    if (h.bidWinner === seat) {
-                        stats.highestBid = Math.max(stats.highestBid, h.bid);
-                        if (!h.wentSet) {
-                            const k = String(h.bid);
-                            stats.madeByBid[k] = (stats.madeByBid[k] ?? 0) + 1;
-                        }
-                    }
-                    const dealt = h.dealtHands?.[seat];
-                    if (dealt && dealt.length > 0) {
-                        const pts = dealt.reduce((sum, c) => sum + getCardPoints(c), 0);
-                        stats.maxHandPoints = Math.max(stats.maxHandPoints, pts);
-                        if (pts === 0) stats.zeroCountHands += 1;
-                        const bySuit = new Map<string, number>();
-                        const byNumber = new Map<number, number>();
-                        for (const c of dealt) {
-                            bySuit.set(c.suit, (bySuit.get(c.suit) ?? 0) + 1);
-                            byNumber.set(c.number, (byNumber.get(c.number) ?? 0) + 1);
-                        }
-                        stats.longestSuit = Math.max(stats.longestSuit, ...Array.from(bySuit.values()));
-                        for (const [num, count] of Array.from(byNumber.entries())) {
-                            if (count === 4) {
-                                const k = String(num);
-                                stats.rainbowCounts[k] = (stats.rainbowCounts[k] ?? 0) + 1;
-                            }
-                        }
-                    }
-                }
-
-                tx.set(historyRef, {
-                    gameId: game.id,
-                    finishedAt: game.updatedAt,
-                    seat,
-                    team: teamOf(seat),
-                    won,
-                    scores: game.scores,
-                    hands: game.handHistory.length,
-                    seats: game.seats,
-                });
-                tx.set(userRef(uid), { stats }, { merge: true });
-            });
-        } catch {
-            // best-effort; another client likely recorded it first
-        }
+            tx.set(historyRef, {
+                gameId: game.id,
+                seat,
+                team: teamOf(seat),
+                scores: game.scores,
+                hands: game.handHistory.length,
+                seats: game.seats,
+                handsRecorded: game.handHistory.length,
+                final: final || isComplete,
+                ...(isComplete ? { finishedAt: game.updatedAt, won: teamOf(seat) === game.winner } : {}),
+            }, { merge: true });
+            tx.set(userRef(uid), { stats }, { merge: true });
+        });
+    } catch {
+        // best-effort; a concurrent update from another device wins the race
     }
 };

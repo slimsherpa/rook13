@@ -54,3 +54,30 @@ export const useGameSpeed = (): [GameSpeed, (s: GameSpeed) => void] => {
     const set = useCallback((s: GameSpeed) => setGameSpeed(s), []);
     return [speed, set];
 };
+
+// ---------------------------------------------------------------------------
+// Table pace: auto (tricks sweep away on their own) vs manual (the finished
+// trick stays on the felt until you advance — count the counters in peace).
+// Device-local, like game speed. Manual never gridlocks a multiplayer table:
+// any new play, from anyone, releases the hold.
+// ---------------------------------------------------------------------------
+
+export type TablePace = 'auto' | 'manual';
+
+const PACE_KEY = 'rook13-table-pace';
+
+export const getTablePace = (): TablePace => {
+    if (typeof window === 'undefined') return 'auto';
+    return window.localStorage.getItem(PACE_KEY) === 'manual' ? 'manual' : 'auto';
+};
+
+export const setTablePace = (pace: TablePace): void => {
+    window.localStorage.setItem(PACE_KEY, pace);
+    window.dispatchEvent(new Event(EVT));
+};
+
+export const useTablePace = (): [TablePace, (p: TablePace) => void] => {
+    const pace = useSyncExternalStore(subscribe, getTablePace, () => 'auto' as TablePace);
+    const set = useCallback((p: TablePace) => setTablePace(p), []);
+    return [pace, set];
+};

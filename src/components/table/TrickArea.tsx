@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Card, GameDoc, Seat, Suit, TrickRecord } from '@/lib/game/types';
 import { paced } from '@/lib/settings';
+import { useTableHold } from '@/lib/tableHold';
 import { TablePosition, positionOfSeat } from './layout';
 import { themeFor } from './theme';
 import PlayingCard from '@/components/ui/PlayingCard';
@@ -92,26 +93,40 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
     const [lingering, setLingering] = useState<TrickRecord | null>(null);
     const [sweeping, setSweeping] = useState(false);
     const seenTricks = useRef(game.completedTricks.length);
+    // manual table pace: while held, the finished trick just sits there
+    const held = useTableHold();
+    const wasHeld = useRef(false);
 
     useEffect(() => {
         const count = game.completedTricks.length;
         if (count > seenTricks.current) {
             seenTricks.current = count;
-            const last = game.completedTricks[count - 1];
-            setLingering(last);
+            setLingering(game.completedTricks[count - 1]);
             setSweeping(false);
-            const linger = paced(game.phase === 'playing' ? LINGER_MS : LAST_TRICK_LINGER_MS);
-            const t1 = setTimeout(() => setSweeping(true), linger);
-            const t2 = setTimeout(() => { setLingering(null); setSweeping(false); }, linger + paced(SWEEP_MS));
-            return () => { clearTimeout(t1); clearTimeout(t2); };
-        }
-        if (count < seenTricks.current) {
+            wasHeld.current = false;
+        } else if (count < seenTricks.current) {
             // new hand started
             seenTricks.current = count;
             setLingering(null);
             setSweeping(false);
         }
-    }, [game.completedTricks.length, game.completedTricks, game.phase]);
+    }, [game.completedTricks.length, game.completedTricks]);
+
+    // the linger→sweep timers run only once nothing is holding the table
+    useEffect(() => {
+        if (!lingering) return;
+        if (held) {
+            wasHeld.current = true;
+            return;
+        }
+        // after a manual hold the player has already had their look — short beat
+        const linger = wasHeld.current
+            ? 350
+            : paced(game.phase === 'playing' ? LINGER_MS : LAST_TRICK_LINGER_MS);
+        const t1 = setTimeout(() => setSweeping(true), linger);
+        const t2 = setTimeout(() => { setLingering(null); setSweeping(false); }, linger + paced(SWEEP_MS));
+        return () => { clearTimeout(t1); clearTimeout(t2); };
+    }, [lingering, held, game.phase]);
 
     // ---- compass pointer: accumulate rotation so it always sweeps clockwise ----
     const turnPosition = game.status === 'active' && game.turn

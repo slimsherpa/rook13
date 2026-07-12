@@ -42,9 +42,12 @@ function TrophyCase({ s }: { s: UserStats }) {
     const madeBids = Object.entries(s.madeByBid ?? {})
         .map(([bid, n]) => [Number(bid), n] as [number, number])
         .sort((a, b) => b[0] - a[0]);
-    const rainbows = Object.entries(s.rainbowCounts ?? {})
-        .map(([num, n]) => [Number(num), n] as [number, number])
-        .sort((a, b) => b[0] - a[0]);
+    // the full ledger, 5 through 14 — chase the ones still dark
+    const rainbowLedger = Array.from({ length: 10 }, (_, i) => {
+        const num = i + 5;
+        return [num, (s.rainbowCounts ?? {})[String(num)] ?? 0] as [number, number];
+    });
+    const anyRainbow = rainbowLedger.some(([, n]) => n > 0);
 
     return (
         <>
@@ -103,20 +106,30 @@ function TrophyCase({ s }: { s: UserStats }) {
                     <StatTile icon="paid" label="Points Captured" value={(s.pointsCaptured ?? 0).toLocaleString()} sub="lifetime, with your partner" />
                     <StatTile icon="celebration" label="Legendary Redeals" value={s.redealsWitnessed} accent={s.redealsWitnessed > 0} />
                 </div>
-                {rainbows.length > 0 && (
-                    <div className="mt-3 rounded-xl bg-navy-950/50 border border-white/15 p-3.5">
-                        <div className="text-white/60 text-[10px] font-orbitron uppercase tracking-wide mb-2">
-                            Rainbows — all four of a number, one deal
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                            {rainbows.map(([num, n]) => (
-                                <span key={num} className="px-2.5 py-1 rounded-full bg-gradient-to-r from-red-500/25 via-yellow-500/25 to-green-500/25 border border-white/20 text-white font-orbitron text-xs font-bold">
-                                    Rainbow {num}{n > 1 ? ` ×${n}` : ''}
-                                </span>
-                            ))}
-                        </div>
+                <div className="mt-3 rounded-xl bg-navy-950/50 border border-white/15 p-3.5">
+                    <div className="text-white/60 text-[10px] font-orbitron uppercase tracking-wide mb-2">
+                        Rainbows — hold all four of a number{anyRainbow ? '' : ' (none yet — keep dealing!)'}
                     </div>
-                )}
+                    <div className="grid grid-cols-5 gap-1.5">
+                        {rainbowLedger.map(([num, n]) => (
+                            <div
+                                key={num}
+                                className={`rounded-lg border px-1 py-1.5 text-center ${
+                                    n > 0
+                                        ? 'border-white/25 bg-gradient-to-b from-red-500/20 via-yellow-500/20 to-green-500/20'
+                                        : 'border-white/10 bg-white/[0.03]'
+                                }`}
+                            >
+                                <div className={`font-orbitron text-sm font-bold ${n > 0 ? 'text-white' : 'text-white/25'}`}>
+                                    {n > 0 ? '🌈' : ''}{num}
+                                </div>
+                                <div className={`text-[10px] font-orbitron ${n > 0 ? 'text-yellow-300' : 'text-white/25'}`}>
+                                    ×{n}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </Section>
 
             <p className="text-white/35 text-[10px] text-center mt-6 leading-relaxed">

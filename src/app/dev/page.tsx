@@ -10,6 +10,7 @@ import { GameAction, GameDoc } from '@/lib/game/types';
 import { createGameDoc, applyAction, InvalidActionError } from '@/lib/game/engine';
 import { nextAgentActionAsync, preloadNets } from '@/lib/alpharook/agent';
 import { paced } from '@/lib/settings';
+import { useTableHold } from '@/lib/tableHold';
 import TableView from '@/components/table/TableView';
 
 const freshGame = (spectate = false): GameDoc => {
@@ -39,9 +40,12 @@ export default function DevTablePage() {
         setGame(freshGame(isSpectate));
     }, []);
 
+    // manual table pace pauses the sandbox bots exactly like the live table
+    const tableHeld = useTableHold();
+
     // local bot loop (async: neural seats may await their weight download)
     useEffect(() => {
-        if (!game || game.status !== 'active') return;
+        if (!game || game.status !== 'active' || tableHeld) return;
         preloadNets(game);
         let cancelled = false;
         let t: ReturnType<typeof setTimeout> | null = null;
@@ -69,7 +73,7 @@ export default function DevTablePage() {
             cancelled = true;
             if (t) clearTimeout(t);
         };
-    }, [game]);
+    }, [game, tableHeld]);
 
     if (!game) return null;
 

@@ -108,6 +108,8 @@ export interface HandSummary {
     dealtHands?: Record<Seat, Card[]>;
     dealtWidow?: Card[];
     bids?: Partial<Record<Seat, number | 'pass'>>;
+    /** every bid in order — "95, then 105, then pass…" */
+    bidLog?: { seat: Seat; bid: number | 'pass' }[];
 }
 
 export interface GameDoc {
@@ -140,6 +142,9 @@ export interface GameDoc {
 
     // bidding
     bids: Partial<Record<Seat, number | 'pass'>>;
+    /** the auction blow-by-blow, in the order it happened this hand
+     *  (absent on games from before it was recorded) */
+    bidLog?: { seat: Seat; bid: number | 'pass' }[];
     highBid: number | null;
     bidWinner: Seat | null;
     trump: Suit | null;

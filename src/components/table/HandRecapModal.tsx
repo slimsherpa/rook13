@@ -8,6 +8,7 @@
 // you scroll. Any player can start the next hand.
 
 import { Card, GameDoc, Seat, Team, HandSummary, teamOf, nextSeat, getCardPoints } from '@/lib/game/types';
+import { rainbowNumbersFor } from '@/lib/game/stats';
 import { sortHand } from '@/lib/game/deck';
 import PlayingCard from '@/components/ui/PlayingCard';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
@@ -35,17 +36,14 @@ const trophyMoments = (h: HandSummary, mySeat: Seat | null): TrophyMoment[] => {
     const dealt = h.dealtHands?.[mySeat];
     if (dealt && dealt.length > 0) {
         const pts = dealt.reduce((sum, c) => sum + getCardPoints(c), 0);
-        const byNumber = new Map<number, number>();
-        const bySuit = new Map<string, number>();
-        for (const c of dealt) {
-            byNumber.set(c.number, (byNumber.get(c.number) ?? 0) + 1);
-            bySuit.set(c.suit, (bySuit.get(c.suit) ?? 0) + 1);
-        }
-        for (const [num, n] of Array.from(byNumber.entries())) {
-            if (n === 4) out.push({ emoji: '🌈', text: `Rainbow ${num} — dealt all four!`, big: true });
+        // same rule as the Trophy Case: the widow pickup counts for the taker
+        for (const num of rainbowNumbersFor(h, mySeat)) {
+            out.push({ emoji: '🌈', text: `Rainbow ${num} — you held all four!`, big: true });
         }
         if (pts >= 40) out.push({ emoji: '🔥', text: `${pts} count dealt to you!`, big: true });
         else if (pts === 0) out.push({ emoji: '🃏', text: 'Zero count — a hand full of air!', big: false });
+        const bySuit = new Map<string, number>();
+        for (const c of dealt) bySuit.set(c.suit, (bySuit.get(c.suit) ?? 0) + 1);
         for (const [suit, n] of Array.from(bySuit.entries())) {
             if (n >= 7) out.push({ emoji: '📏', text: `${n} ${suit} in one deal!`, big: n >= 8 });
         }
@@ -72,18 +70,24 @@ const seatsFromDealer = (dealer: Seat): Seat[] => {
     return [first, nextSeat(first), nextSeat(nextSeat(first)), nextSeat(nextSeat(nextSeat(first)))];
 };
 
-/** The dealt hands + bids + widow + go-down, one compact row per seat.
+/** The dealt hands + bids + widow + go-down, one compact row per seat —
+ *  plus the auction blow-by-blow when we have it.
  *  Shared between the live recap and the /review page. */
-export function DealBreakdown({ seats, h, goDown, tricksSource }: {
+export function DealBreakdown({ seats, h, goDown, tricksSource, auction }: {
     seats: Seats;
     h: HandSummary;
     goDown: Card[];
     /** completed tricks of this hand, for "who got the go-down" */
     tricksSource: { winner: Seat }[];
+    /** every bid in order (overrides h.bidLog when the caller has its own) */
+    auction?: { seat: Seat; bid: number | 'pass' }[];
 }) {
     if (!h.dealtHands) return null;
     const lastTrick = tricksSource[tricksSource.length - 1];
     const goDownSeat = lastTrick?.winner ?? h.bidWinner;
+    const bidLog = auction ?? h.bidLog ?? [];
+    // the winning bid is the last non-pass entry — light it up
+    const winningIdx = bidLog.reduce((best, b, i) => (b.bid !== 'pass' ? i : best), -1);
 
     const bidChip = (seat: Seat) => {
         const bid = h.bids?.[seat];
@@ -144,6 +148,28 @@ export function DealBreakdown({ seats, h, goDown, tricksSource }: {
                         <div className="flex -space-x-3.5">
                             {sortHand(goDown, h.trump).map((card) => (
                                 <PlayingCard key={`${card.suit}-${card.number}`} card={card} trump={h.trump} size="xs" />
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {/* the auction, bid by bid, winning bid lit */}
+                {bidLog.length > 0 && (
+                    <div className="pt-1.5 mt-1.5 border-t border-white/10">
+                        <span className="text-[10px] font-orbitron text-white/50 uppercase">The Auction</span>
+                        <div className="flex flex-wrap items-center gap-x-1 gap-y-1.5 mt-1">
+                            {bidLog.map((b, i) => (
+                                <span key={i} className="flex items-center gap-1">
+                                    <span className={`px-1.5 py-0.5 rounded-md text-[11px] font-orbitron whitespace-nowrap ${
+                                        i === winningIdx
+                                            ? 'bg-yellow-400 text-navy-950 font-bold'
+                                            : b.bid === 'pass'
+                                                ? 'bg-white/10 text-white/50'
+                                                : 'bg-sky-800 text-sky-200 font-bold'
+                                    }`}>
+                                        {firstName(seats, b.seat)} {b.bid === 'pass' ? 'pass' : b.bid}
+                                    </span>
+                                    {i < bidLog.length - 1 && <span className="text-white/30 text-[10px]">→</span>}
+                                </span>
                             ))}
                         </div>
                     </div>

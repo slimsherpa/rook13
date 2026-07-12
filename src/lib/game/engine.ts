@@ -363,6 +363,7 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
             next.phase = 'bidding';
             next.turn = bidLead(next.dealer!);
             next.bids = {};
+            next.bidLog = [];
             next.highBid = null;
             next.bidWinner = null;
             next.trump = null;
@@ -376,6 +377,7 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
         }
         case 'BID': {
             next.bids[action.seat] = action.bid;
+            next.bidLog = [...(next.bidLog ?? []), { seat: action.seat, bid: action.bid }];
             if (action.bid !== 'pass') next.highBid = action.bid;
 
             const passed = (s: Seat) => next.bids[s] === 'pass';
@@ -447,6 +449,7 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
             next.widow = [];
             next.goDown = [];
             next.bids = {};
+            next.bidLog = [];
             next.highBid = null;
             next.bidWinner = null;
             next.trump = null;
@@ -530,6 +533,7 @@ const scoreHand = (g: GameDoc, lastTrickWinner: Seat): void => {
         wentSet,
         goDownPoints: gdPoints,
         bids: { ...g.bids },
+        bidLog: [...(g.bidLog ?? [])],
         // no spread-of-undefined: Firestore rejects undefined fields
         ...(g.dealtHands ? { dealtHands: g.dealtHands, dealtWidow: g.dealtWidow ?? [] } : {}),
     };

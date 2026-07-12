@@ -97,27 +97,14 @@ export default function GameReview({ gameId }: { gameId: string }) {
 
                 {open && (
                     <div className="px-3.5 pb-4 border-t border-white/10 pt-3 space-y-4">
-                        {/* the deal: hands, final bids, widow, go-down */}
+                        {/* the deal: hands, bids, the full auction, widow, go-down */}
                         <DealBreakdown
                             seats={game.seats}
                             h={{ ...s, dealtHands: s.dealtHands ?? h.dealtHands, dealtWidow: s.dealtWidow ?? h.dealtWidow }}
                             goDown={h.goDown}
                             tricksSource={h.tricks}
+                            auction={h.bids.map((b) => ({ seat: b.seat as Seat, bid: b.bid }))}
                         />
-
-                        {/* the auction blow-by-blow, when there were raises */}
-                        {h.bids.length > 4 && (
-                            <div>
-                                <div className="text-white/50 font-orbitron text-[11px] uppercase tracking-widest mb-1.5">The Auction</div>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {h.bids.map((b, i) => (
-                                        <span key={i} className={`px-2 py-0.5 rounded-md text-[11px] font-orbitron ${b.bid === 'pass' ? 'bg-gray-800/80 text-gray-300' : 'bg-sky-700 text-white'}`}>
-                                            {name(b.seat as Seat)} {b.bid === 'pass' ? 'pass' : b.bid}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
 
                         {/* trick by trick */}
                         <div className="space-y-3">
