@@ -136,6 +136,8 @@ def main():
                     help="wrap the net in K-world PIMC search (gen11)")
     ap.add_argument("--search", default="bid,trump,play")
     ap.add_argument("--prior", type=float, default=4.0)
+    ap.add_argument("--min-trick", type=int, default=0,
+                    help="only search plays from this trick on")
     args = ap.parse_args()
 
     net = QNet()
@@ -149,6 +151,7 @@ def main():
         names = {"bid": D_BID, "discard": D_DISCARD, "trump": D_TRUMP,
                  "play": D_PLAY}
         agent = SearchAgent(net, worlds=args.worlds, prior_weight=args.prior,
+                            min_trick=args.min_trick,
                             search_dtypes=frozenset(
                                 names[t] for t in args.search.split(",")))
     from .selfplay import SCRIPT_MODES
