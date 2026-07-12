@@ -162,8 +162,13 @@ per-decision-type exploration (`--bid-eps`).
   in new clothing). Next attempt needs 50k+ generated games (overnight
   generation-only run), search on all tricks for the targets, or repeated
   short distill cycles
-- maybe: ship gen11 to the browser (TS port of search.py); learned world
-  INFERENCE in the sampler; marathon-trained "grinder" variant
+- ~~ship gen11 to the browser~~ — **done (2026-07-12)**: src/lib/alpharook/
+  search.ts ports the searcher at a browser-budget config (K=8, play search
+  from trick 5, prior 2 — validated 54% vs pure gen10 over 100 games before
+  porting); BotStyle 'gen11' is the lobby's top pick, runs on gen10's
+  weight file, logs 🔮 per searched play
+- maybe: learned world INFERENCE in the sampler; marathon-trained
+  "grinder" variant; a policy head so search can prune beyond Q-argmax
 - the real eval set: the family, at the JAY CUP
 
 ## Promotion protocol (for future generations)
