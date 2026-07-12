@@ -34,10 +34,11 @@ def model_choose(net, device, env: SelfPlayGame, seat: int, dtype: int, cands: l
 
 @torch.no_grad()
 def play_arena_game(net, device, model_team: int, opponent: str, seed: int,
-                    script_dtypes: frozenset = frozenset()):
+                    script_dtypes: frozenset = frozenset(), agent=None):
     """Returns (model_won, score_diff_for_model, hands). Decision types in
     script_dtypes are handled by the family heuristic even on the net's team
-    (curriculum stages — mirrors how TS AlphaRook phase 1 was measured)."""
+    (curriculum stages — mirrors how TS AlphaRook phase 1 was measured).
+    `agent` (e.g. search.SearchAgent) overrides bare-net decisions."""
     net.eval()
     env = SelfPlayGame(seed)
     rng = random.Random(seed ^ 0x5EED)
@@ -48,7 +49,10 @@ def play_arena_game(net, device, model_team: int, opponent: str, seed: int,
         net_decides = (team_of(seat) == model_team
                        and dtype not in script_dtypes)
         if net_decides:
-            action = model_choose(net, device, env, seat, dtype, cands)
+            if agent is not None:
+                action = agent.choose(env, seat, dtype, cands)
+            else:
+                action = model_choose(net, device, env, seat, dtype, cands)
         elif dtype == D_TRUMP and env.trump_intent is None and env.g.phase == PHASE_WIDOW:
             action = best_trump_suit(env.g.hands[seat])  # scripted intent
         elif dtype == D_DISCARD:
@@ -85,13 +89,14 @@ def play_arena_game(net, device, model_team: int, opponent: str, seed: int,
 
 
 def arena(net, device, opponent: str, n_games: int, seed: int = 0,
-          script_dtypes: frozenset = frozenset()):
+          script_dtypes: frozenset = frozenset(), agent=None):
     wins, diffs, hands = 0, [], 0
     roles = {"decl_hands": 0, "decl_made": 0, "decl_bid_sum": 0,
              "def_hands": 0, "def_sets": 0, "def_pts": 0}
     for i in range(n_games):
         won, diff, h, r = play_arena_game(net, device, i % 2, opponent,
-                                          seed + i * 977, script_dtypes)
+                                          seed + i * 977, script_dtypes,
+                                          agent)
         wins += 1 if won else 0
         diffs.append(diff)
         hands += h
@@ -127,15 +132,28 @@ def main():
                     choices=["openings", "godown", "bid", "none"],
                     help="decisions the family heuristic makes for the net's "
                          "team too (curriculum-stage evals)")
+    ap.add_argument("--worlds", type=int, default=0,
+                    help="wrap the net in K-world PIMC search (gen11)")
+    ap.add_argument("--search", default="bid,trump,play")
+    ap.add_argument("--prior", type=float, default=4.0)
     args = ap.parse_args()
 
     net = QNet()
     state = torch.load(args.ckpt, map_location="cpu", weights_only=True)
     net.load_state_dict(state["model"] if "model" in state else state)
     net.to(args.device)
+    agent = None
+    if args.worlds > 0:
+        from .search import SearchAgent
+        from .encoder import D_BID, D_DISCARD, D_TRUMP, D_PLAY
+        names = {"bid": D_BID, "discard": D_DISCARD, "trump": D_TRUMP,
+                 "play": D_PLAY}
+        agent = SearchAgent(net, worlds=args.worlds, prior_weight=args.prior,
+                            search_dtypes=frozenset(
+                                names[t] for t in args.search.split(",")))
     from .selfplay import SCRIPT_MODES
     r = arena(net, args.device, args.opponent, args.games, args.seed,
-              SCRIPT_MODES[args.script])
+              SCRIPT_MODES[args.script], agent)
     print(f"vs {r['opponent']}: {r['win_rate']:.1%} over {r['games']} games "
           f"(avg score diff {r['avg_diff']:+.1f}, avg hands {r['avg_hands']:.1f})")
     print(f"  holding the contract: {r['decl_hands']} hands, "

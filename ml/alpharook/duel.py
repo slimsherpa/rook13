@@ -14,12 +14,22 @@ both using their learned card play.
 
     python -m alpharook.duel --a models/gen7.pt --script-a godown \
         --b runs/gen6/latest.pt --script-b openings --pairs 100
+
+gen11 is a side with `--worlds-a K`: the same checkpoint, but every bid,
+trump call and card play runs K-world PIMC search with the net as the
+rollout policy (see search.py). Search is ~two orders slower than a bare
+forward pass, so `--workers N` fans pairs out across processes:
+
+    python -m alpharook.duel --a models/gen10.pt --worlds-a 12 \
+        --b models/gen10.pt --script-a none --script-b none \
+        --pairs 150 --workers 7
 """
 
 from __future__ import annotations
 
 import argparse
 import random
+import time
 
 import torch
 
@@ -34,13 +44,23 @@ from .arena import model_choose
 
 
 class Side:
-    """One competitor: a QNet checkpoint, a live net, or a heuristic style."""
+    """One competitor: a QNet checkpoint, a live net, or a heuristic style.
+    `worlds > 0` wraps the net in PIMC search (gen11): same brain, but every
+    unscripted decision gets K-world look-ahead instead of one reflex pass."""
 
-    def __init__(self, spec: str, script: str, net: QNet | None = None):
+    def __init__(self, spec: str, script: str, net: QNet | None = None,
+                 worlds: int = 0, search: str = "bid,trump,play",
+                 prior: float = 4.0, min_trick: int = 0,
+                 infer_temp: float = 0.0):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
         self.net = net
         self.style = None
+        self.worlds = worlds
+        self.search = search
+        self.prior = prior
+        self.min_trick = min_trick
+        self.infer_temp = infer_temp
         if net is not None:
             pass  # live net passed in (e.g. the training learner)
         elif spec in ("random", "basic", "aggressive", "cautious"):
@@ -50,9 +70,25 @@ class Side:
             ck = torch.load(spec, map_location="cpu", weights_only=True)
             self.net.load_state_dict(ck["model"] if "model" in ck else ck)
             self.net.eval()
+        self.agent = None
+        if worlds > 0:
+            assert self.net is not None, "search needs a net"
+            from .search import SearchAgent
+            from .encoder import D_BID, D_DISCARD, D_TRUMP, D_PLAY
+            names = {"bid": D_BID, "discard": D_DISCARD, "trump": D_TRUMP,
+                     "play": D_PLAY}
+            dtypes = frozenset(names[t] for t in search.split(","))
+            self.agent = SearchAgent(self.net, worlds=worlds,
+                                     search_dtypes=dtypes, prior_weight=prior,
+                                     min_trick=min_trick,
+                                     infer_temp=infer_temp)
 
     def name(self) -> str:
-        return self.spec.split("/")[-1]
+        base = self.spec.split("/")[-1]
+        if not self.worlds:
+            return base
+        return (f"{base}+search{self.worlds}({self.search},w{self.prior:g}"
+                f",t{self.min_trick},i{self.infer_temp:g})")
 
 
 def deck_stream(pair_seed: int):
@@ -82,7 +118,10 @@ def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
         side = sides[team]
         scripted = dtype in side.script or side.style is not None
         if not scripted:
-            action = model_choose(side.net, "cpu", env, seat, dtype, cands)
+            if side.agent is not None:
+                action = side.agent.choose(env, seat, dtype, cands)
+            else:
+                action = model_choose(side.net, "cpu", env, seat, dtype, cands)
         elif dtype == D_TRUMP and env.trump_intent is None and env.g.phase == PHASE_WIDOW:
             action = best_trump_suit(env.g.hands[seat])
         elif dtype == D_DISCARD:
@@ -111,18 +150,57 @@ def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
     return winner_side, diff0, stats
 
 
+def _play_pair(side_a: Side, side_b: Side, pair_seed: int,
+               win_score: int, lose_score: int):
+    return [play_duel_game(side_a, side_b, pair_seed, flip,
+                           win_score, lose_score) for flip in (False, True)]
+
+
+# --- multiprocess plumbing: each worker builds its own Sides once ----------
+
+_W: dict = {}
+
+
+def _worker_init(a_args: tuple, b_args: tuple, win: int, lose: int):
+    torch.set_num_threads(1)  # one pair per process; don't thrash cores
+    _W["a"] = Side(*a_args)
+    _W["b"] = Side(*b_args)
+    _W["win"], _W["lose"] = win, lose
+
+
+def _worker_pair(pair_seed: int):
+    return pair_seed, _play_pair(_W["a"], _W["b"], pair_seed,
+                                 _W["win"], _W["lose"])
+
+
 def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
-         verbose: bool = True, win_score: int = 500, lose_score: int = -250):
+         verbose: bool = True, win_score: int = 500, lose_score: int = -250,
+         workers: int = 1, side_args: tuple | None = None):
+    """side_args = (a_ctor_args, b_ctor_args) enables workers > 1: live-net
+    Sides can't cross process boundaries, so workers rebuild them from specs."""
     a_wins = b_wins = sweeps_a = sweeps_b = 0
     diffs = []
     auct = {0: dict(contracts=0, made=0, bid_sum=0),
             1: dict(contracts=0, made=0, bid_sum=0)}
-    for p in range(n_pairs):
-        pair_seed = seed + p * 104729 + 1
+    t0 = time.time()
+
+    def pair_stream():
+        pair_seeds = [seed + p * 104729 + 1 for p in range(n_pairs)]
+        if workers > 1:
+            assert side_args is not None, "workers need side ctor args"
+            import multiprocessing as mp
+            ctx = mp.get_context("spawn")
+            with ctx.Pool(workers, initializer=_worker_init,
+                          initargs=(*side_args, win_score, lose_score)) as pool:
+                for _, res in pool.imap_unordered(_worker_pair, pair_seeds):
+                    yield res
+        else:
+            for ps in pair_seeds:
+                yield _play_pair(side_a, side_b, ps, win_score, lose_score)
+
+    for p, pair in enumerate(pair_stream()):
         results = []
-        for flip in (False, True):
-            w, d, st = play_duel_game(side_a, side_b, pair_seed, flip,
-                                      win_score, lose_score)
+        for w, d, st in pair:
             results.append(w)
             diffs.append(d)
             for i in (0, 1):
@@ -136,6 +214,11 @@ def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
             sweeps_a += 1
         elif results == [1, 1]:
             sweeps_b += 1
+        if verbose and (p + 1) % 5 == 0:
+            done = 2 * (p + 1)
+            print(f"  [{p + 1}/{n_pairs} pairs] A {a_wins}-{b_wins} "
+                  f"({a_wins / done:.1%}), sweeps {sweeps_a}-{sweeps_b}, "
+                  f"{(time.time() - t0) / done:.1f}s/game", flush=True)
 
     games = 2 * n_pairs
     if not verbose:
@@ -168,10 +251,32 @@ def main():
                     help="marathon evals (e.g. 2000) pack more hands per "
                          "game — less card luck, sharper skill signal")
     ap.add_argument("--lose-score", type=int, default=None)
+    ap.add_argument("--worlds-a", type=int, default=0,
+                    help="wrap side A in K-world PIMC search (gen11)")
+    ap.add_argument("--worlds-b", type=int, default=0)
+    ap.add_argument("--search-a", default="bid,trump,play",
+                    help="comma list of searched decisions (bid,discard,trump,play)")
+    ap.add_argument("--search-b", default="bid,trump,play")
+    ap.add_argument("--prior-a", type=float, default=4.0,
+                    help="pseudo-rollout weight of the net's Q at the root")
+    ap.add_argument("--prior-b", type=float, default=4.0)
+    ap.add_argument("--min-trick-a", type=int, default=0,
+                    help="only search plays from this trick on (endgame gate)")
+    ap.add_argument("--min-trick-b", type=int, default=0)
+    ap.add_argument("--infer-a", type=float, default=0.0,
+                    help="world-inference softmax temperature (0 = uniform)")
+    ap.add_argument("--infer-b", type=float, default=0.0)
+    ap.add_argument("--workers", type=int, default=1,
+                    help="parallel pair-playing processes (search is slow)")
     args = ap.parse_args()
     lose = args.lose_score if args.lose_score is not None else -args.win_score // 2
-    duel(Side(args.a, args.script_a), Side(args.b, args.script_b),
-         args.pairs, args.seed, win_score=args.win_score, lose_score=lose)
+    a_args = (args.a, args.script_a, None, args.worlds_a, args.search_a,
+              args.prior_a, args.min_trick_a, args.infer_a)
+    b_args = (args.b, args.script_b, None, args.worlds_b, args.search_b,
+              args.prior_b, args.min_trick_b, args.infer_b)
+    duel(Side(*a_args), Side(*b_args),
+         args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
+         workers=args.workers, side_args=(a_args, b_args))
 
 
 if __name__ == "__main__":
