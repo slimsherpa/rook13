@@ -51,7 +51,7 @@ class Side:
     def __init__(self, spec: str, script: str, net: QNet | None = None,
                  worlds: int = 0, search: str = "bid,trump,play",
                  prior: float = 4.0, min_trick: int = 0,
-                 infer_temp: float = 0.0):
+                 infer_temp: float = 0.0, bid_infer: float = 0.0):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
         self.net = net
@@ -61,6 +61,7 @@ class Side:
         self.prior = prior
         self.min_trick = min_trick
         self.infer_temp = infer_temp
+        self.bid_infer = bid_infer
         if net is not None:
             pass  # live net passed in (e.g. the training learner)
         elif spec in ("random", "basic", "aggressive", "cautious"):
@@ -81,14 +82,15 @@ class Side:
             self.agent = SearchAgent(self.net, worlds=worlds,
                                      search_dtypes=dtypes, prior_weight=prior,
                                      min_trick=min_trick,
-                                     infer_temp=infer_temp)
+                                     infer_temp=infer_temp,
+                                     bid_infer=bid_infer)
 
     def name(self) -> str:
         base = self.spec.split("/")[-1]
         if not self.worlds:
             return base
         return (f"{base}+search{self.worlds}({self.search},w{self.prior:g}"
-                f",t{self.min_trick},i{self.infer_temp:g})")
+                f",t{self.min_trick},i{self.infer_temp:g},b{self.bid_infer:g})")
 
 
 def deck_stream(pair_seed: int):
@@ -266,14 +268,18 @@ def main():
     ap.add_argument("--infer-a", type=float, default=0.0,
                     help="world-inference softmax temperature (0 = uniform)")
     ap.add_argument("--infer-b", type=float, default=0.0)
+    ap.add_argument("--bid-infer-a", type=float, default=0.0,
+                    help="auction-aware world weighting sigma in bid points "
+                         "(0 = off)")
+    ap.add_argument("--bid-infer-b", type=float, default=0.0)
     ap.add_argument("--workers", type=int, default=1,
                     help="parallel pair-playing processes (search is slow)")
     args = ap.parse_args()
     lose = args.lose_score if args.lose_score is not None else -args.win_score // 2
     a_args = (args.a, args.script_a, None, args.worlds_a, args.search_a,
-              args.prior_a, args.min_trick_a, args.infer_a)
+              args.prior_a, args.min_trick_a, args.infer_a, args.bid_infer_a)
     b_args = (args.b, args.script_b, None, args.worlds_b, args.search_b,
-              args.prior_b, args.min_trick_b, args.infer_b)
+              args.prior_b, args.min_trick_b, args.infer_b, args.bid_infer_b)
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
          workers=args.workers, side_args=(a_args, b_args))

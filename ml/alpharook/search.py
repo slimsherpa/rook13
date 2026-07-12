@@ -20,6 +20,7 @@ them goes through the net in ONE forward pass per step. Forced moves
 
 from __future__ import annotations
 
+import math
 import random
 
 import numpy as np
@@ -175,6 +176,14 @@ class SearchAgent:
         diffuse early positions are where uniform world-sampling misleads
         (the net's instinct implicitly knows "she bid 105, she has trump";
         uniform worlds don't). Early plays stay pure reflex.
+    bid_infer: auction-aware imagination (sigma in bid points; 0 = off).
+        Worlds are weighted by how well each hidden seat's sampled cards
+        explain their AUCTION behavior, using the family's calibrated
+        strength model: the declarer's kept nine must plausibly support the
+        bid they announced, and every seat that passed must plausibly have
+        declined the final contract. "She bid 105, deal her hands that
+        would" — the partner/opponent model Riley asked for, at the
+        cheapest possible altitude (no net forwards, pure arithmetic).
     infer_temp: learned inference — the net biases its own imagination.
         Worlds are importance-weighted by how plausibly the net (which IS
         the opponent in champion duels) would have made the plays actually
@@ -188,7 +197,8 @@ class SearchAgent:
     def __init__(self, net, device: str = "cpu", worlds: int = 12,
                  search_dtypes: frozenset = frozenset({D_BID, D_TRUMP, D_PLAY}),
                  max_bid_cands: int = 6, prior_weight: float = 4.0,
-                 min_trick: int = 0, infer_temp: float = 0.0, seed: int = 0):
+                 min_trick: int = 0, infer_temp: float = 0.0,
+                 bid_infer: float = 0.0, seed: int = 0):
         self.net = net
         self.device = device
         self.worlds = worlds
@@ -197,6 +207,7 @@ class SearchAgent:
         self.prior_weight = prior_weight
         self.min_trick = min_trick
         self.infer_temp = infer_temp
+        self.bid_infer = bid_infer
         self.rng = random.Random(seed)
         net.eval()
 
@@ -231,6 +242,56 @@ class SearchAgent:
                 break
             keep.add(int(i))
         return [a for i, a in enumerate(cands) if i in keep]
+
+    # --- auction inference: weight worlds by what the bidding announced --
+
+    def _bid_log_weights(self, o: Observation,
+                         worlds: list[tuple[list[list[int]], list[int]]]
+                         ) -> np.ndarray:
+        """log weight per world from the auction. For each hidden seat,
+        rebuild the hand they held (current sampled cards + what they've
+        played this hand — exact for non-declarers; the declarer's kept
+        nine is judged against their bid directly) and score it with the
+        family's calibrated point model:
+
+          bid winner announced b  -> P(strength supports b)
+          seat passed             -> P(strength below the final contract)
+
+        Sigmoid steepness = bid_infer (in bid points)."""
+        from rook.bots import _expected_points
+        sigma = self.bid_infer
+        played: list[list[int]] = [[], [], [], []]
+        for _, plays, _, _ in o.completed_tricks:
+            for s, c in plays:
+                played[s].append(c)
+        for s, c in o.trick_plays:
+            played[s].append(c)
+
+        n = len(worlds)
+        log_w = np.zeros(n)
+        if o.high_bid is None:
+            return log_w
+        def log_sigmoid(z: float) -> float:
+            return -math.log1p(math.exp(-max(-30.0, min(30.0, z))))
+
+        for wi, (hands, _gd) in enumerate(worlds):
+            lw = 0.0
+            for s in range(4):
+                b = o.bids[s]
+                if s == o.seat or b is None:
+                    continue  # my own hand is known; silent seats said nothing
+                strength = _expected_points(hands[s] + played[s], 0)
+                if s == o.bid_winner:
+                    # their kept hand should carry the contract they called
+                    lw += log_sigmoid((strength + 5.0 - o.high_bid) / sigma)
+                else:
+                    # they declined to outbid the final contract...
+                    lw += log_sigmoid((o.high_bid + 5.0 - strength) / sigma)
+                    if b != PASS:
+                        # ...but showed real strength before folding
+                        lw += log_sigmoid((strength + 5.0 - b) / sigma)
+            log_w[wi] = lw
+        return log_w
 
     # --- learned inference: weight worlds by the observed play history --
 
@@ -318,11 +379,15 @@ class SearchAgent:
         prior = self._q_values(root_state, dtype, cands)
 
         # imagine K worlds; with inference on, weight them by how well they
-        # explain the plays everyone has already made
+        # explain what everyone has already announced (auction) and played
         worlds = [sample_world(o, self.rng) for _ in range(self.worlds)]
+        lw = np.zeros(self.worlds)
+        if self.bid_infer > 0 and o.trump is not None:
+            lw += self._bid_log_weights(o, worlds)
         if self.infer_temp > 0:
-            lw = self._world_log_weights(o, worlds,
-                                         env.g.win_score, env.g.lose_score)
+            lw += self._world_log_weights(o, worlds,
+                                          env.g.win_score, env.g.lose_score)
+        if lw.any():
             lw -= lw.max()
             wts = np.exp(lw)
             wts *= self.worlds / wts.sum()  # total evidence mass stays K
