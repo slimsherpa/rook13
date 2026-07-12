@@ -77,7 +77,8 @@ single process, CPU. (`--device mps` is available but small batches favor CPU.)
 | gen9 | first FULLY neural (trump-intent go-down; script none) | beats gen8 **57.5/42.5** over 400 games; 94% vs Standard — frozen as `models/gen9` |
 | gen10 | ladder vs frozen gen9, 35k iters | beats gen9 **55/45** over 300 games; 94.5% vs Standard; beats gen7 66/34 (78/22 at marathon rules) — frozen as `models/gen10`, the reigning champion |
 | gen11 | **search + learning**: gen10 inside PIMC (play search from trick 3, K=24 worlds, Q-prior 2) | beats gen10 53.3% over 300 sprint games — and **65.0% (+287, sweeps 13–1) over 80 marathon games**, the most lopsided rung yet once luck compresses; 94.5% vs Standard (saturated). No new weights: gen11 = gen10 × calculation |
-| gen12 (attempt) | distill gen11's searched play back into reflex weights (5k games, 3.3M search rows + 8.2M anchor rows, weighted-MSE from gen10) | **parity, not a rung**: 51.5% pooled sprint / 47.5% marathon vs gen10 at confirmation scale. Anchor-free ablation collapses to 28% (bid head drifts pass-ive without anchors); DMC on top of distillation rescales the edge away (46%). The loop machinery works — the signal needs ~10x more games or search-on-everything targets. gen11 remains champion |
+| gen12 (attempt) | distill gen11's searched play back into reflex weights (5k games, 3.3M search rows + 8.2M anchor rows, weighted-MSE from gen10) | **parity, not a rung**: 51.5% pooled sprint / 47.5% marathon vs gen10 at confirmation scale. Anchor-free ablation collapses to 28% (bid head drifts pass-ive without anchors); DMC on top of distillation rescales the edge away (46%). gen11 remains champion |
+| gen12-v2 | same recipe, 3.2x the data (16.2k games, 10.8M search rows + 26.6M anchor rows, 4 epochs) | **still parity — data was not the bottleneck**: epoch checks read up to 60% but confirmations say 51% sprint / 41.7% marathon. Twice-replicated: one-pass value distillation of a ~54% search edge into an already-converged Q net does not stick. Closing this line; the next real levers are a policy head + iterated cycles with exploration |
 
 League (2026-07-10, 300 duplicate-deck games per pairing): every newer gen
 beats every older gen — no rock-paper-scissors, margins stack in order.
@@ -159,9 +160,12 @@ per-decision-type exploration (`--bid-eps`).
   a marathon; (2) anchor rows are load-bearing: without them the bid head
   drifts passive and the student collapses; (3) outcome-target DMC after
   value-distillation RESCALES the distilled signal away (gen6's BC lesson
-  in new clothing). Next attempt needs 50k+ generated games (overnight
-  generation-only run), search on all tricks for the targets, or repeated
-  short distill cycles
+  in new clothing). v2 (16.2k games, 3.2x data) confirmed parity again —
+  the distillation line is CLOSED at this design point. A future gen12
+  needs a different shape: a policy head trained on search preferences,
+  iterated generate-distill cycles with exploration noise, or search
+  targets on every decision type. The 617-shard corpus (~16k games) waits
+  in runs/gen12/data
 - ~~ship gen11 to the browser~~ — **done (2026-07-12)**: src/lib/alpharook/
   search.ts ports the searcher at a browser-budget config (K=8, play search
   from trick 5, prior 2 — validated 54% vs pure gen10 over 100 games before

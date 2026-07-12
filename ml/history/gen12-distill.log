@@ -151,3 +151,23 @@ distilled.pt saved; best epoch duel 36.0%
   pairs swept: distilled_noanchor_best.pt 2, gen10.pt 18, split 10
   distilled_noanchor_best.pt auctions: won 486 contracts, made 74% at avg bid 100.2
   gen10.pt auctions: won 2624 contracts, made 67% at avg bid 97.5
+=== generation-2 finished; corpus:      617 shards ===
+=== DISTILL v2: full corpus, anchors kept, 4 epochs ===
+epoch 0: loss 0.00562 (73236 steps)
+  [epoch 0] duel vs models/gen10.pt: 48.0%
+epoch 1: loss 0.00449 (146472 steps)
+  [epoch 1] duel vs models/gen10.pt: 54.0%
+epoch 2: loss 0.00420 (219708 steps)
+  [epoch 2] duel vs models/gen10.pt: 60.0%
+epoch 3: loss 0.00405 (292944 steps)
+  [epoch 3] duel vs models/gen10.pt: 54.0%
+distilled.pt saved; best epoch duel 60.0%
+=== CONFIRM v2: 50 sprint pairs + 30 marathon pairs vs gen10 ===
+  distilled_v2_best.pt: 51.0% wins (avg diff -5.5)
+  pairs swept: distilled_v2_best.pt 6, gen10.pt 5, split 39
+  distilled_v2_best.pt auctions: won 619 contracts, made 64% at avg bid 100.2
+  gen10.pt auctions: won 588 contracts, made 65% at avg bid 100.5
+  distilled_v2_best.pt: 41.7% wins (avg diff -107.2)
+  pairs swept: distilled_v2_best.pt 3, gen10.pt 8, split 19
+  distilled_v2_best.pt auctions: won 1797 contracts, made 63% at avg bid 100.9
+  gen10.pt auctions: won 1805 contracts, made 65% at avg bid 100.8
