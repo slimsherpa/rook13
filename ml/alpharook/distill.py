@@ -45,9 +45,12 @@ def _load_net(ckpt: str) -> QNet:
 
 # --- phase 1: generation ----------------------------------------------------
 
-def _flush(out_dir: Path, worker: int, shard: int, S, A, y, w, di) -> None:
+def _flush(out_dir: Path, worker: int, shard: int, S, A, y, w, di,
+           seed: int = 0) -> None:
+    # seed in the name: successive --generate runs into the same data dir
+    # accumulate instead of overwriting
     np.savez_compressed(
-        out_dir / f"shard_w{worker}_{shard:03d}.npz",
+        out_dir / f"shard_s{seed}_w{worker}_{shard:03d}.npz",
         S=np.stack(S).astype(np.float16),
         A=np.stack(A).astype(np.float16),
         y=np.array(y, dtype=np.float16),
@@ -97,11 +100,11 @@ def _gen_worker(job) -> dict:
         stats["games"] += 1
         stats["hands"] += len(env.g.hand_history)
         if len(A) >= 60_000:
-            _flush(out_dir, worker, shard, S, A, y, w, di)
+            _flush(out_dir, worker, shard, S, A, y, w, di, seed)
             shard += 1
             S, A, y, w, di = [], [], [], [], []
     if A:
-        _flush(out_dir, worker, shard, S, A, y, w, di)
+        _flush(out_dir, worker, shard, S, A, y, w, di, seed)
     return stats
 
 
@@ -123,7 +126,8 @@ def generate(args) -> None:
     total["config"] = {"ckpt": args.ckpt, "worlds": args.worlds,
                        "prior": args.prior, "min_trick": args.min_trick,
                        "anchor_weight": ANCHOR_WEIGHT}
-    (run_dir / "gen_stats.json").write_text(json.dumps(total, indent=2))
+    (run_dir / f"gen_stats_s{args.seed}.json").write_text(
+        json.dumps(total, indent=2))
     print(f"generated: {total['games']} games, {total['hands']} hands, "
           f"{total['search_rows']} search rows + {total['anchor_rows']} "
           f"anchor rows in {total['sec'] / 3600:.2f}h")
