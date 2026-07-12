@@ -13,7 +13,7 @@
 
 import { STATE_DIM, ACTION_DIM } from './encoder';
 
-export type NeuralGen = 'gen7' | 'gen8' | 'gen9';
+export type NeuralGen = 'gen7' | 'gen8' | 'gen9' | 'gen10';
 
 interface Layer {
     inDim: number;

@@ -45,7 +45,7 @@ from .model import QNet
 
 # gen9+ champions decide everything neurally (trump intent + go-down too);
 # gen7/gen8 were frozen with scripted openings and must replay that way.
-FULLY_NEURAL = {"gen9"}
+FULLY_NEURAL = {"gen9", "gen10"}
 NEURAL_DTYPES = {
     True: (D_BID, D_DISCARD, D_TRUMP, D_PLAY),
     False: (D_BID, D_PLAY),
@@ -162,7 +162,8 @@ def trace_game(gen: str, net: QNet, seed: int, path: Path) -> None:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gens", nargs="+", default=["gen7", "gen8", "gen9"])
+    ap.add_argument("--gens", nargs="+",
+                    default=["gen7", "gen8", "gen9", "gen10"])
     args = ap.parse_args()
 
     OUT_BIN.mkdir(parents=True, exist_ok=True)

@@ -73,7 +73,21 @@ single process, CPU. (`--device mps` is available but small batches favor CPU.)
 | gen6 | DMC fine-tune of the clone | **62.5% / +98 diff over 200 games** — beats Standard |
 | gen6 overnight | +26k iters, 7 workers (2026-07-08) | **81% / +276 diff over 200 games** — ties the phase-1 PIMC search bot (81.7%), in one forward pass instead of 25 rollouts. Makes 79% of contracts at avg bid 98; sets Standard 42% (Standard sets it 21%) |
 | gen7 | + learned bidding (script godown) | **94.5% vs Standard**; beats gen6 + scripted bidding 63/37 on duplicate decks — frozen as `models/gen7` |
-| gen8 | champion-ladder vs frozen gen7 | beats gen7 **63/37** over 300 duplicate-deck games (87.5% vs Standard) — frozen as `models/gen8`, the reigning champion |
+| gen8 | champion-ladder vs frozen gen7 | beats gen7 **63/37** over 300 duplicate-deck games (87.5% vs Standard) — frozen as `models/gen8` |
+| gen9 | first FULLY neural (trump-intent go-down; script none) | beats gen8 **57.5/42.5** over 400 games; 94% vs Standard — frozen as `models/gen9` |
+| gen10 | ladder vs frozen gen9, 35k iters | beats gen9 **55/45** over 300 games; 94.5% vs Standard; beats gen7 66/34 (78/22 at marathon rules) — frozen as `models/gen10`, the reigning champion |
+
+League (2026-07-10, 300 duplicate-deck games per pairing): every newer gen
+beats every older gen — no rock-paper-scissors, margins stack in order.
+Marathon games (`duel.py --win-score 2000`, Riley's idea) compress card luck
+~4x: the gen10-vs-gen7 edge grows from 657 to 783 per 1000 games.
+
+Lifetime training totals (gen1-gen10): **~19.5M full games, ~253M hands,
+~8.3B decisions, ~2.3B tricks, ~9.1B cards** (+~42k celebrated redeals at
+the analytic 1-in-5,976 rate). Ladder margins narrow as generations absorb
+their teachers (63 → 57.5 → 55): the 660k-param reflex MLP is approaching
+its ceiling — the next qualitative jump is search + learning (net inside
+PIMC), not another rung.
 
 Lessons encoded in the code: league mixing (`--opponent-mix`), per-hand
 reward blending, curriculum staging (`--script openings|bid|none`),
@@ -82,15 +96,32 @@ per-decision-type exploration (`--bid-eps`).
 
 ## Roadmap
 
-- overnight gen6 continuation → close on the phase-1 PIMC bar (82%)
-- unfreeze go-down/trump: net declares trump *intent* before discarding
-  (naive sequential discard cloning tops out at 59.5% — the heuristic
-  brute-forces the joint discard+trump plan)
-- unfreeze bidding last, with competent declarer play priced in
-- distill into PIMC's rollout policy (search + learning compound)
-- ~~ships as the in-browser AlphaRook brain~~ **done** — QNet is a plain MLP,
+- ~~learn card play~~ / ~~learn bidding~~ / ~~learn go-down+trump~~ — **done**:
+  gen9+ make every decision neurally (trump-INTENT-first go-down was the
+  unlock; naive sequential discard cloning topped out at 59.5% teacher-match
+  and 15% arena, intent-first cloning started at 50%)
+- ~~ship as the in-browser AlphaRook brain~~ **done** — QNet is a plain MLP,
   so `export_web.py` dumps raw weights (`public/models/<gen>.bin`) and the
   browser runs them with a hand-rolled forward pass (src/lib/alpharook/
   qnet.ts + encoder.ts) — no onnxruntime needed. `neural.test.ts` replays a
-  Python-traced game and proves the live bots match the arena
-  decision-for-decision. Freezing a new champion = re-run export_web.py.
+  Python-traced game per gen and proves the live bots match the arena
+  decision-for-decision (incl. gen9+'s widow flow and the deterministic
+  trump-intent re-derivation). Freezing a new champion = add it to
+  FULLY_NEURAL (if applicable) + re-run export_web.py + wire the BotStyle.
+- NEXT: search + learning — the champion net as PIMC's rollout/eval policy
+  (instinct × look-ahead, the AlphaZero recipe); duel it vs the pure net
+- maybe: marathon-trained variant (win_score 2000 in training, not just
+  evals) to see if a "grinder" personality emerges
+- the real eval set: the family, at the JAY CUP
+
+## Promotion protocol (for future generations)
+
+1. Train with `--duel-every` so `best_duel.pt` banks peaks against the
+   frozen champion (best.pt tracks the saturated vs-Standard metric — never
+   promote from it).
+2. Confirm at 150+ pairs (300+ games): 50-game evals swing ±10 points, and
+   a 40-game bank can read 15+ points hot (gen10's 72% bank confirmed at 52%).
+3. Compare `latest.pt` AND `best_duel.pt` — after long stable runs, latest
+   often wins (gen10: 55.3% vs 52.7%).
+4. Freeze `models/<gen>.pt` + onnx, archive the log to history/, export for
+   web, wire the BotStyle, run both test suites.

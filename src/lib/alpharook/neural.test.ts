@@ -63,9 +63,9 @@ interface GameFixture {
     handsPlayed: number;
 }
 
-const GENS = ['gen7', 'gen8', 'gen9'] as const;
-/** gen9 makes widow decisions neurally; earlier gens script them. */
-const FULLY_NEURAL = new Set<string>(['gen9']);
+const GENS = ['gen7', 'gen8', 'gen9', 'gen10'] as const;
+/** gen9+ make widow decisions neurally; earlier gens script them. */
+const FULLY_NEURAL = new Set<string>(['gen9', 'gen10']);
 
 describe('QNet forward pass matches torch', () => {
     const golden = loadFixture<GoldenFixture>('qnet.golden.json');

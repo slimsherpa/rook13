@@ -24,9 +24,12 @@ export interface Card {
 // Bot styles. The lobby offers the trained AlphaRook brains (the frozen
 // champions from ml/ self-play training, via src/lib/alpharook); the rest are
 // kept so game docs created before them keep working:
-//   gen9       — reigning champion, the first FULLY neural brain: bids, trump
-//                intent, go-down, and card play all learned (beat gen8 57.5%
-//                over 400 duplicate-deck games)
+//   gen10      — the ladder's latest: trained against frozen gen9, fully
+//                neural like it (edges gen9 head-to-head; beats every older
+//                generation harder than gen9 does)
+//   gen9       — first FULLY neural brain: bids, trump intent, go-down, and
+//                card play all learned (beat gen8 57.5% over 400
+//                duplicate-deck games)
 //   gen8       — neural bid + play, family-heuristic go-down/trump (beat
 //                gen7 63/37; 87.5% vs the old Standard heuristic)
 //   gen7       — first neural champion (94.5% vs Standard)
@@ -35,7 +38,7 @@ export interface Card {
 //                (bots.ts PERSONALITIES); 'basic' is also the fallback brain
 //                for gen7/gen8 go-down/trump and for neural seats if weights
 //                fail to load
-export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9';
+export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10';
 
 export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     random: 'Easy',
@@ -46,10 +49,11 @@ export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     gen7: 'AlphaRook Gen7',
     gen8: 'AlphaRook Gen8',
     gen9: 'AlphaRook Gen9',
+    gen10: 'AlphaRook Gen10',
 };
 
 /** What the lobby's bot picker offers (strongest first); legacy styles live on only in old games. */
-export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen9', 'gen8', 'gen7'];
+export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen10', 'gen9', 'gen8', 'gen7'];
 
 export interface SeatInfo {
     kind: 'human' | 'bot' | 'open';

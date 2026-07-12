@@ -21,8 +21,8 @@ const freshGame = (spectate = false): GameDoc => {
     if (spectate) {
         // all-bots game so the table plays itself while we watch
         // (swapped after START_GAME, which insists on one human);
-        // seat the reigning champion so /dev?spectate doubles as a gen9 demo
-        g = { ...g, seats: { ...g.seats, A1: { kind: 'bot', name: 'AlphaRook', botStyle: 'gen9' } } };
+        // seat the latest brain so /dev?spectate doubles as a gen10 demo
+        g = { ...g, seats: { ...g.seats, A1: { kind: 'bot', name: 'AlphaRook', botStyle: 'gen10' } } };
     }
     return g;
 };

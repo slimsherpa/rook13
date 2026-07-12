@@ -34,10 +34,11 @@ export const ALPHAROOK_SAMPLES = 25;
 export const ALPHAROOK_BID_SAMPLES = 20;
 
 export const isNeuralStyle = (s: BotStyle | undefined): s is NeuralGen =>
-    s === 'gen7' || s === 'gen8' || s === 'gen9';
+    s === 'gen7' || s === 'gen8' || s === 'gen9' || s === 'gen10';
 
 /** Generations whose go-down/trump are ALSO net decisions (gen9+). */
-export const isFullyNeural = (s: BotStyle | undefined): boolean => s === 'gen9';
+export const isFullyNeural = (s: BotStyle | undefined): boolean =>
+    s === 'gen9' || s === 'gen10';
 
 export interface NeuralChoice {
     dtype: number;
