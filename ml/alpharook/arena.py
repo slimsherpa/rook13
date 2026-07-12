@@ -17,15 +17,17 @@ from rook.cards import team_of
 from rook.bots import next_bot_action, best_trump_suit
 from rook.engine import WIDOW as PHASE_WIDOW
 from rook.observation import observe
-from .encoder import encode_state, encode_action, D_DISCARD, D_TRUMP, D_PLAY
+from .encoder import (
+    encode_state_for, encode_action, D_DISCARD, D_TRUMP, D_PLAY,
+)
 from .env import SelfPlayGame
-from .model import QNet
+from .model import QNet, load_qnet
 
 
 @torch.no_grad()
 def model_choose(net, device, env: SelfPlayGame, seat: int, dtype: int, cands: list):
-    s = encode_state(observe(env.g, seat), env.picks, dtype, env.g,
-                     env.trump_intent)
+    s = encode_state_for(net, observe(env.g, seat), env.picks, dtype, env.g,
+                         env.trump_intent)
     S = torch.from_numpy(np.stack([s] * len(cands))).to(device)
     A = torch.from_numpy(
         np.stack([encode_action(dtype, a) for a in cands])).to(device)
@@ -140,9 +142,7 @@ def main():
                     help="only search plays from this trick on")
     args = ap.parse_args()
 
-    net = QNet()
-    state = torch.load(args.ckpt, map_location="cpu", weights_only=True)
-    net.load_state_dict(state["model"] if "model" in state else state)
+    net = load_qnet(args.ckpt)
     net.to(args.device)
     agent = None
     if args.worlds > 0:

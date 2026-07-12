@@ -24,7 +24,8 @@ def _worker_main(conn, worker_id: int, n_envs: int, seed: int,
                  opponent_script_list: list[int]):
     torch.set_num_threads(1)
     from .model import QNet  # construct after spawn, inside the child
-    net = QNet()
+    from .encoder import ACTION_DIM
+    net = None  # built from the first weight broadcast (dims name the encoder)
     vec = VecSelfPlay(n_envs, seed=seed, opponent_mix=opponent_mix,
                       opponent_style=opponent_style, bid_eps=bid_eps,
                       script_dtypes=frozenset(script_dtypes_list),
@@ -36,6 +37,9 @@ def _worker_main(conn, worker_id: int, n_envs: int, seed: int,
             conn.close()
             return
         _, state_dict, epsilon, n_samples = msg
+        if net is None:
+            in_dim = state_dict["net.0.weight"].shape[1]
+            net = QNet(state_dim=in_dim - ACTION_DIM)
         net.load_state_dict(state_dict)
         samples, stats = vec.play(net, "cpu", epsilon, n_samples)
         S = np.stack([s for s, _, _ in samples])

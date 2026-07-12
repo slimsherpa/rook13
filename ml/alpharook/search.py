@@ -34,7 +34,7 @@ from rook.engine import (
 from rook.cards import SUITS, VALID_BIDS
 from rook.observation import Observation, observe
 from .encoder import (
-    encode_state, encode_action, D_BID, D_DISCARD, D_TRUMP, D_PLAY,
+    encode_state_for, encode_action, D_BID, D_DISCARD, D_TRUMP, D_PLAY,
 )
 
 
@@ -220,8 +220,8 @@ class SearchAgent:
         return self.net(S, A).cpu().numpy()
 
     def _net_choose(self, env, seat: int, dtype: int, cands: list):
-        s = encode_state(observe(env.g, seat), env.picks, dtype, env.g,
-                         env.trump_intent)
+        s = encode_state_for(self.net, observe(env.g, seat), env.picks,
+                             dtype, env.g, env.trump_intent)
         q = self._q_values(s, dtype, cands)
         # distillation taps: reflex decisions expose gen10's own Q so a
         # student can be anchored on the decisions search never touches
@@ -231,8 +231,8 @@ class SearchAgent:
     def _prune_bids(self, env, seat: int, cands: list) -> list:
         if len(cands) <= self.max_bid_cands:
             return cands
-        s = encode_state(observe(env.g, seat), env.picks, D_BID, env.g,
-                         env.trump_intent)
+        s = encode_state_for(self.net, observe(env.g, seat), env.picks,
+                             D_BID, env.g, env.trump_intent)
         q = self._q_values(s, D_BID, cands)
         keep = {i for i, a in enumerate(cands) if a == PASS}
         keep.add(min((i for i, a in enumerate(cands) if a != PASS),
@@ -332,7 +332,8 @@ class SearchAgent:
             for s, c in all_plays:
                 cands = g.legal_cards(s)
                 if s != o.seat and len(cands) > 1:
-                    st = encode_state(observe(g, s), [], D_PLAY, g, None)
+                    st = encode_state_for(self.net, observe(g, s), [],
+                                          D_PLAY, g, None)
                     for a in cands:
                         rows_s.append(st)
                         rows_a.append(encode_action(D_PLAY, a))
@@ -375,7 +376,8 @@ class SearchAgent:
         o = observe(env.g, seat)
         my_team = team_of(seat)
         totals = [0.0] * len(cands)
-        root_state = encode_state(o, env.picks, dtype, env.g, env.trump_intent)
+        root_state = encode_state_for(self.net, o, env.picks, dtype, env.g,
+                                      env.trump_intent)
         prior = self._q_values(root_state, dtype, cands)
 
         # imagine K worlds; with inference on, weight them by how well they
@@ -418,8 +420,9 @@ class SearchAgent:
                     if len(cs) == 1:
                         sim.apply(cs[0])
                         continue
-                    st = encode_state(observe(sim.g, s2), sim.picks, dt,
-                                      sim.g, sim.trump_intent)
+                    st = encode_state_for(self.net, observe(sim.g, s2),
+                                          sim.picks, dt, sim.g,
+                                          sim.trump_intent)
                     for a in cs:
                         rows_s.append(st)
                         rows_a.append(encode_action(dt, a))

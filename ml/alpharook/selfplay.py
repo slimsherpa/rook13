@@ -36,7 +36,7 @@ from rook.bots import next_bot_action, choose_bid, best_trump_suit
 from rook.engine import WIDOW as PHASE_WIDOW
 from rook.observation import observe
 from .encoder import (
-    encode_state, encode_action, D_BID, D_DISCARD, D_TRUMP, D_PLAY,
+    encode_state_for, encode_action, D_BID, D_DISCARD, D_TRUMP, D_PLAY,
 )
 from .env import SelfPlayGame
 
@@ -90,14 +90,8 @@ class VecSelfPlay:
         self.opp_net = None
         self.opp_script = opponent_script
         if opponent_ckpt:
-            import torch as _torch
-            from .model import QNet
-            self.opp_net = QNet()
-            ck = _torch.load(opponent_ckpt, map_location="cpu",
-                             weights_only=True)
-            self.opp_net.load_state_dict(
-                ck["model"] if "model" in ck else ck)
-            self.opp_net.eval()
+            from .model import load_qnet
+            self.opp_net = load_qnet(opponent_ckpt)
         # Curriculum control: decision types in script_dtypes are made by the
         # family heuristic for EVERY seat (no training samples). Weak declarer
         # play makes bidding genuinely -EV, so a bid-learning net correctly
@@ -149,8 +143,9 @@ class VecSelfPlay:
                 import numpy as _np
                 import torch as _torch
                 from rook.observation import observe as _obs
-                s = encode_state(_obs(env.g, seat), env.picks, dtype, env.g,
-                                 env.trump_intent)
+                s = encode_state_for(self.opp_net, _obs(env.g, seat),
+                                     env.picks, dtype, env.g,
+                                     env.trump_intent)
                 S = _torch.from_numpy(_np.stack([s] * len(cands)))
                 A = _torch.from_numpy(
                     _np.stack([encode_action(dtype, a) for a in cands]))
@@ -211,8 +206,8 @@ class VecSelfPlay:
                     dec = self._next_net_decision(i)
                 seat, dtype, cands = dec
                 env = self.envs[i]
-                s = encode_state(observe(env.g, seat), env.picks, dtype, env.g,
-                                 env.trump_intent)
+                s = encode_state_for(net, observe(env.g, seat), env.picks,
+                                     dtype, env.g, env.trump_intent)
                 seats.append(seat)
                 dtypes.append(dtype)
                 cands_all.append(cands)

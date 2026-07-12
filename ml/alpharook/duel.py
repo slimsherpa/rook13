@@ -67,10 +67,8 @@ class Side:
         elif spec in ("random", "basic", "aggressive", "cautious"):
             self.style = spec
         else:
-            self.net = QNet()
-            ck = torch.load(spec, map_location="cpu", weights_only=True)
-            self.net.load_state_dict(ck["model"] if "model" in ck else ck)
-            self.net.eval()
+            from .model import load_qnet
+            self.net = load_qnet(spec)
         self.agent = None
         if worlds > 0:
             assert self.net is not None, "search needs a net"

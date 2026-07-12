@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from rook.cards import PASS, SEATS, SUITS, VALID_BIDS, card_points, team_of, suit_of
+from rook.cards import (
+    PASS, SEATS, SUITS, VALID_BIDS, card_points, team_of, suit_of, num_of,
+)
 from rook.bots import estimate_tricks_as
 from rook.engine import Game
 from rook.observation import Observation, known_voids, hand_sizes
@@ -193,6 +195,77 @@ def encode_state(o: Observation, picks: list[int], decision_type: int,
 
     assert base == STATE_DIM
     return x
+
+
+# --- v2: explicit belief features (gen13) -----------------------------------
+# What a card-counting human tracks that the raw multihot buries: how much of
+# each suit is still out there, whether MY cards are boss, and who has shown
+# what. All derived from the Observation alone — the leak test covers v2 too.
+#
+# Layout (appended after the v1 block):
+#   unseen count per suit /10 .......... 4
+#   highest unseen rank per suit /14 ... 4   (0 when the suit is exhausted)
+#   unseen card points per suit /20 .... 4
+#   I hold the boss card, per suit ..... 4   (vs everything I can't see)
+#   plays by rel seat x suit /9 ........ 12  (3 other seats; their exposure)
+#   my buried go-down points /20 ....... 1   (declarer only)
+BELIEF_DIM = 29
+STATE_DIM_V2 = STATE_DIM + BELIEF_DIM
+
+
+def belief_features(o: Observation) -> np.ndarray:
+    from rook.observation import unseen_cards
+    me = o.seat
+    rel = lambda s: (s - me) % 4  # noqa: E731
+    b = np.zeros(BELIEF_DIM, dtype=np.float32)
+    unseen = unseen_cards(o)
+
+    for s in SUITS:
+        cards = [c for c in unseen if suit_of(c) == s]
+        b[s] = len(cards) / 10.0
+        best_unseen = max((num_of(c) for c in cards), default=0)
+        b[4 + s] = best_unseen / 14.0
+        b[8 + s] = sum(card_points(c) for c in cards) / 20.0
+        my_best = max((num_of(c) for c in o.hand if suit_of(c) == s), default=0)
+        b[12 + s] = 1.0 if my_best > 0 and my_best > best_unseen else 0.0
+
+    base = 16
+    for _, plays, _, _ in o.completed_tricks:
+        for s, c in plays:
+            if s != me:
+                b[base + (rel(s) - 1) * 4 + suit_of(c)] += 1.0 / 9.0
+    for s, c in o.trick_plays:
+        if s != me:
+            b[base + (rel(s) - 1) * 4 + suit_of(c)] += 1.0 / 9.0
+
+    if o.my_go_down:
+        b[28] = sum(card_points(c) for c in o.my_go_down) / 20.0
+    return b
+
+
+def encode_state_v2(o: Observation, picks: list[int], decision_type: int,
+                    g: Game, trump_intent: int | None = None) -> np.ndarray:
+    """v1 features + the explicit belief block (gen13+ nets)."""
+    return np.concatenate([
+        encode_state(o, picks, decision_type, g, trump_intent),
+        belief_features(o),
+    ])
+
+
+def state_dim_of(net) -> int:
+    """Which encoder a QNet expects, read off its input layer."""
+    return net.net[0].in_features - ACTION_DIM
+
+
+def encode_state_for(net, o: Observation, picks: list[int], decision_type: int,
+                     g: Game, trump_intent: int | None = None) -> np.ndarray:
+    """Version-dispatching encode: v1 nets (gen7-gen10) and v2 nets (gen13+)
+    coexist in the same arena/duel/search machinery."""
+    d = state_dim_of(net)
+    if d == STATE_DIM:
+        return encode_state(o, picks, decision_type, g, trump_intent)
+    assert d == STATE_DIM_V2, f"unknown state dim {d}"
+    return encode_state_v2(o, picks, decision_type, g, trump_intent)
 
 
 def encode_action(decision_type: int, action) -> np.ndarray:

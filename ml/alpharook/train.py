@@ -91,7 +91,18 @@ def main():
 
     torch.manual_seed(args.seed)
     device = args.device
-    net = QNet().to(device)
+    # the checkpoint's input width names its encoder version (v1 gen7-10,
+    # v2 = gen13+ belief nets); fresh runs default to v1
+    from .encoder import STATE_DIM, ACTION_DIM
+    state_dim = STATE_DIM
+    latest_peek = run_dir / "latest.pt"
+    src = (latest_peek if (args.resume and latest_peek.exists())
+           else args.init_from)
+    if src:
+        sd = torch.load(src, map_location="cpu", weights_only=True)
+        sd = sd["model"] if "model" in sd else sd
+        state_dim = sd["net.0.weight"].shape[1] - ACTION_DIM
+    net = QNet(state_dim=state_dim).to(device)
     opt = torch.optim.Adam(net.parameters(), lr=args.lr)
     start_iter = 0
     best_win = -1.0
