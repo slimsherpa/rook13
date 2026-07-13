@@ -36,11 +36,8 @@ ANCHOR_WEIGHT = 0.25
 
 
 def _load_net(ckpt: str) -> QNet:
-    net = QNet()
-    ck = torch.load(ckpt, map_location="cpu", weights_only=True)
-    net.load_state_dict(ck["model"] if "model" in ck else ck)
-    net.eval()
-    return net
+    from .model import load_qnet
+    return load_qnet(ckpt)  # input width names the encoder version
 
 
 # --- phase 1: generation ----------------------------------------------------

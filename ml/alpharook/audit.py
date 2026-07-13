@@ -64,7 +64,9 @@ def clone_game(g: Game) -> Game:
 @torch.no_grad()
 def reflex_playout(g: Game, net, device: str = "cpu") -> float:
     """Finish the hand with the champion reflex at all four seats; returns
-    the hand-score diff for team 0 (true-world counterfactual value)."""
+    the hand-score diff for team 0 (true-world counterfactual value).
+    Mutates g to the finished state (callers may also score it with
+    rollout_value for target-scale labels)."""
     sim = _Sim(g, [], None)
     while not sim.hand_over:
         seat, dtype, cands = sim.decision()
@@ -84,10 +86,15 @@ def reflex_playout(g: Game, net, device: str = "cpu") -> float:
 
 @torch.no_grad()
 def audit_game(net, oracle: SearchAgent, seed: int, device: str = "cpu",
-               audit_seats: tuple = (0, 1, 2, 3)):
+               audit_seats: tuple = (0, 1, 2, 3), dump: list | None = None):
     """Play one self-play game (champion reflex, all seats) and audit every
     multi-choice CARD decision of the audited seats. Returns (blunders,
-    stats)."""
+    stats). With `dump` a list, also collects hindsight training rows:
+    (state, action, target, weight, decision_index) tuples — every
+    candidate labeled by its true-world counterfactual playout on the
+    net's own target scale, preventable-blunder decisions upweighted, and
+    low-weight anchor rows (the net's own q) for unaudited decisions so
+    bidding/go-down can't drift (the gen12 lesson)."""
     env = SelfPlayGame(seed)
     blunders: list[dict] = []
     stats = {"hands": 0, "decisions": 0, "costly": 0, "preventable": 0,
@@ -105,30 +112,37 @@ def audit_game(net, oracle: SearchAgent, seed: int, device: str = "cpu",
         q = net(S, A).cpu().numpy()
         played = cands[int(np.argmax(q))]
 
-        if (dtype == D_PLAY and len(cands) > 1 and seat in audit_seats
-                and env.g.phase == PLAYING):
+        audited = (dtype == D_PLAY and len(cands) > 1 and seat in audit_seats
+                   and env.g.phase == PLAYING)
+        if dump is not None and not audited and len(cands) > 1:
+            # anchor row: keep unaudited decision types where they are
+            dump.append((s, [(encode_action(dtype, c), float(q[i]))
+                             for i, c in enumerate(cands)], 0.25))
+        if audited:
             stats["decisions"] += 1
             # HINDSIGHT: counterfactual value of every candidate in the
             # true world, identical continuation policy
-            sign = 1.0 if team_of(seat) == 0 else -1.0
+            my_team = team_of(seat)
+            sign = 1.0 if my_team == 0 else -1.0
             values = {}
+            targets = {}
             for c in cands:
                 g2 = clone_game(env.g)
                 g2.play_card(seat, c)
-                if g2.phase in (HAND_DONE, GAME_OVER):
-                    h = g2.hand_history[-1]
-                    values[c] = sign * float(h[4] - h[5])
-                else:
-                    values[c] = sign * reflex_playout(g2, net, device)
+                if g2.phase not in (HAND_DONE, GAME_OVER):
+                    reflex_playout(g2, net, device)
+                h = g2.hand_history[-1]
+                values[c] = sign * float(h[4] - h[5])
+                targets[c] = rollout_value(g2, my_team)
             best = max(values, key=values.get)
             cost = values[best] - values[played]
 
+            knowable = False
             if cost >= COST_THRESHOLD:
                 stats["costly"] += 1
                 # KNOWABILITY: does honest search (no peeking) agree?
                 oracle.choose(env, seat, dtype, list(cands))
                 tap = oracle.last_search
-                knowable = False
                 s_gap = 0.0
                 if tap is not None:
                     _, _, t_cands, t_scores = tap
@@ -147,6 +161,10 @@ def audit_game(net, oracle: SearchAgent, seed: int, device: str = "cpu",
                     "search_gap": round(float(s_gap), 4),
                     "preventable": knowable,
                 })
+            if dump is not None:
+                # preventable-blunder decisions carry 4x the gradient
+                dump.append((s, [(encode_action(dtype, c), targets[c])
+                                 for c in cands], 4.0 if knowable else 1.0))
 
         env.apply(played)
         if len(env.g.hand_history) != last_hand:
@@ -160,16 +178,19 @@ def audit_game(net, oracle: SearchAgent, seed: int, device: str = "cpu",
 _W: dict = {}
 
 
-def _init(ckpt: str, worlds: int, min_trick: int):
+def _init(ckpt: str, worlds: int, min_trick: int, dump: bool = False):
     torch.set_num_threads(1)
     _W["net"] = load_qnet(ckpt)
+    _W["dump"] = dump
     _W["oracle"] = SearchAgent(_W["net"], worlds=worlds,
                                search_dtypes=frozenset({D_PLAY}),
                                prior_weight=2.0, min_trick=min_trick, seed=17)
 
 
 def _one(seed: int):
-    return audit_game(_W["net"], _W["oracle"], seed)
+    rows: list | None = [] if _W["dump"] else None
+    blunders, stats = audit_game(_W["net"], _W["oracle"], seed, dump=rows)
+    return blunders, stats, rows
 
 
 def main():
@@ -184,11 +205,42 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default=None,
                     help="blunder JSONL path (default runs/audit/<ckpt>.jsonl)")
+    ap.add_argument("--dump-dir", default=None,
+                    help="also write hindsight training shards here "
+                         "(distill.py --train consumes them)")
     args = ap.parse_args()
 
     name = Path(args.ckpt).stem
     out = Path(args.out) if args.out else RUNS_DIR / "audit" / f"{name}.jsonl"
     out.parent.mkdir(parents=True, exist_ok=True)
+    dump_dir = Path(args.dump_dir) if args.dump_dir else None
+    if dump_dir:
+        dump_dir.mkdir(parents=True, exist_ok=True)
+
+    shard_buf = {"S": [], "A": [], "y": [], "w": [], "di": [], "n": 0}
+
+    def absorb(rows):
+        for state, cand_rows, weight in rows:
+            di_val = len(shard_buf["S"])
+            shard_buf["S"].append(state)
+            for a_vec, target in cand_rows:
+                shard_buf["A"].append(a_vec)
+                shard_buf["y"].append(target)
+                shard_buf["w"].append(weight)
+                shard_buf["di"].append(di_val)
+        if len(shard_buf["A"]) >= 100_000:
+            flush_shard()
+
+    def flush_shard():
+        if not shard_buf["A"]:
+            return
+        from .distill import _flush
+        _flush(dump_dir, 0, shard_buf["n"], shard_buf["S"], shard_buf["A"],
+               shard_buf["y"], shard_buf["w"], shard_buf["di"],
+               seed=args.seed)
+        shard_buf["n"] += 1
+        for k in ("S", "A", "y", "w", "di"):
+            shard_buf[k].clear()
 
     seeds = [args.seed + i * 7919 + 1 for i in range(args.games)]
     t0 = time.time()
@@ -200,11 +252,13 @@ def main():
             import multiprocessing as mp
             ctx = mp.get_context("spawn")
             with ctx.Pool(args.workers, initializer=_init,
-                          initargs=(args.ckpt, args.worlds,
-                                    args.min_trick)) as pool:
-                for blunders, st in pool.imap_unordered(_one, seeds):
+                          initargs=(args.ckpt, args.worlds, args.min_trick,
+                                    dump_dir is not None)) as pool:
+                for blunders, st, rows in pool.imap_unordered(_one, seeds):
                     for b in blunders:
                         f.write(json.dumps(b) + "\n")
+                    if rows and dump_dir:
+                        absorb(rows)
                     for k in total:
                         total[k] += st[k]
                     n_done += 1
@@ -216,13 +270,18 @@ def main():
                               f"({(time.time() - t0) / n_done:.1f}s/game)",
                               flush=True)
         else:
-            _init(args.ckpt, args.worlds, args.min_trick)
+            _init(args.ckpt, args.worlds, args.min_trick,
+                  dump_dir is not None)
             for seed in seeds:
-                blunders, st = _one(seed)
+                blunders, st, rows = _one(seed)
                 for b in blunders:
                     f.write(json.dumps(b) + "\n")
+                if rows and dump_dir:
+                    absorb(rows)
                 for k in total:
                     total[k] += st[k]
+    if dump_dir:
+        flush_shard()
 
     h = max(1, total["hands"])
     d = max(1, total["decisions"])
