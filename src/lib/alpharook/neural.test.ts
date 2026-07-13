@@ -63,21 +63,32 @@ interface GameFixture {
     handsPlayed: number;
 }
 
-const GENS = ['gen7', 'gen8', 'gen9', 'gen10'] as const;
+// gen13 joins when its fixture lands (export_web.py after the freeze)
+import * as fsGens from 'fs';
+const _have = (g: string) =>
+    fsGens.existsSync(path.join(__dirname, '__fixtures__', `game.${g}.json`));
+const GENS = (['gen7', 'gen8', 'gen9', 'gen10', 'gen13'] as const)
+    .filter(_have);
 /** gen9+ make widow decisions neurally; earlier gens script them. */
-const FULLY_NEURAL = new Set<string>(['gen9', 'gen10']);
+const FULLY_NEURAL = new Set<string>(['gen9', 'gen10', 'gen13']);
 
 describe('QNet forward pass matches torch', () => {
-    const golden = loadFixture<GoldenFixture>('qnet.golden.json');
-
-    for (const gen of GENS) {
-        it(`${gen} reproduces the golden vectors`, () => {
-            const net = loadWeights(gen);
-            for (let i = 0; i < golden.states.length; i++) {
-                const q = qForward(net, Float32Array.from(golden.states[i]), Float32Array.from(golden.actions[i]));
-                expect(Math.abs(q - golden.q[gen][i])).toBeLessThan(Q_TOL);
-            }
-        });
+    // v1 and v2 nets have different input widths, so each encoder version
+    // gets its own golden file; a gen appears in exactly one of them
+    const files = ['qnet.golden.json', 'qnet.golden.v2.json'].filter((f) =>
+        fsGens.existsSync(path.join(__dirname, '__fixtures__', f)));
+    for (const file of files) {
+        const golden = loadFixture<GoldenFixture>(file);
+        for (const gen of GENS) {
+            if (!(gen in golden.q)) continue;
+            it(`${gen} reproduces the golden vectors (${file})`, () => {
+                const net = loadWeights(gen);
+                for (let i = 0; i < golden.states.length; i++) {
+                    const q = qForward(net, Float32Array.from(golden.states[i]), Float32Array.from(golden.actions[i]));
+                    expect(Math.abs(q - golden.q[gen][i])).toBeLessThan(Q_TOL);
+                }
+            });
+        }
     }
 });
 

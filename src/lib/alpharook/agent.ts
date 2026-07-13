@@ -30,7 +30,7 @@ import { legalCards, minNextBid, mustBid } from '../game/engine';
 import { Observation, observe } from './observation';
 import { choosePIMCCard, choosePIMCBid } from './pimc';
 import {
-    encodeState, encodeAction, cardToInt, intToCard, AuctionContext,
+    encodeStateFor, encodeAction, cardToInt, intToCard, AuctionContext,
     D_BID, D_DISCARD, D_TRUMP, D_PLAY, PASS,
 } from './encoder';
 import { QNetWeights, qForward, loadQNet, NeuralGen } from './qnet';
@@ -43,7 +43,8 @@ export const ALPHAROOK_BID_SAMPLES = 20;
 export type NeuralStyle = NeuralGen | 'gen11';
 
 export const isNeuralStyle = (s: BotStyle | undefined): s is NeuralStyle =>
-    s === 'gen7' || s === 'gen8' || s === 'gen9' || s === 'gen10' || s === 'gen11';
+    s === 'gen7' || s === 'gen8' || s === 'gen9' || s === 'gen10'
+    || s === 'gen11' || s === 'gen13';
 
 /** Which weight file a neural style runs on. */
 export const weightsGenFor = (s: NeuralStyle): NeuralGen =>
@@ -51,7 +52,11 @@ export const weightsGenFor = (s: NeuralStyle): NeuralGen =>
 
 /** Generations whose go-down/trump are ALSO net decisions (gen9+). */
 export const isFullyNeural = (s: BotStyle | undefined): boolean =>
-    s === 'gen9' || s === 'gen10' || s === 'gen11';
+    s === 'gen9' || s === 'gen10' || s === 'gen11' || s === 'gen13';
+
+/** Styles that add endgame look-ahead on top of their reflex net. */
+const SEARCHES_ENDGAME = (s: NeuralStyle): boolean =>
+    s === 'gen11' || s === 'gen13';
 
 export interface NeuralChoice {
     dtype: number;
@@ -85,7 +90,7 @@ export const neuralChoice = (g: GameDoc, seat: Seat, net: QNetWeights): NeuralCh
         return null;
     }
 
-    const state = encodeState(observe(g, seat), [], dtype, {
+    const state = encodeStateFor(net, observe(g, seat), [], dtype, {
         mustBid: mustBid(g),
         minNextBid: minNextBid(g),
     });
@@ -99,7 +104,7 @@ const argmaxChoice = (
     net: QNetWeights, o: Observation, picks: number[], dtype: number,
     cands: number[], ctx: AuctionContext, trumpIntent: number | null,
 ): NeuralChoice => {
-    const state = encodeState(o, picks, dtype, ctx, trumpIntent);
+    const state = encodeStateFor(net, o, picks, dtype, ctx, trumpIntent);
     const q = cands.map((c) => qForward(net, state, encodeAction(dtype, c)));
     let best = 0;
     for (let i = 1; i < q.length; i++) if (q[i] > q[best]) best = i;

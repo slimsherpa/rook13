@@ -37,15 +37,15 @@ from rook.bots import next_bot_action, best_trump_suit
 from rook.engine import WIDOW as PHASE_WIDOW, DEALING, REDEAL
 from rook.observation import observe
 from .encoder import (
-    STATE_DIM, ACTION_DIM, encode_state, encode_action,
-    D_BID, D_DISCARD, D_TRUMP, D_PLAY,
+    STATE_DIM, STATE_DIM_V2, ACTION_DIM, encode_state_for, encode_action,
+    state_dim_of, D_BID, D_DISCARD, D_TRUMP, D_PLAY,
 )
 from .env import SelfPlayGame
-from .model import QNet
+from .model import QNet, load_qnet
 
 # gen9+ champions decide everything neurally (trump intent + go-down too);
 # gen7/gen8 were frozen with scripted openings and must replay that way.
-FULLY_NEURAL = {"gen9", "gen10"}
+FULLY_NEURAL = {"gen9", "gen10", "gen13"}
 NEURAL_DTYPES = {
     True: (D_BID, D_DISCARD, D_TRUMP, D_PLAY),
     False: (D_BID, D_PLAY),
@@ -58,11 +58,8 @@ OUT_FIX = REPO / "src" / "lib" / "alpharook" / "__fixtures__"
 
 
 def load_net(gen: str) -> QNet:
-    net = QNet()
-    ck = torch.load(MODELS_DIR / f"{gen}.pt", map_location="cpu", weights_only=True)
-    net.load_state_dict(ck["model"] if "model" in ck else ck)
-    net.eval()
-    return net
+    # input width names the encoder version (479 = v1, 508 = v2 belief nets)
+    return load_qnet(str(MODELS_DIR / f"{gen}.pt"))
 
 
 def write_bin(net: QNet, path: Path) -> None:
@@ -82,12 +79,17 @@ def write_bin(net: QNet, path: Path) -> None:
 
 
 @torch.no_grad()
-def golden_vectors(nets: dict[str, QNet], path: Path, n: int = 8) -> None:
+def golden_vectors(nets: dict[str, QNet], path: Path, n: int = 8,
+                   state_dim: int = STATE_DIM) -> None:
+    nets = {g: n_ for g, n_ in nets.items()
+            if state_dim_of(n_) == state_dim}
+    if not nets:
+        return
     rng = np.random.default_rng(13)
-    s = rng.standard_normal((n, STATE_DIM)).astype(np.float32)
+    s = rng.standard_normal((n, state_dim)).astype(np.float32)
     a = rng.standard_normal((n, ACTION_DIM)).astype(np.float32)
     out = {
-        "state_dim": STATE_DIM,
+        "state_dim": state_dim,
         "action_dim": ACTION_DIM,
         "states": [[float(v) for v in row] for row in s],
         "actions": [[float(v) for v in row] for row in a],
@@ -124,8 +126,8 @@ def trace_game(gen: str, net: QNet, seed: int, path: Path) -> None:
     while not env.done:
         seat, dtype, cands = env.decision()
         if dtype in neural_dtypes:
-            s = encode_state(observe(env.g, seat), env.picks, dtype, env.g,
-                             env.trump_intent)
+            s = encode_state_for(net, observe(env.g, seat), env.picks, dtype,
+                                 env.g, env.trump_intent)
             S = torch.from_numpy(np.stack([s] * len(cands)))
             A = torch.from_numpy(np.stack([encode_action(dtype, c) for c in cands]))
             q = net(S, A)
@@ -172,7 +174,9 @@ def main():
     nets = {gen: load_net(gen) for gen in args.gens}
     for gen, net in nets.items():
         write_bin(net, OUT_BIN / f"{gen}.bin")
-    golden_vectors(nets, OUT_FIX / "qnet.golden.json")
+    golden_vectors(nets, OUT_FIX / "qnet.golden.json", state_dim=STATE_DIM)
+    golden_vectors(nets, OUT_FIX / "qnet.golden.v2.json",
+                   state_dim=STATE_DIM_V2)
     for i, (gen, net) in enumerate(nets.items()):
         trace_game(gen, net, seed=13 + i, path=OUT_FIX / f"game.{gen}.json")
 

@@ -24,7 +24,7 @@ import { Observation, observe } from './observation';
 import { sampleWorld } from './determinize';
 import { materialize, applyPlayFast, scoreHand } from './rollout';
 import { legalFromObservation } from './pimc';
-import { encodeState, encodeAction, cardToInt, D_PLAY } from './encoder';
+import { encodeStateFor, encodeAction, cardToInt, D_PLAY } from './encoder';
 import { QNetWeights, qForward } from './qnet';
 
 export interface SearchOptions {
@@ -48,7 +48,7 @@ export const netCard = (g: GameDoc, net: QNetWeights): Card => {
     const seat = g.turn!;
     const legal = legalCards(g, seat);
     if (legal.length === 1) return legal[0];
-    const state = encodeState(observe(g, seat), [], D_PLAY, playCtx(g));
+    const state = encodeStateFor(net, observe(g, seat), [], D_PLAY, playCtx(g));
     let best = 0;
     let bestQ = -Infinity;
     for (let i = 0; i < legal.length; i++) {
@@ -115,7 +115,7 @@ export const chooseSearchCard = (
     const legal = legalFromObservation(o);
     const myTeam = teamOf(seat);
 
-    const rootState = encodeState(o, [], D_PLAY, playCtx(g));
+    const rootState = encodeStateFor(net, o, [], D_PLAY, playCtx(g));
     const prior = legal.map((c) =>
         qForward(net, rootState, encodeAction(D_PLAY, cardToInt(c))));
 

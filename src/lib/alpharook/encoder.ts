@@ -12,7 +12,7 @@
 
 import { Card, Seat, Suit, SEATS, SUITS, getCardPoints } from '../game/types';
 import { estimateTricksAs } from '../game/bots';
-import { Observation, knownVoids, handSizes } from './observation';
+import { Observation, knownVoids, handSizes, unseenCards } from './observation';
 
 // decision types
 export const D_BID = 0;
@@ -183,3 +183,81 @@ export const encodeAction = (decisionType: number, action: number): Float32Array
     }
     return a;
 };
+
+// ---------------------------------------------------------------------------
+// v2: explicit belief features (gen13+) — bit-parity port of encoder.py's
+// belief_features. What a card-counting human tracks that the raw multihot
+// buries: how much of each suit is still out there, whether MY cards are
+// boss, and who has shown what. Derived from the Observation alone.
+// ---------------------------------------------------------------------------
+
+export const BELIEF_DIM = 29;
+export const STATE_DIM_V2 = STATE_DIM + BELIEF_DIM;
+
+export const beliefFeatures = (o: Observation): Float32Array => {
+    const me = seatToInt(o.seat);
+    const rel = (s: Seat): number => (((seatToInt(s) - me) % 4) + 4) % 4;
+    const b = new Float32Array(BELIEF_DIM);
+    const unseen = unseenCards(o);
+
+    for (let s = 0; s < 4; s++) {
+        const suit = SUITS[s];
+        const cards = unseen.filter((c) => c.suit === suit);
+        b[s] = f32(cards.length / 10.0);
+        const bestUnseen = cards.reduce((m, c) => Math.max(m, c.number), 0);
+        b[4 + s] = f32(bestUnseen / 14.0);
+        b[8 + s] = f32(cards.reduce((t, c) => t + getCardPoints(c), 0) / 20.0);
+        const myBest = o.hand.reduce(
+            (m, c) => (c.suit === suit ? Math.max(m, c.number) : m), 0);
+        b[12 + s] = myBest > 0 && myBest > bestUnseen ? 1.0 : 0.0;
+    }
+
+    const base = 16;
+    const bump = (seat: Seat, card: Card): void => {
+        if (seat === o.seat) return;
+        const i = base + (rel(seat) - 1) * 4 + suitToInt(card.suit);
+        b[i] = f32(b[i] + f32(1.0 / 9.0)); // numpy float32 += semantics
+    };
+    for (const t of o.completedTricks) for (const p of t.plays) bump(p.seat, p.card);
+    for (const p of o.trickPlays) bump(p.seat, p.card);
+
+    if (o.myGoDown && o.myGoDown.length > 0) {
+        b[28] = f32(o.myGoDown.reduce((t, c) => t + getCardPoints(c), 0) / 20.0);
+    }
+    return b;
+};
+
+export const encodeStateV2 = (
+    o: Observation,
+    picks: number[],
+    decisionType: number,
+    ctx: AuctionContext,
+    trumpIntent: number | null = null,
+): Float32Array => {
+    const x = new Float32Array(STATE_DIM_V2);
+    x.set(encodeState(o, picks, decisionType, ctx, trumpIntent));
+    x.set(beliefFeatures(o), STATE_DIM);
+    return x;
+};
+
+/** Minimal structural view of a loaded QNet (avoids an import cycle). */
+export interface NetLike {
+    layers: { inDim: number }[];
+}
+
+export const stateDimOf = (net: NetLike): number =>
+    net.layers[0].inDim - ACTION_DIM;
+
+/** Version-dispatching encode: v1 nets (gen7-gen10) and v2 belief nets
+ *  (gen13+) share every driver — the weight file names its own encoder. */
+export const encodeStateFor = (
+    net: NetLike,
+    o: Observation,
+    picks: number[],
+    decisionType: number,
+    ctx: AuctionContext,
+    trumpIntent: number | null = null,
+): Float32Array =>
+    stateDimOf(net) === STATE_DIM
+        ? encodeState(o, picks, decisionType, ctx, trumpIntent)
+        : encodeStateV2(o, picks, decisionType, ctx, trumpIntent);
