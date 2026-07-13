@@ -179,9 +179,51 @@ def train(args) -> None:
                     A, y, w, di = A[keep], y[keep], w[keep], di[keep]
                 else:
                     w = np.where(anchor, w * args.anchor_scale, w)
+            net.train()
+            if args.loss == "rank":
+                # pairwise ordering within each decision: for candidates
+                # i, j of the same position with y_i > y_j + margin, ask
+                # q_i > q_j (logistic). Scale-free — the Q surface keeps
+                # its calibration; only the ORDER at each decision moves.
+                pi, pj, pw = [], [], []
+                order = np.argsort(di, kind="stable")
+                k = 0
+                while k < len(order):
+                    m = k
+                    while m < len(order) and di[order[m]] == di[order[k]]:
+                        m += 1
+                    grp = order[k:m]
+                    for a_ in grp:
+                        for b_ in grp:
+                            if y[a_] > y[b_] + args.rank_margin:
+                                pi.append(a_)
+                                pj.append(b_)
+                                pw.append(w[a_])
+                    k = m
+                pi = np.array(pi); pj = np.array(pj)
+                pw_arr = np.array(pw, dtype=np.float32)
+                pperm = rng.permutation(len(pi))
+                for i in range(0, len(pi), args.batch_size):
+                    idx = pperm[i:i + args.batch_size]
+                    ia, ib = pi[idx], pj[idx]
+                    qa = net(torch.from_numpy(S_dec[di[ia]]),
+                             torch.from_numpy(A[ia]))
+                    qb = net(torch.from_numpy(S_dec[di[ib]]),
+                             torch.from_numpy(A[ib]))
+                    wb_t = torch.from_numpy(pw_arr[idx])
+                    loss = (wb_t * torch.nn.functional.softplus(qb - qa)
+                            ).sum() / wb_t.sum()
+                    opt.zero_grad()
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(net.parameters(), 5.0)
+                    opt.step()
+                    ep_losses.append(loss.item())
+                    step += 1
+                    if tb and step % 50 == 0:
+                        tb.add_scalar("distill/loss", loss.item(), step)
+                continue
             n = len(y)
             perm = rng.permutation(n)
-            net.train()
             for i in range(0, n, args.batch_size):
                 idx = perm[i:i + args.batch_size]
                 Sb = torch.from_numpy(S_dec[di[idx]])
@@ -240,6 +282,13 @@ def main():
                          "rows only)")
     ap.add_argument("--tag", default="",
                     help="suffix for the saved checkpoint name")
+    ap.add_argument("--loss", default="mse", choices=["mse", "rank"],
+                    help="rank = pairwise ordering within each decision "
+                         "(scale-free; teaches WHICH card, not what it's "
+                         "worth — absolute-value regression corrupted the "
+                         "Q calibration in gen12 and gen14 v1)")
+    ap.add_argument("--rank-margin", type=float, default=0.05,
+                    help="min target gap for a pair to teach anything")
     args = ap.parse_args()
     if args.generate:
         generate(args)
