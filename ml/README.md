@@ -152,6 +152,54 @@ per-decision-type exploration (`--bid-eps`).
   decision-for-decision (incl. gen9+'s widow flow and the deterministic
   trump-intent re-derivation). Freezing a new champion = add it to
   FULLY_NEURAL (if applicable) + re-run export_web.py + wire the BotStyle.
+## The road to the top (agreed with Riley, 2026-07-13)
+
+The family's verdict on gen13: strong instincts, real counting, but no
+theory of mind and no plans — "it would never out-wit a human." Each rung
+below builds the tool the next one needs. House rules throughout: nothing
+promotes without 100+ pairs AND a marathon; honest negatives get archived;
+two-stage grafts whenever a converged trunk is touched; browser ships only
+what is provably identical to the arena champion.
+
+- **gen14 — replay & blunder engine.** Freeze any finished deal and
+  interrogate every decision with hindsight: counterfactual playouts in
+  the TRUE world find what the best card actually was, and a deep search
+  from the observation says whether that was KNOWABLE — together they
+  define a *preventable blunder* (hindsight loss + search agrees), as
+  opposed to plain bad luck. Outputs: preventable-blunder rate per hand
+  (the number the family estimates by feel) and a hindsight dataset of
+  found wins. gen14-the-model = champion fine-tuned on its own corrected
+  mistakes. Hypothesis: gen12 failed distilling search's mild *averages*;
+  found wins on frozen deals are the sharpest targets that exist — and
+  every later rung needs this gauge to prove itself.
+- **gen15 — belief head.** Bigger trunk (~2-4M params) with an auxiliary
+  output predicting WHO HOLDS every unseen card (self-play gives the
+  labels free), grafted two-stage. Replaces the hand-made belief counters
+  with learned inference ("she passed then showed out of Red — trump is
+  on my left"). Beliefs become readable/debuggable. Gauge: belief accuracy
+  trick-by-trick + blunder-rate drop on the gen14 audit suite.
+- **gen16 — belief-guided planning.** Search worlds sampled from the
+  net's own posterior (uniform imagination is why early search loses
+  today), extended to all tricks + a 2-3 trick tree so PLANS are
+  evaluated as lines ("duck, ruff the third round, put partner on lead"),
+  bidding included. Gauge: stack duels stop being coin flips; multi-trick
+  blunder classes vanish.
+- **gen17 — exploiter league.** AlphaStar's move: train agents whose only
+  job is to find and abuse the champion's habits (synthetic humans
+  hunting traps), fold their winning lines back into the league, repeat.
+  Cure for off-distribution brittleness humans exploit. Gauge: each
+  exploiter cycle needs longer to find a hole.
+- **gen18 — legible partnership.** Hanabi-style: reward plays that make
+  PARTNER's belief head more accurate — conventions emerge (its own
+  dialect); possibly a sequence model so intentions persist across
+  tricks. Gauge: pairs that signal beat pairs that don't.
+- **gen19 — the human bridge.** Point the gen14 engine at the family's
+  real Firestore games continuously; fine-tune against the lines humans
+  actually punish; the JAY CUP becomes the official benchmark. Gauge: the
+  family stops winning.
+
+## Completed rungs
+
 - ~~search + learning~~ — **done (gen11)**: the champion net as PIMC's
   rollout/eval policy beats the pure net 65/35 at marathon rules; see the
   search notebook above
