@@ -70,8 +70,8 @@ def widen(donor_path: str, factor: int = 2, noise: float = 1e-4,
             new.weight.copy_(w)
             new.bias.copy_(b)
         if belief:
-            net.belief_head.weight.zero_()
-            net.belief_head.bias.zero_()
+            net.belief_head[-1].weight.zero_()
+            net.belief_head[-1].bias.zero_()
     net.eval()
     return net
 

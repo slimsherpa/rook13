@@ -46,7 +46,7 @@ def _worker_main(conn, worker_id: int, n_envs: int, seed: int,
             net = QNet(
                 hidden=tuple(int(state_dict[k].shape[0]) for k in lin_keys[:-1]),
                 state_dim=state_dict[lin_keys[0]].shape[1] - ACTION_DIM,
-                belief="belief_head.weight" in state_dict)
+                belief=any(k.startswith("belief_head") for k in state_dict))
         net.load_state_dict(state_dict)
         samples, stats = vec.play(net, "cpu", epsilon, n_samples)
         S = np.stack([r[0] for r in samples])

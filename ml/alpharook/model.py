@@ -31,23 +31,35 @@ class QNet(nn.Module):
             d = h
         layers.append(nn.Linear(d, 1))
         self.net = nn.Sequential(*layers)
-        self.belief_head = nn.Linear(d, 40 * 4) if belief else None
+        # The belief head reads the FIRST hidden layer — the closest thing
+        # to raw features — through its own small MLP. A linear probe off
+        # the final Q bottleneck provably can't learn this (gen15 run 1:
+        # accuracy pinned at the 32% class prior for 300 iterations).
+        self.belief_head = nn.Sequential(
+            nn.Linear(hidden[0], 512), nn.ReLU(), nn.Linear(512, 40 * 4),
+        ) if belief else None
 
-    def _trunk(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+    def _first_hidden(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         x = torch.cat([state, action], dim=-1)
-        for m in self.net[:-1]:
-            x = m(x)
-        return x
+        return self.net[1](self.net[0](x))
 
     def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         return self.net(torch.cat([state, action], dim=-1)).squeeze(-1)
 
     def q_and_belief(self, state: torch.Tensor, action: torch.Tensor):
         """(q, belief_logits[batch, 40, 4]) — training-time only."""
-        h = self._trunk(state, action)
-        q = self.net[-1](h).squeeze(-1)
-        b = self.belief_head(h).view(-1, 40, 4)
-        return q, b
+        x = torch.cat([state, action], dim=-1)
+        h1 = self.net[1](self.net[0](x))
+        y = h1
+        for m in self.net[2:]:
+            y = m(y)
+        b = self.belief_head(h1).view(-1, 40, 4)
+        return y.squeeze(-1), b
+
+    def belief_forward(self, state: torch.Tensor, action: torch.Tensor):
+        """belief_logits[batch, 40, 4] alone (analysis / UI)."""
+        return self.belief_head(
+            self._first_hidden(state, action)).view(-1, 40, 4)
 
 
 def load_qnet(ckpt_path: str) -> QNet:
@@ -63,7 +75,7 @@ def load_qnet(ckpt_path: str) -> QNet:
     in_dim = sd[lin_keys[0]].shape[1]
     hidden = tuple(int(sd[k].shape[0]) for k in lin_keys[:-1])
     net = QNet(hidden=hidden, state_dim=in_dim - ACTION_DIM,
-               belief="belief_head.weight" in sd)
+               belief=any(k.startswith("belief_head") for k in sd))
     net.load_state_dict(sd)
     net.eval()
     return net

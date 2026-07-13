@@ -118,7 +118,7 @@ def main():
                           key=lambda k: int(k.split(".")[1]))
         net = QNet(hidden=tuple(int(sd[k].shape[0]) for k in lin_keys[:-1]),
                    state_dim=sd[lin_keys[0]].shape[1] - ACTION_DIM,
-                   belief="belief_head.weight" in sd).to(device)
+                   belief=any(k.startswith("belief_head") for k in sd)).to(device)
     else:
         net = QNet().to(device)
     opt = torch.optim.Adam(net.parameters(), lr=args.lr)
