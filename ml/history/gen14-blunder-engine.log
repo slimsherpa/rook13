@@ -1,0 +1,67 @@
+=== FULL AUDIT: gen13, 100 games, oracle K=32 all tricks ===
+
+=== BLUNDER AUDIT: gen13 over 100 games (1189 hands) ===
+  card decisions audited: 31325
+  costly in hindsight:    3542 (11.3% of decisions)
+  PREVENTABLE blunders:   883 (0.74 per hand, avg cost 170 pts)
+  blunder log: /Users/rileyadamson/Documents/GitHub/rook13/ml/runs/audit/gen13.jsonl
+=== COMPARISON AUDIT: gen10, 100 games (did the belief net blunder less?) ===
+
+=== BLUNDER AUDIT: gen10 over 100 games (1160 hands) ===
+  card decisions audited: 30488
+  costly in hindsight:    3544 (11.6% of decisions)
+  PREVENTABLE blunders:   823 (0.71 per hand, avg cost 166 pts)
+  blunder log: /Users/rileyadamson/Documents/GitHub/rook13/ml/runs/audit/gen10.jsonl
+=== AUDITS DONE ===
+=== GEN14 PIPELINE start Mon Jul 13 10:49:38 MDT 2026 ===
+--- phase 1: 1200-game audit with hindsight dumping ---
+=== BLUNDER AUDIT: gen13 over 1200 games (14757 hands) ===
+  card decisions audited: 389764
+  costly in hindsight:    43962 (11.3% of decisions)
+  PREVENTABLE blunders:   10616 (0.72 per hand, avg cost 167 pts)
+  blunder log: runs/gen14/blunders.jsonl
+--- phase 2: hindsight fine-tune from gen13 ---
+epoch 0: loss 0.06641 (5747 steps)
+  [epoch 0] duel vs models/gen13.pt: 36.0%
+epoch 1: loss 0.06248 (11494 steps)
+  [epoch 1] duel vs models/gen13.pt: 36.0%
+epoch 2: loss 0.05987 (17241 steps)
+  [epoch 2] duel vs models/gen13.pt: 50.0%
+distilled.pt saved; best epoch duel 50.0%
+--- phase 3: confirmations vs gen13 (100 sprint + 40 marathon pairs) ---
+  distilled_best.pt: 40.5% wins (avg diff -104.4)
+  pairs swept: distilled_best.pt 8, gen13.pt 27, split 65
+  distilled_best.pt auctions: won 1259 contracts, made 59% at avg bid 101.1
+  gen13.pt auctions: won 1211 contracts, made 65% at avg bid 101.4
+  distilled_best.pt: 21.2% wins (avg diff -656.4)
+  pairs swept: distilled_best.pt 0, gen13.pt 23, split 17
+  distilled_best.pt auctions: won 2833 contracts, made 56% at avg bid 101.7
+  gen13.pt auctions: won 2560 contracts, made 63% at avg bid 101.9
+--- phase 4: THE GAUGE — re-audit the trained net (blunder rate must drop) ---
+=== BLUNDER AUDIT: distilled_best over 100 games (1296 hands) ===
+  card decisions audited: 34109
+  costly in hindsight:    4347 (12.7% of decisions)
+  PREVENTABLE blunders:   1185 (0.91 per hand, avg cost 165 pts)
+  blunder log: runs/audit/gen14_candidate.jsonl
+=== GEN14 PIPELINE DONE Mon Jul 13 11:51:43 MDT 2026 ===
+=== GEN14 v2: ranking-loss fine-tune ===
+epoch 0: loss 0.38680 (9676 steps)
+  [epoch 0] duel vs models/gen13.pt: 38.0%
+epoch 1: loss 0.36618 (19352 steps)
+  [epoch 1] duel vs models/gen13.pt: 28.0%
+distilled.pt saved; best epoch duel 38.0%
+--- confirm: 60 sprint pairs + 30 marathon vs gen13 ---
+  distilled_rank_best.pt: 33.3% wins (avg diff -138.9)
+  pairs swept: distilled_rank_best.pt 5, gen13.pt 25, split 30
+  distilled_rank_best.pt auctions: won 764 contracts, made 58% at avg bid 101.1
+  gen13.pt auctions: won 764 contracts, made 68% at avg bid 100.6
+  distilled_rank_best.pt: 33.3% wins (avg diff -340.9)
+  pairs swept: distilled_rank_best.pt 3, gen13.pt 13, split 14
+  distilled_rank_best.pt auctions: won 2007 contracts, made 59% at avg bid 101.9
+  gen13.pt auctions: won 1855 contracts, made 64% at avg bid 101.0
+--- gauge: 60-game blunder audit of the rank-trained net ---
+  card decisions audited: 18425
+  costly in hindsight:    2129 (11.6% of decisions)
+  PREVENTABLE blunders:   360 (0.51 per hand, avg cost 170 pts)
+  blunder log: runs/audit/gen14_rank.jsonl
+=== GEN14 v2 DONE ===

@@ -161,17 +161,25 @@ promotes without 100+ pairs AND a marathon; honest negatives get archived;
 two-stage grafts whenever a converged trunk is touched; browser ships only
 what is provably identical to the arena champion.
 
-- **gen14 — replay & blunder engine.** Freeze any finished deal and
-  interrogate every decision with hindsight: counterfactual playouts in
-  the TRUE world find what the best card actually was, and a deep search
-  from the observation says whether that was KNOWABLE — together they
-  define a *preventable blunder* (hindsight loss + search agrees), as
-  opposed to plain bad luck. Outputs: preventable-blunder rate per hand
-  (the number the family estimates by feel) and a hindsight dataset of
-  found wins. gen14-the-model = champion fine-tuned on its own corrected
-  mistakes. Hypothesis: gen12 failed distilling search's mild *averages*;
-  found wins on frozen deals are the sharpest targets that exist — and
-  every later rung needs this gauge to prove itself.
+- **gen14 — replay & blunder engine.** ENGINE SHIPPED (audit.py,
+  2026-07-13); the fine-tuned MODEL did not survive confirmation — full
+  findings below. The engine freezes any finished deal and interrogates
+  every decision with hindsight: counterfactual playouts in the TRUE
+  world find what the best card actually was, and a deep search from the
+  observation says whether that was KNOWABLE — together they define a
+  *preventable blunder* (hindsight loss + search agrees), as opposed to
+  plain bad luck. First measurements: gen13 and gen10 both commit ~0.72
+  preventable blunders per hand at ~170 pts each; 75% happen in tricks
+  1-4; 69% cost 200+ (they flip hands). Model attempts: (v1) MSE toward
+  hindsight values — 40.5%/21% vs gen13, make-rate collapse, calibration
+  corrupted by compressed single-world targets; (v2) pairwise RANKING
+  loss — cut preventable blunders 29% (0.72 -> 0.51/hand!) yet still
+  lost 33% overall. **The four-strike lesson (gen12 x2, gen14 x2): ANY
+  concentrated offline objective degrades a DMC-converged net's joint
+  calibration, even when it wins its own metric.** Corrections must ride
+  INSIDE the on-policy loop (MuZero-reanalyze style: a slice of each
+  training batch from a periodically refreshed blunder buffer) — folded
+  into gen15's training run rather than attempted offline again.
 - **gen15 — belief head.** Bigger trunk (~2-4M params) with an auxiliary
   output predicting WHO HOLDS every unseen card (self-play gives the
   labels free), grafted two-stage. Replaces the hand-made belief counters
