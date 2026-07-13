@@ -31,9 +31,9 @@ import random
 import numpy as np
 import torch
 
-from rook.cards import team_of
+from rook.cards import SEATS, team_of
 from rook.bots import next_bot_action, choose_bid, best_trump_suit
-from rook.engine import WIDOW as PHASE_WIDOW
+from rook.engine import WIDOW as PHASE_WIDOW, BIDDING as PHASE_BIDDING
 from rook.observation import observe
 from .encoder import (
     encode_state_for, encode_action, D_BID, D_DISCARD, D_TRUMP, D_PLAY,
@@ -52,6 +52,28 @@ SCRIPT_MODES = {
     "bid": frozenset({D_BID}),                  # net learns go-down + play
     "none": frozenset(),
 }
+
+
+def belief_target(g, seat: int):
+    """gen15 supervision, computed from the TRUE state (targets, never
+    inputs): for each card, who holds it — class 0/1/2 = relative seats
+    1..3, class 3 = the hidden widow/go-down — masked to cards the seat
+    cannot currently see."""
+    t = np.zeros(40, dtype=np.int8)
+    m = np.zeros(40, dtype=np.uint8)
+    for s2 in SEATS:
+        if s2 == seat:
+            continue
+        r = (s2 - seat) % 4 - 1
+        for c in g.hands[s2]:
+            t[c] = r
+            m[c] = 1
+    hidden4 = g.widow if g.phase == PHASE_BIDDING else g.go_down
+    if g.bid_winner != seat:
+        for c in hidden4:
+            t[c] = 3
+            m[c] = 1
+    return t, m
 
 
 def game_targets(env: SelfPlayGame) -> tuple[float, float]:
@@ -171,11 +193,11 @@ class VecSelfPlay:
         env, mode = self.envs[i], self.modes[i]
         t0, t1 = game_targets(env)
         hmap = hand_targets(env)
-        for s_vec, a_vec, team, hand_no in self.bufs[i]:
+        for s_vec, a_vec, team, hand_no, bt, bm in self.bufs[i]:
             game_t = t0 if team == 0 else t1
             hand_t = hmap[hand_no][team]
             out.append((s_vec, a_vec,
-                        HAND_WEIGHT * hand_t + GAME_WEIGHT * game_t))
+                        HAND_WEIGHT * hand_t + GAME_WEIGHT * game_t, bt, bm))
         stats["games"] += 1
         stats["hands"] += len(env.g.hand_history)
         stats["sets"] += sum(1 for h in env.g.hand_history if h[6])
@@ -240,9 +262,10 @@ class VecSelfPlay:
                         j = self.rng.randrange(hi - lo)
                 else:
                     j = int(np.argmax(q[lo:hi]))
+                bt, bm = belief_target(env.g, seats[i])
                 self.bufs[i].append(
                     (state_rows[lo + j], action_rows[lo + j],
-                     team_of(seats[i]), env.g.hand_number))
+                     team_of(seats[i]), env.g.hand_number, bt, bm))
                 env.apply(cands_all[i][j])
                 if env.done:
                     self._flush_finished(i, out, stats)

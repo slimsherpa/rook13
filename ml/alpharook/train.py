@@ -88,6 +88,8 @@ def main():
                          "of climbing (gen13 run 1: 37.5%% -> 17%% by 9k).")
     ap.add_argument("--unfreeze-lr", type=float, default=5e-5,
                     help="learning rate after the trunk unfreezes")
+    ap.add_argument("--belief-weight", type=float, default=0.3,
+                    help="auxiliary belief-head CE weight (gen15+ nets)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--init-from", default=None,
@@ -101,18 +103,24 @@ def main():
 
     torch.manual_seed(args.seed)
     device = args.device
-    # the checkpoint's input width names its encoder version (v1 gen7-10,
-    # v2 = gen13+ belief nets); fresh runs default to v1
-    from .encoder import STATE_DIM, ACTION_DIM
-    state_dim = STATE_DIM
+    # the checkpoint names its own architecture: input width = encoder
+    # version (v1 gen7-10, v2 gen13+), layer shapes = trunk widths, a
+    # belief_head key = gen15+; fresh runs default to the v1 MLP
+    from .encoder import ACTION_DIM
     latest_peek = run_dir / "latest.pt"
     src = (latest_peek if (args.resume and latest_peek.exists())
            else args.init_from)
     if src:
         sd = torch.load(src, map_location="cpu", weights_only=True)
         sd = sd["model"] if "model" in sd else sd
-        state_dim = sd["net.0.weight"].shape[1] - ACTION_DIM
-    net = QNet(state_dim=state_dim).to(device)
+        lin_keys = sorted((k for k in sd if k.startswith("net.")
+                           and k.endswith(".weight")),
+                          key=lambda k: int(k.split(".")[1]))
+        net = QNet(hidden=tuple(int(sd[k].shape[0]) for k in lin_keys[:-1]),
+                   state_dim=sd[lin_keys[0]].shape[1] - ACTION_DIM,
+                   belief="belief_head.weight" in sd).to(device)
+    else:
+        net = QNet().to(device)
     opt = torch.optim.Adam(net.parameters(), lr=args.lr)
     start_iter = 0
     best_win = -1.0
@@ -180,7 +188,7 @@ def main():
         if pool is not None:
             # double buffering: take the batch in flight, immediately start
             # the next one, then train while the workers stay busy
-            S_np, A_np, Y_np, stats = pool.gather()
+            S_np, A_np, Y_np, BT_np, BM_np, stats = pool.gather()
             games_done = pool.games_done
             if it + 1 < args.iters:
                 eps_next = epsilon_at(it + 1, args.eps_start, args.eps_end,
@@ -188,15 +196,21 @@ def main():
                 pool.request(net, eps_next, args.samples_per_iter)
         else:
             samples, stats = vec.play(net, device, eps, args.samples_per_iter)
-            S_np = np.stack([s for s, _, _ in samples])
-            A_np = np.stack([a for _, a, _ in samples])
-            Y_np = np.array([y for _, _, y in samples], dtype=np.float32)
+            S_np = np.stack([r[0] for r in samples])
+            A_np = np.stack([r[1] for r in samples])
+            Y_np = np.array([r[2] for r in samples], dtype=np.float32)
+            BT_np = np.stack([r[3] for r in samples])
+            BM_np = np.stack([r[4] for r in samples])
             games_done = vec.games_done
         t_collect = time.time() - t0
 
         S = torch.from_numpy(S_np).to(device)
         A = torch.from_numpy(A_np).to(device)
         Y = torch.from_numpy(Y_np).to(device)
+        has_belief = net.belief_head is not None
+        if has_belief:
+            BT = torch.from_numpy(BT_np.astype(np.int64)).to(device)
+            BM = torch.from_numpy(BM_np.astype(np.float32)).to(device)
 
         frozen = it < args.freeze_trunk_iters
         if args.freeze_trunk_iters and it == args.freeze_trunk_iters:
@@ -204,6 +218,10 @@ def main():
                 grp["lr"] = args.unfreeze_lr
             print(f"[{args.run}] trunk unfrozen at it {it}, "
                   f"lr -> {args.unfreeze_lr}")
+        # stage-one semantics depend on the graft: belief-INPUT grafts
+        # (gen13) train only the new layer-one columns; belief-HEAD grafts
+        # (gen15) train only the head — either way the donor's play is the
+        # floor until the trunk unfreezes
 
         net.train()
         n = len(Y_np)
@@ -212,22 +230,39 @@ def main():
             perm = torch.randperm(n, device=device)
             for i in range(0, n, args.batch_size):
                 idx = perm[i:i + args.batch_size]
-                pred = net(S[idx], A[idx])
-                loss = torch.nn.functional.mse_loss(pred, Y[idx])
+                if has_belief:
+                    pred, blogits = net.q_and_belief(S[idx], A[idx])
+                    q_loss = torch.nn.functional.mse_loss(pred, Y[idx])
+                    ce = torch.nn.functional.cross_entropy(
+                        blogits.reshape(-1, 4), BT[idx].reshape(-1),
+                        reduction="none").reshape(-1, 40)
+                    m = BM[idx]
+                    b_loss = (ce * m).sum() / m.sum().clamp(min=1.0)
+                    loss = q_loss + args.belief_weight * b_loss
+                else:
+                    pred = net(S[idx], A[idx])
+                    loss = torch.nn.functional.mse_loss(pred, Y[idx])
                 opt.zero_grad()
                 loss.backward()
                 if frozen:
-                    # stage one of the graft: only the belief columns move
-                    from .encoder import STATE_DIM as _SD, BELIEF_DIM as _BD
-                    for name, p in net.named_parameters():
-                        if p.grad is None:
-                            continue
-                        if name == "net.0.weight":
-                            keep = p.grad[:, _SD:_SD + _BD].clone()
-                            p.grad.zero_()
-                            p.grad[:, _SD:_SD + _BD] = keep
-                        else:
-                            p.grad.zero_()
+                    if has_belief:
+                        # gen15 stage one: only the belief head moves
+                        for name, p in net.named_parameters():
+                            if p.grad is not None and not name.startswith(
+                                    "belief_head"):
+                                p.grad.zero_()
+                    else:
+                        # gen13 stage one: only the belief columns move
+                        from .encoder import STATE_DIM as _SD, BELIEF_DIM as _BD
+                        for name, p in net.named_parameters():
+                            if p.grad is None:
+                                continue
+                            if name == "net.0.weight":
+                                keep = p.grad[:, _SD:_SD + _BD].clone()
+                                p.grad.zero_()
+                                p.grad[:, _SD:_SD + _BD] = keep
+                            else:
+                                p.grad.zero_()
                 torch.nn.utils.clip_grad_norm_(net.parameters(), 5.0)
                 opt.step()
                 losses.append(loss.item())
@@ -245,13 +280,24 @@ def main():
             "sec_collect": round(t_collect, 1), "sec_total": round(t_total, 1),
             "games_total": games_done,
         }
+        if has_belief:
+            with torch.no_grad():
+                net.eval()
+                _, bl = net.q_and_belief(S[:2048], A[:2048])
+                hit = (bl.argmax(-1) == BT[:2048]).float()
+                m2 = BM[:2048]
+                bacc = float((hit * m2).sum() / m2.sum().clamp(min=1.0))
+            rec["belief_acc"] = round(bacc, 4)
         print(f"[{args.run} it {it}] loss {rec['loss']:.4f} eps {eps:.2f} "
               f"{stats['games']} games ({rec['hands_per_game']} hands/game, "
               f"set {rec['set_rate']:.0%}, "
-              f"mix {mix_wr:.0%}/{stats['mix_games']}) {t_total:.1f}s")
+              f"mix {mix_wr:.0%}/{stats['mix_games']}) {t_total:.1f}s"
+              + (f" belief {rec['belief_acc']:.0%}" if has_belief else ""))
         log(rec)
         if tb:
             tb.add_scalar("train/loss", rec["loss"], it)
+            if has_belief:
+                tb.add_scalar("train/belief_acc", rec["belief_acc"], it)
             tb.add_scalar("train/mix_win_rate", mix_wr, it)
             tb.add_scalar("train/set_rate", rec["set_rate"], it)
             tb.add_scalar("train/samples_per_sec", n / max(0.01, t_total), it)

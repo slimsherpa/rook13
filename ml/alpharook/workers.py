@@ -38,14 +38,23 @@ def _worker_main(conn, worker_id: int, n_envs: int, seed: int,
             return
         _, state_dict, epsilon, n_samples = msg
         if net is None:
-            in_dim = state_dict["net.0.weight"].shape[1]
-            net = QNet(state_dim=in_dim - ACTION_DIM)
+            # the weights name their own architecture (widths, encoder
+            # version, belief head) — mirror load_qnet's inference
+            lin_keys = sorted((k for k in state_dict
+                               if k.startswith("net.") and k.endswith(".weight")),
+                              key=lambda k: int(k.split(".")[1]))
+            net = QNet(
+                hidden=tuple(int(state_dict[k].shape[0]) for k in lin_keys[:-1]),
+                state_dim=state_dict[lin_keys[0]].shape[1] - ACTION_DIM,
+                belief="belief_head.weight" in state_dict)
         net.load_state_dict(state_dict)
         samples, stats = vec.play(net, "cpu", epsilon, n_samples)
-        S = np.stack([s for s, _, _ in samples])
-        A = np.stack([a for _, a, _ in samples])
-        Y = np.array([y for _, _, y in samples], dtype=np.float32)
-        conn.send((S, A, Y, stats, vec.games_done))
+        S = np.stack([r[0] for r in samples])
+        A = np.stack([r[1] for r in samples])
+        Y = np.array([r[2] for r in samples], dtype=np.float32)
+        BT = np.stack([r[3] for r in samples])
+        BM = np.stack([r[4] for r in samples])
+        conn.send((S, A, Y, BT, BM, stats, vec.games_done))
 
 
 class WorkerPool:
@@ -81,20 +90,24 @@ class WorkerPool:
             c.send(("collect", state_dict, epsilon, per_worker))
 
     def gather(self):
-        """Wait for the in-flight request; returns (S, A, Y, stats)."""
-        S_l, A_l, Y_l = [], [], []
+        """Wait for the in-flight request; returns (S, A, Y, BT, BM, stats)."""
+        S_l, A_l, Y_l, BT_l, BM_l = [], [], [], [], []
         stats = {k: 0 for k in STAT_KEYS}
         games_done = 0
         for c in self.conns:
-            S, A, Y, st, gd = c.recv()
+            S, A, Y, BT, BM, st, gd = c.recv()
             S_l.append(S)
             A_l.append(A)
             Y_l.append(Y)
+            BT_l.append(BT)
+            BM_l.append(BM)
             for k in STAT_KEYS:
                 stats[k] += st[k]
             games_done += gd
         self.games_done = games_done
-        return np.concatenate(S_l), np.concatenate(A_l), np.concatenate(Y_l), stats
+        return (np.concatenate(S_l), np.concatenate(A_l),
+                np.concatenate(Y_l), np.concatenate(BT_l),
+                np.concatenate(BM_l), stats)
 
     def collect(self, net, epsilon: float, total_samples: int):
         """Synchronous request+gather (used for the first batch)."""
