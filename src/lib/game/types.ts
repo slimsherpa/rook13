@@ -60,7 +60,7 @@ export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
 };
 
 /** What the lobby's bot picker offers (strongest first); legacy styles live on only in old games. */
-export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen11', 'gen10', 'gen9', 'gen8', 'gen7'];
+export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen13', 'gen11', 'gen10', 'gen9', 'gen8', 'gen7'];
 
 /** Every new bot starts as the hottest brain we've shipped. */
 export const DEFAULT_BOT_STYLE: BotStyle = PLAYABLE_BOT_STYLES[0];

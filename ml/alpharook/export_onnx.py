@@ -15,7 +15,8 @@ import numpy as np
 import torch
 
 from .encoder import STATE_DIM, ACTION_DIM
-from .model import QNet
+from .model import QNet, load_qnet
+from .encoder import state_dim_of
 
 
 def main():
@@ -24,12 +25,9 @@ def main():
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
-    net = QNet()
-    ck = torch.load(args.ckpt, map_location="cpu", weights_only=True)
-    net.load_state_dict(ck["model"] if "model" in ck else ck)
-    net.eval()
+    net = load_qnet(args.ckpt)  # input width names the encoder version
 
-    state = torch.randn(3, STATE_DIM)
+    state = torch.randn(3, state_dim_of(net))
     action = torch.randn(3, ACTION_DIM)
     torch.onnx.export(
         net, (state, action), args.out,
@@ -41,7 +39,7 @@ def main():
 
     import onnxruntime as ort
     sess = ort.InferenceSession(args.out)
-    s = np.random.randn(64, STATE_DIM).astype(np.float32)
+    s = np.random.randn(64, state_dim_of(net)).astype(np.float32)
     a = np.random.randn(64, ACTION_DIM).astype(np.float32)
     with torch.no_grad():
         want = net(torch.from_numpy(s), torch.from_numpy(a)).numpy()

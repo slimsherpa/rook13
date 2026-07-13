@@ -1,0 +1,43 @@
+=== training done Sun Jul 12 22:41:18 MDT 2026; THE GAUNTLET ===
+--- runs/gen13b/latest.pt vs gen10, 100 pairs sprint ---
+  latest.pt: 52.5% wins (avg diff -1.7)
+  pairs swept: latest.pt 21, gen10.pt 16, split 63
+  latest.pt auctions: won 1133 contracts, made 65% at avg bid 100.4
+  gen10.pt auctions: won 1331 contracts, made 64% at avg bid 100.2
+--- runs/gen13b/latest.pt vs gen10, 30 pairs MARATHON ---
+  latest.pt: 45.0% wins (avg diff -60.9)
+  pairs swept: latest.pt 6, gen10.pt 9, split 15
+  latest.pt auctions: won 1842 contracts, made 62% at avg bid 100.6
+  gen10.pt auctions: won 1905 contracts, made 63% at avg bid 100.7
+--- runs/gen13b/best_duel.pt vs gen10, 100 pairs sprint ---
+  best_duel.pt: 53.5% wins (avg diff -1.3)
+  pairs swept: best_duel.pt 25, gen10.pt 18, split 57
+  best_duel.pt auctions: won 1339 contracts, made 62% at avg bid 100.5
+  gen10.pt auctions: won 1142 contracts, made 62% at avg bid 101.3
+--- runs/gen13b/best_duel.pt vs gen10, 30 pairs MARATHON ---
+  best_duel.pt: 58.3% wins (avg diff +256.7)
+  pairs swept: best_duel.pt 8, gen10.pt 3, split 19
+  best_duel.pt auctions: won 2070 contracts, made 64% at avg bid 101.0
+  gen10.pt auctions: won 1671 contracts, made 61% at avg bid 101.7
+--- NEW STACK vs OLD STACK: gen13b(latest) x search vs gen11 (gen10 x search), 30 pairs ---
+  latest.pt+search24(play,w2,t3,i0,b0): 48.3% wins (avg diff -21.1)
+  pairs swept: latest.pt+search24(play,w2,t3,i0,b0) 6, gen10.pt+search24(play,w2,t3,i0,b0) 7, split 17
+  latest.pt+search24(play,w2,t3,i0,b0) auctions: won 338 contracts, made 70% at avg bid 100.9
+  gen10.pt+search24(play,w2,t3,i0,b0) auctions: won 375 contracts, made 70% at avg bid 100.8
+=== GAUNTLET DONE ===
+=== CONFIRM best_duel: 100 fresh sprint pairs vs gen10 ===
+  best_duel.pt: 50.5% wins (avg diff -2.6)
+  pairs swept: best_duel.pt 18, gen10.pt 17, split 65
+  best_duel.pt auctions: won 1266 contracts, made 63% at avg bid 100.5
+  gen10.pt auctions: won 1047 contracts, made 63% at avg bid 101.3
+=== CONFIRM best_duel: 40 more marathon pairs vs gen10 ===
+  best_duel.pt: 62.5% wins (avg diff +200.6)
+  pairs swept: best_duel.pt 12, gen10.pt 2, split 26
+  best_duel.pt auctions: won 2784 contracts, made 63% at avg bid 100.9
+  gen10.pt auctions: won 2199 contracts, made 62% at avg bid 101.8
+=== STACKS, properly: gen13(best_duel) x search vs gen11, 40 pairs ===
+  best_duel.pt+search24(play,w2,t3,i0,b0): 55.0% wins (avg diff +38.5)
+  pairs swept: best_duel.pt+search24(play,w2,t3,i0,b0) 9, gen10.pt+search24(play,w2,t3,i0,b0) 5, split 26
+  best_duel.pt+search24(play,w2,t3,i0,b0) auctions: won 471 contracts, made 67% at avg bid 100.4
+  gen10.pt+search24(play,w2,t3,i0,b0) auctions: won 416 contracts, made 64% at avg bid 101.4
+=== CONFIRM DONE ===
