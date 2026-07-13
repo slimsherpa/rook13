@@ -1,0 +1,34 @@
+=== GEN13 LEAGUE: 100 duplicate-deck pairs per leg (200 games, seats swapped) ===
+--- vs Random ---
+  pairs swept: gen13.pt 100, random 0, split 0
+  gen13.pt auctions: won 933 contracts, made 92% at avg bid 88.5
+  random auctions: won 291 contracts, made 2% at avg bid 102.7
+--- vs Standard ---
+  pairs swept: gen13.pt 82, basic 0, split 18
+  gen13.pt auctions: won 1223 contracts, made 80% at avg bid 98.0
+  basic auctions: won 609 contracts, made 49% at avg bid 101.7
+--- vs gen6 (its family-scripted openings config) ---
+  pairs swept: gen13.pt 56, latest.pt 4, split 40
+  gen13.pt auctions: won 1498 contracts, made 71% at avg bid 98.1
+  latest.pt auctions: won 740 contracts, made 58% at avg bid 101.9
+--- vs gen7 (its scripted go-down config) ---
+  pairs swept: gen13.pt 43, gen7.pt 6, split 51
+  gen13.pt auctions: won 1501 contracts, made 68% at avg bid 99.2
+  gen7.pt auctions: won 776 contracts, made 63% at avg bid 101.2
+--- vs gen8 (its scripted go-down config) ---
+  pairs swept: gen13.pt 32, gen8.pt 10, split 58
+  gen13.pt auctions: won 1388 contracts, made 62% at avg bid 100.7
+  gen8.pt auctions: won 1174 contracts, made 57% at avg bid 100.8
+--- vs gen9 ---
+  pairs swept: gen13.pt 17, gen9.pt 6, split 77
+  gen13.pt auctions: won 1415 contracts, made 64% at avg bid 100.0
+  gen9.pt auctions: won 913 contracts, made 63% at avg bid 101.3
+--- vs gen10 ---
+  pairs swept: gen13.pt 22, gen10.pt 15, split 63
+  gen13.pt auctions: won 1333 contracts, made 64% at avg bid 100.5
+  gen10.pt auctions: won 1128 contracts, made 64% at avg bid 101.2
+--- vs gen11 (gen10 x search) — both stacks searching ---
+  pairs swept: gen13.pt+search24(play,w2,t3,i0,b0) 20, gen10.pt+search24(play,w2,t3,i0,b0) 21, split 59
+  gen13.pt+search24(play,w2,t3,i0,b0) auctions: won 1339 contracts, made 64% at avg bid 100.4
+  gen10.pt+search24(play,w2,t3,i0,b0) auctions: won 1079 contracts, made 66% at avg bid 101.3
+=== LEAGUE DONE ===
