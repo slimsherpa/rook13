@@ -1,0 +1,18 @@
+=== GEN15 FINAL GAUNTLET (40k iters) ===
+--- runs/gen15/latest.pt vs gen13: 100 sprint pairs ---
+  pairs swept: latest.pt 23, gen13.pt 18, split 59
+  latest.pt auctions: won 884 contracts, made 66% at avg bid 101.3
+  gen13.pt auctions: won 1512 contracts, made 61% at avg bid 100.2
+--- runs/gen15/latest.pt vs gen13: 40 MARATHON pairs ---
+  pairs swept: latest.pt 5, gen13.pt 11, split 24
+  latest.pt auctions: won 2094 contracts, made 62% at avg bid 101.7
+  gen13.pt auctions: won 3090 contracts, made 62% at avg bid 100.9
+--- runs/gen15/best_duel.pt vs gen13: 100 sprint pairs ---
+  pairs swept: best_duel.pt 22, gen13.pt 15, split 63
+  best_duel.pt auctions: won 1385 contracts, made 61% at avg bid 101.8
+  gen13.pt auctions: won 1276 contracts, made 61% at avg bid 100.9
+--- runs/gen15/best_duel.pt vs gen13: 40 MARATHON pairs ---
+  pairs swept: best_duel.pt 3, gen13.pt 10, split 27
+  best_duel.pt auctions: won 2852 contracts, made 59% at avg bid 102.3
+  gen13.pt auctions: won 2492 contracts, made 62% at avg bid 101.5
+=== DONE ===

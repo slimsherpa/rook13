@@ -180,7 +180,14 @@ what is provably identical to the arena champion.
   INSIDE the on-policy loop (MuZero-reanalyze style: a slice of each
   training batch from a periodically refreshed blunder buffer) — folded
   into gen15's training run rather than attempted offline again.
-- **gen15 — belief head.** Bigger trunk (~2-4M params) with an auxiliary
+- **gen15 — belief head.** BUILT + TRAINED (2026-07-14): 2.75M params via
+  Net2Wider surgery, belief accuracy 32%->44% (real who-holds-what
+  inference; the head needed its own MLP off the FIRST hidden layer — a
+  linear probe off the Q bottleneck stays pinned at chance). Strength:
+  parity with gen13 at sprint (52-53%), WORSE at marathon after extended
+  training (54%->42% — post-peak drift again; stopped). NOT promoted;
+  gen13 remains champion. The belief organ exists and is measured — gen16
+  (belief-guided planning) is the converter. Original hypothesis: Bigger trunk (~2-4M params) with an auxiliary
   output predicting WHO HOLDS every unseen card (self-play gives the
   labels free), grafted two-stage. Replaces the hand-made belief counters
   with learned inference ("she passed then showed out of Red — trump is
