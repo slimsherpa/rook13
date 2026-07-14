@@ -459,7 +459,16 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
             next.tricksWon = { A: 0, B: 0 };
             next.pointsTaken = { A: 0, B: 0 };
             next.redealSeat = null;
-            return next;
+            // Integrity invariant (prod incident 2026-07-14, game 8563im…: trump
+    // observed flipping Red -> Yellow mid-hand): within a hand, once trump
+    // is set it is immutable. No current action can violate this; the guard
+    // makes the property structural so no future action ever can.
+    if (g.trump !== null && next.handNumber === g.handNumber
+        && next.trump !== g.trump) {
+        throw new InvalidActionError('Trump cannot change mid-hand');
+    }
+
+    return next;
         }
     }
 };
