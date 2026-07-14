@@ -52,13 +52,7 @@ KNOW_THRESHOLD = 0.02
 
 
 def clone_game(g: Game) -> Game:
-    c = Game(dealer=g.dealer, win_score=g.win_score, lose_score=g.lose_score)
-    for slot in Game.__slots__:
-        v = getattr(g, slot)
-        if isinstance(v, list):
-            v = [list(x) if isinstance(x, list) else x for x in v]
-        setattr(c, slot, v)
-    return c
+    return g.clone()  # moved onto Game for gen16's fork tree; alias kept
 
 
 @torch.no_grad()

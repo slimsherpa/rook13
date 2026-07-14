@@ -52,7 +52,8 @@ class Side:
                  worlds: int = 0, search: str = "bid,trump,play",
                  prior: float = 4.0, min_trick: int = 0,
                  infer_temp: float = 0.0, bid_infer: float = 0.0,
-                 belief_ckpt: str | None = None, belief_temp: float = 1.0):
+                 belief_ckpt: str | None = None, belief_temp: float = 1.0,
+                 fork_depth: int = 0, fork_width: int = 3):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
         self.net = net
@@ -65,6 +66,8 @@ class Side:
         self.bid_infer = bid_infer
         self.belief_ckpt = belief_ckpt
         self.belief_temp = belief_temp
+        self.fork_depth = fork_depth
+        self.fork_width = fork_width
         if net is not None:
             pass  # live net passed in (e.g. the training learner)
         elif spec in ("random", "basic", "aggressive", "cautious"):
@@ -88,7 +91,9 @@ class Side:
                                      search_dtypes=dtypes, prior_weight=prior,
                                      min_trick=min_trick,
                                      infer_temp=infer_temp,
-                                     bid_infer=bid_infer, belief=belief)
+                                     bid_infer=bid_infer, belief=belief,
+                                     fork_depth=fork_depth,
+                                     fork_width=fork_width)
 
     def name(self) -> str:
         base = self.spec.split("/")[-1]
@@ -96,9 +101,11 @@ class Side:
             return base
         bel = (f",B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g}"
                if self.belief_ckpt else "")
+        fork = (f",f{self.fork_depth}x{self.fork_width}"
+                if self.fork_depth else "")
         return (f"{base}+search{self.worlds}({self.search},w{self.prior:g}"
                 f",t{self.min_trick},i{self.infer_temp:g},b{self.bid_infer:g}"
-                f"{bel})")
+                f"{bel}{fork})")
 
 
 def deck_stream(pair_seed: int):
@@ -288,16 +295,25 @@ def main():
                     help="softmax temp over holder classes (>1 hedges "
                          "toward uniform)")
     ap.add_argument("--belief-temp-b", type=float, default=1.0)
+    ap.add_argument("--fork-depth-a", type=int, default=0,
+                    help="gen16 plan tree: branch my next N plays inside "
+                         "each rollout (0 = single-line rollouts)")
+    ap.add_argument("--fork-depth-b", type=int, default=0)
+    ap.add_argument("--fork-width-a", type=int, default=3,
+                    help="candidates tried per fork (top-N by Q)")
+    ap.add_argument("--fork-width-b", type=int, default=3)
     ap.add_argument("--workers", type=int, default=1,
                     help="parallel pair-playing processes (search is slow)")
     args = ap.parse_args()
     lose = args.lose_score if args.lose_score is not None else -args.win_score // 2
     a_args = (args.a, args.script_a, None, args.worlds_a, args.search_a,
               args.prior_a, args.min_trick_a, args.infer_a, args.bid_infer_a,
-              args.belief_a, args.belief_temp_a)
+              args.belief_a, args.belief_temp_a, args.fork_depth_a,
+              args.fork_width_a)
     b_args = (args.b, args.script_b, None, args.worlds_b, args.search_b,
               args.prior_b, args.min_trick_b, args.infer_b, args.bid_infer_b,
-              args.belief_b, args.belief_temp_b)
+              args.belief_b, args.belief_temp_b, args.fork_depth_b,
+              args.fork_width_b)
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
          workers=args.workers, side_args=(a_args, b_args))

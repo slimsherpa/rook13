@@ -95,6 +95,18 @@ class Game:
         self.redeal_count = 0
         self.winner: int | None = None
 
+    def clone(self) -> "Game":
+        """Independent copy — one level of nesting deep, which is as deep
+        as any Game field goes (lists of ints/tuples)."""
+        c = Game(dealer=self.dealer, win_score=self.win_score,
+                 lose_score=self.lose_score)
+        for slot in Game.__slots__:
+            v = getattr(self, slot)
+            if isinstance(v, list):
+                v = [list(x) if isinstance(x, list) else x for x in v]
+            setattr(c, slot, v)
+        return c
+
     # --- queries -----------------------------------------------------------
 
     def lead_suit(self) -> int | None:

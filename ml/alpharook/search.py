@@ -85,6 +85,13 @@ class _Sim:
         self.trump_intent = trump_intent
         self._advance()
 
+    def clone(self) -> "_Sim":
+        c = _Sim.__new__(_Sim)
+        c.g = self.g.clone()
+        c.picks = list(self.picks)
+        c.trump_intent = self.trump_intent
+        return c
+
     @property
     def hand_over(self) -> bool:
         return self.g.phase in (HAND_DONE, GAME_OVER)
@@ -192,6 +199,18 @@ class SearchAgent:
         champion; the oracle only chooses which worlds deserve rollouts.
         This is the "bias the SAMPLER, not the weights" future-work note
         from gen11, cashed in.
+    fork_depth / fork_width: the planning tree (gen16). With depth D > 0,
+        the searching seat's next D multi-candidate card plays inside each
+        rollout BRANCH over its top-`width` candidates (by the net's Q)
+        instead of committing to argmax, and each world backs up the MAX
+        over the searcher's lines — so "duck now, ruff the third round" is
+        EVALUATED as a line, not stumbled into. Only the searcher's own
+        plays fork: partner and opponents stay reflex (you plan your
+        cards, not theirs). Inside one determinized world the playout is
+        deterministic, so the inner max is exact — no winner's curse at
+        fork nodes; the cross-world bias that remains is classic PIMC
+        strategy fusion, which the root Q-prior still tempers. Depth 0 is
+        bit-for-bit the old single-line rollout.
     infer_temp: learned inference — the net biases its own imagination.
         Worlds are importance-weighted by how plausibly the net (which IS
         the opponent in champion duels) would have made the plays actually
@@ -206,7 +225,8 @@ class SearchAgent:
                  search_dtypes: frozenset = frozenset({D_BID, D_TRUMP, D_PLAY}),
                  max_bid_cands: int = 6, prior_weight: float = 4.0,
                  min_trick: int = 0, infer_temp: float = 0.0,
-                 bid_infer: float = 0.0, belief=None, seed: int = 0):
+                 bid_infer: float = 0.0, belief=None,
+                 fork_depth: int = 0, fork_width: int = 3, seed: int = 0):
         self.net = net
         self.device = device
         self.worlds = worlds
@@ -217,6 +237,8 @@ class SearchAgent:
         self.infer_temp = infer_temp
         self.bid_infer = bid_infer
         self.belief = belief
+        self.fork_depth = fork_depth
+        self.fork_width = fork_width
         self.rng = random.Random(seed)
         net.eval()
 
@@ -384,7 +406,6 @@ class SearchAgent:
 
         o = observe(env.g, seat)
         my_team = team_of(seat)
-        totals = [0.0] * len(cands)
         root_state = encode_state_for(self.net, o, env.picks, dtype, env.g,
                                       env.trump_intent)
         prior = self._q_values(root_state, dtype, cands)
@@ -411,24 +432,29 @@ class SearchAgent:
             wts = np.ones(self.worlds)
 
         # spawn K x |cands| rollouts: same world across candidates, so the
-        # comparison inside each imagined world is apples to apples
-        pending: list[tuple[int, float, _Sim]] = []
+        # comparison inside each imagined world is apples to apples. Each
+        # rollout carries its fork budget; leaves back up by MAX within
+        # their (world, candidate) group — with depth 0 every group has
+        # exactly one leaf and this is the old average-of-lines exactly.
+        best: dict[tuple[int, int], float] = {}
+        pending: list[tuple[int, int, _Sim, int]] = []  # (ci, k, sim, forks)
         for k, (hands, go_down) in enumerate(worlds):
             for ci, a in enumerate(cands):
                 g = materialize(o, hands, go_down,
                                 env.g.win_score, env.g.lose_score)
                 sim = _Sim(g, env.picks, env.trump_intent)
                 sim.apply(a)
-                pending.append((ci, float(wts[k]), sim))
+                pending.append((ci, k, sim, self.fork_depth))
 
         # lockstep: every step, one batched forward over all live rollouts
         while pending:
             rows_s, rows_a, meta, seg = [], [], [], [0]
-            still: list[tuple[int, float, _Sim]] = []
-            for ci, wt, sim in pending:
+            for ci, k, sim, forks in pending:
                 while True:
                     if sim.hand_over:
-                        totals[ci] += wt * rollout_value(sim.g, my_team)
+                        v = rollout_value(sim.g, my_team)
+                        if best.get((k, ci), -9.9) < v:
+                            best[(k, ci)] = v
                         break
                     s2, dt, cs = sim.decision()
                     if len(cs) == 1:
@@ -441,18 +467,31 @@ class SearchAgent:
                         rows_s.append(st)
                         rows_a.append(encode_action(dt, a))
                     seg.append(seg[-1] + len(cs))
-                    meta.append((sim, cs))
-                    still.append((ci, wt, sim))
+                    meta.append((ci, k, sim, forks, s2, dt, cs))
                     break
             if not meta:
                 break
             S = torch.from_numpy(np.stack(rows_s)).to(self.device)
             A = torch.from_numpy(np.stack(rows_a)).to(self.device)
             q = self.net(S, A).cpu().numpy()
-            for k, (sim, cs) in enumerate(meta):
-                lo, hi = seg[k], seg[k + 1]
-                sim.apply(cs[int(np.argmax(q[lo:hi]))])
-            pending = still
+            pending = []
+            for i, (ci, k, sim, forks, s2, dt, cs) in enumerate(meta):
+                qs = q[seg[i]:seg[i + 1]]
+                if forks > 0 and s2 == seat and dt == D_PLAY:
+                    # my own future play: branch the top lines instead of
+                    # committing — the plan tree (clone before mutating)
+                    top = np.argsort(-qs)[:self.fork_width]
+                    branches = [sim] + [sim.clone() for _ in top[1:]]
+                    for b, j in zip(branches, top):
+                        b.apply(cs[int(j)])
+                        pending.append((ci, k, b, forks - 1))
+                else:
+                    sim.apply(cs[int(np.argmax(qs))])
+                    pending.append((ci, k, sim, forks))
+
+        totals = [0.0] * len(cands)
+        for (k, ci), v in best.items():
+            totals[ci] += float(wts[k]) * v
 
         w = self.prior_weight
         score = [(totals[i] + w * float(prior[i])) / (self.worlds + w)
