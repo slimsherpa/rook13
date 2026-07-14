@@ -4,6 +4,7 @@
 // panel, go-down confirm, trump picker — whatever the current phase needs
 // from *this* player. Renders a status line when it's someone else's move.
 
+import { useEffect, useState } from 'react';
 import { Card, GameDoc, Seat, Suit, SUITS, VALID_BIDS } from '@/lib/game/types';
 import { minNextBid, mustBid, isLaydown } from '@/lib/game/engine';
 import { createShuffledDeck } from '@/lib/game/deck';
@@ -25,6 +26,22 @@ const suitButtonColors: Record<Suit, string> = {
 };
 
 export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConfirmGoDown }: ActionDockProps) {
+    // Tap-through guard (prod incident, game 8563im…, 2026-07-14): the dock
+    // swaps contents the instant a phase changes, so the follow-through of
+    // a tap on "Put Down" landed on the trump button that appeared at the
+    // same spot — committing Yellow trump the player never chose (log
+    // indices 94→95, 1.5s apart, a Red-planned go-down). New controls stay
+    // inert for a beat after every phase change.
+    const [settled, setSettled] = useState(false);
+    // trump is the most irreversible tap in the game: two-step confirm
+    const [trumpPick, setTrumpPick] = useState<Suit | null>(null);
+    useEffect(() => {
+        setSettled(false);
+        setTrumpPick(null);
+        const t = setTimeout(() => setSettled(true), 600);
+        return () => clearTimeout(t);
+    }, [game.phase, game.handNumber]);
+
     if (!mySeat) return null;
     const myTurn = game.turn === mySeat;
     const turnName = game.turn ? game.seats[game.turn].name.split(' ')[0] : '';
@@ -114,12 +131,20 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
                     {SUITS.map((suit) => (
                         <button
                             key={suit}
-                            onClick={() => onAct({ type: 'SELECT_TRUMP', seat: mySeat, suit })}
-                            className={`px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition ${suitButtonColors[suit]}`}
+                            disabled={!settled}
+                            onClick={() => setTrumpPick(suit)}
+                            className={`px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition disabled:opacity-40 ${suitButtonColors[suit]} ${trumpPick === suit ? 'ring-4 ring-white' : trumpPick ? 'opacity-50' : ''}`}
                         >
                             {suit}
                         </button>
                     ))}
+                    <button
+                        disabled={!settled || !trumpPick}
+                        onClick={() => trumpPick && onAct({ type: 'SELECT_TRUMP', seat: mySeat, suit: trumpPick })}
+                        className="ml-2 px-5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-orbitron text-sm font-bold active:scale-95 transition"
+                    >
+                        Confirm
+                    </button>
                 </div>
             );
         }
