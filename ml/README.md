@@ -193,12 +193,31 @@ what is provably identical to the arena champion.
   with learned inference ("she passed then showed out of Red — trump is
   on my left"). Beliefs become readable/debuggable. Gauge: belief accuracy
   trick-by-trick + blunder-rate drop on the gen14 audit suite.
-- **gen16 — belief-guided planning.** Search worlds sampled from the
-  net's own posterior (uniform imagination is why early search loses
-  today), extended to all tricks + a 2-3 trick tree so PLANS are
-  evaluated as lines ("duck, ruff the third round, put partner on lead"),
-  bidding included. Gauge: stack duels stop being coin flips; multi-trick
-  blunder classes vanish.
+- **gen16 — belief-guided planning.** IN PROGRESS (2026-07-14, branch
+  alpharook08, first rung trained/duelled on the Hetzner box). Phase 1 —
+  imagination from the learned posterior — is BUILT and sprint-confirmed:
+  `sample_world_weighted` draws each hidden card where gen15's belief
+  head says it lives (constraints still exact; `beliefs.BeliefOracle`
+  wraps the head; gen13 stays the Q/rollout policy — the organ outlives
+  its host). Pre-flight (`world_acc.py`, 30 games): belief worlds are
+  +7.6% truer than uniform at temp 0.5 (39.7% vs 32.1%), lift growing
+  +6.7 -> +14.7 from trick 1 to 8, vs the oracle's 44.7% ceiling; temp
+  0.5 > 0.7 > 1.0; the belief head in best_duel.pt == latest.pt (the
+  strength drift never touched the organ). THE RESULT: gen13+search+
+  belief beats gen13+search (identical config, K=24 t>=3) **56.7%
+  (+62.4, sweeps 36-16) over 150 sprint pairs** — the biggest sprint
+  edge since gen9, from zero new weights; same avg bid, 68% vs 63% make
+  rate (truer worlds convert contracts). Belief searching ALL tricks
+  (t=0) scores 54.3% vs the same opponent — better imagination still
+  doesn't open tricks 1-2 at K=24; the endgame gate survives. Phase 2 —
+  the plan tree (`fork_depth`/`fork_width`: the searcher's next D plays
+  branch top-M-by-Q inside each world, per-world MAX backup; my plays
+  only, partner/opponents stay reflex; width-1 == depth-0 by test) — is
+  built; tree-vs-flat and the marathon confirmation are running now.
+  Original hypothesis, standing: uniform imagination is why early search
+  loses; learned beliefs fix the imagination, the tree turns imagination
+  into intention. Gauge: stack duels stop being coin flips; the gen14
+  audit's multi-trick blunder classes shrink.
 - **gen17 — exploiter league.** AlphaStar's move: train agents whose only
   job is to find and abuse the champion's habits (synthetic humans
   hunting traps), fold their winning lines back into the league, repeat.
