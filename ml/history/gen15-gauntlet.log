@@ -1,0 +1,32 @@
+=== GEN15 GAUNTLET Mon Jul 13 21:44:03 MDT 2026 ===
+--- runs/gen15/best_duel.pt vs gen13: 100 sprint pairs ---
+  best_duel.pt: 46.0% wins (avg diff -15.6)
+  pairs swept: best_duel.pt 14, gen13.pt 22, split 64
+  best_duel.pt auctions: won 1325 contracts, made 62% at avg bid 101.3
+  gen13.pt auctions: won 1139 contracts, made 63% at avg bid 101.2
+--- runs/gen15/best_duel.pt vs gen13: 40 MARATHON pairs ---
+  best_duel.pt: 43.8% wins (avg diff -98.6)
+  pairs swept: best_duel.pt 7, gen13.pt 12, split 21
+  best_duel.pt auctions: won 2850 contracts, made 59% at avg bid 101.8
+  gen13.pt auctions: won 2547 contracts, made 60% at avg bid 101.7
+--- runs/gen15/latest.pt vs gen13: 100 sprint pairs ---
+  latest.pt: 50.5% wins (avg diff +29.0)
+  pairs swept: latest.pt 18, gen13.pt 17, split 65
+  latest.pt auctions: won 1328 contracts, made 63% at avg bid 101.4
+  gen13.pt auctions: won 1168 contracts, made 62% at avg bid 101.2
+--- runs/gen15/latest.pt vs gen13: 40 MARATHON pairs ---
+  latest.pt: 53.8% wins (avg diff +185.2)
+  pairs swept: latest.pt 9, gen13.pt 6, split 25
+  latest.pt auctions: won 2606 contracts, made 62% at avg bid 101.9
+  gen13.pt auctions: won 2449 contracts, made 60% at avg bid 101.6
+--- blunder audit: gen15 best_duel, 100 games (gen13 = 0.72/hand) ---
+  card decisions audited: 33118
+  costly in hindsight:    3677 (11.1% of decisions)
+  PREVENTABLE blunders:   917 (0.73 per hand, avg cost 170 pts)
+  blunder log: runs/audit/gen15_candidate.jsonl
+--- stacks: gen15(best) x search vs gen13 x search, 40 pairs ---
+  best_duel.pt+search24(play,w2,t3,i0,b0): 42.5% wins (avg diff -78.9)
+  pairs swept: best_duel.pt+search24(play,w2,t3,i0,b0) 4, gen13.pt+search24(play,w2,t3,i0,b0) 10, split 26
+  best_duel.pt+search24(play,w2,t3,i0,b0) auctions: won 520 contracts, made 61% at avg bid 101.5
+  gen13.pt+search24(play,w2,t3,i0,b0) auctions: won 407 contracts, made 67% at avg bid 101.4
+=== GEN15 GAUNTLET DONE ===
