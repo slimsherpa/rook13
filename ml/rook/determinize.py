@@ -13,8 +13,11 @@ search can also imagine worlds mid-auction and mid-widow:
   trump on  -> others hold 9; the go-down is hidden unless it's mine
   playing   -> hand sizes shrink with the tricks
 
-v0 samples uniformly over consistent worlds. Later generations can bias
-the sampling with learned inference ("she bid 100, she has trump").
+v0 samples uniformly over consistent worlds. gen16 adds
+`sample_world_weighted`: the same constraints, but each card lands where a
+learned posterior says it lives ("she bid 100, she has trump") — the belief
+head biasing the SAMPLER, not re-weighting worlds after the fact (both
+re-weighting schemes tried in gen11 washed; see search.py).
 """
 
 from __future__ import annotations
@@ -134,3 +137,72 @@ def sample_world(o: Observation, rng: random.Random) -> tuple[list[list[int]], l
         else:
             hands[slot["seat"]].append(card)
     return hands, go_down  # type: ignore[return-value]
+
+
+def sample_world_weighted(o: Observation, rng: random.Random, probs,
+                          attempts: int = 30) -> tuple[list[list[int]], list[int]]:
+    """One consistent world drawn from a learned posterior (gen16).
+
+    `probs[card][cls]` is P(who holds `card`) in the belief-head convention:
+    cls 0/1/2 = relative seats (s - o.seat) % 4 - 1, cls 3 = the hidden
+    widow/go-down. Rows for cards the observer can see are ignored.
+
+    Cards are placed one at a time in random order, each landing in an
+    eligible slot (capacity left, no known void) with probability
+    proportional to the posterior — so voids and hand sizes still bind
+    exactly, and only genuinely ambiguous placements follow the net's
+    imagination. Placement order is reshuffled per attempt; if the greedy
+    fill corners itself repeatedly it falls back to the uniform sampler,
+    which cannot fail."""
+    assert o.phase in (BIDDING, WIDOW, TRUMP, PLAYING), f"phase {o.phase}"
+    pool = unseen_cards(o)
+    sizes = hidden_hand_sizes(o)
+    voids = known_voids(o)
+    go_down_needed = len(pool) - sum(sizes.values())
+    assert go_down_needed >= 0
+    rel = {s: (s - o.seat) % 4 - 1 for s in sizes}
+
+    for _attempt in range(attempts):
+        caps = dict(sizes)
+        gd_left = go_down_needed
+        placed: dict[int, list[int]] = {s: [] for s in sizes}
+        go_down_pick: list[int] = []
+        order = list(pool)
+        rng.shuffle(order)
+        ok = True
+        for c in order:
+            opts: list[int | None] = []
+            wts: list[float] = []
+            for s in sizes:
+                if caps[s] > 0 and suit_of(c) not in voids[s]:
+                    opts.append(s)
+                    wts.append(max(float(probs[c][rel[s]]), 1e-6))
+            if gd_left > 0:
+                opts.append(None)
+                wts.append(max(float(probs[c][3]), 1e-6))
+            if not opts:
+                ok = False
+                break
+            r = rng.random() * sum(wts)
+            acc = 0.0
+            pick = opts[-1]
+            for opt, w in zip(opts, wts):
+                acc += w
+                if r < acc:
+                    pick = opt
+                    break
+            if pick is None:
+                gd_left -= 1
+                go_down_pick.append(c)
+            else:
+                caps[pick] -= 1
+                placed[pick].append(c)
+        if ok:
+            hands: list[list[int] | None] = [None] * 4
+            hands[o.seat] = list(o.hand)
+            for s in sizes:
+                hands[s] = placed[s]
+            go_down = list(o.my_go_down) if o.my_go_down else go_down_pick
+            return hands, go_down  # type: ignore[return-value]
+
+    return sample_world(o, rng)

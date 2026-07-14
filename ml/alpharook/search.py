@@ -27,7 +27,7 @@ import numpy as np
 import torch
 
 from rook.cards import PASS, team_of
-from rook.determinize import sample_world
+from rook.determinize import sample_world, sample_world_weighted
 from rook.engine import (
     Game, BIDDING, WIDOW, TRUMP, PLAYING, HAND_DONE, GAME_OVER,
 )
@@ -184,6 +184,14 @@ class SearchAgent:
         declined the final contract. "She bid 105, deal her hands that
         would" — the partner/opponent model Riley asked for, at the
         cheapest possible altitude (no net forwards, pure arithmetic).
+    belief: a BeliefOracle (gen16) — imagination sampled from a LEARNED
+        posterior. Instead of uniform worlds (optionally re-weighted after
+        the fact — both re-weighting schemes below washed), every world is
+        DRAWN from the gen15 belief head's who-holds-what distribution,
+        constraints still binding exactly. The searching net stays the
+        champion; the oracle only chooses which worlds deserve rollouts.
+        This is the "bias the SAMPLER, not the weights" future-work note
+        from gen11, cashed in.
     infer_temp: learned inference — the net biases its own imagination.
         Worlds are importance-weighted by how plausibly the net (which IS
         the opponent in champion duels) would have made the plays actually
@@ -198,7 +206,7 @@ class SearchAgent:
                  search_dtypes: frozenset = frozenset({D_BID, D_TRUMP, D_PLAY}),
                  max_bid_cands: int = 6, prior_weight: float = 4.0,
                  min_trick: int = 0, infer_temp: float = 0.0,
-                 bid_infer: float = 0.0, seed: int = 0):
+                 bid_infer: float = 0.0, belief=None, seed: int = 0):
         self.net = net
         self.device = device
         self.worlds = worlds
@@ -208,6 +216,7 @@ class SearchAgent:
         self.min_trick = min_trick
         self.infer_temp = infer_temp
         self.bid_infer = bid_infer
+        self.belief = belief
         self.rng = random.Random(seed)
         net.eval()
 
@@ -382,7 +391,12 @@ class SearchAgent:
 
         # imagine K worlds; with inference on, weight them by how well they
         # explain what everyone has already announced (auction) and played
-        worlds = [sample_world(o, self.rng) for _ in range(self.worlds)]
+        if self.belief is not None:
+            probs = self.belief.posterior(env, seat, o, dtype, cands)
+            worlds = [sample_world_weighted(o, self.rng, probs)
+                      for _ in range(self.worlds)]
+        else:
+            worlds = [sample_world(o, self.rng) for _ in range(self.worlds)]
         lw = np.zeros(self.worlds)
         if self.bid_infer > 0 and o.trump is not None:
             lw += self._bid_log_weights(o, worlds)

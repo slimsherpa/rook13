@@ -51,7 +51,8 @@ class Side:
     def __init__(self, spec: str, script: str, net: QNet | None = None,
                  worlds: int = 0, search: str = "bid,trump,play",
                  prior: float = 4.0, min_trick: int = 0,
-                 infer_temp: float = 0.0, bid_infer: float = 0.0):
+                 infer_temp: float = 0.0, bid_infer: float = 0.0,
+                 belief_ckpt: str | None = None, belief_temp: float = 1.0):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
         self.net = net
@@ -62,6 +63,8 @@ class Side:
         self.min_trick = min_trick
         self.infer_temp = infer_temp
         self.bid_infer = bid_infer
+        self.belief_ckpt = belief_ckpt
+        self.belief_temp = belief_temp
         if net is not None:
             pass  # live net passed in (e.g. the training learner)
         elif spec in ("random", "basic", "aggressive", "cautious"):
@@ -77,18 +80,25 @@ class Side:
             names = {"bid": D_BID, "discard": D_DISCARD, "trump": D_TRUMP,
                      "play": D_PLAY}
             dtypes = frozenset(names[t] for t in search.split(","))
+            belief = None
+            if belief_ckpt:
+                from .beliefs import BeliefOracle
+                belief = BeliefOracle(belief_ckpt, temp=belief_temp)
             self.agent = SearchAgent(self.net, worlds=worlds,
                                      search_dtypes=dtypes, prior_weight=prior,
                                      min_trick=min_trick,
                                      infer_temp=infer_temp,
-                                     bid_infer=bid_infer)
+                                     bid_infer=bid_infer, belief=belief)
 
     def name(self) -> str:
         base = self.spec.split("/")[-1]
         if not self.worlds:
             return base
+        bel = (f",B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g}"
+               if self.belief_ckpt else "")
         return (f"{base}+search{self.worlds}({self.search},w{self.prior:g}"
-                f",t{self.min_trick},i{self.infer_temp:g},b{self.bid_infer:g})")
+                f",t{self.min_trick},i{self.infer_temp:g},b{self.bid_infer:g}"
+                f"{bel})")
 
 
 def deck_stream(pair_seed: int):
@@ -270,14 +280,24 @@ def main():
                     help="auction-aware world weighting sigma in bid points "
                          "(0 = off)")
     ap.add_argument("--bid-infer-b", type=float, default=0.0)
+    ap.add_argument("--belief-a", default=None,
+                    help="gen15+ checkpoint whose belief head samples side "
+                         "A's imagined worlds (gen16 belief-guided search)")
+    ap.add_argument("--belief-b", default=None)
+    ap.add_argument("--belief-temp-a", type=float, default=1.0,
+                    help="softmax temp over holder classes (>1 hedges "
+                         "toward uniform)")
+    ap.add_argument("--belief-temp-b", type=float, default=1.0)
     ap.add_argument("--workers", type=int, default=1,
                     help="parallel pair-playing processes (search is slow)")
     args = ap.parse_args()
     lose = args.lose_score if args.lose_score is not None else -args.win_score // 2
     a_args = (args.a, args.script_a, None, args.worlds_a, args.search_a,
-              args.prior_a, args.min_trick_a, args.infer_a, args.bid_infer_a)
+              args.prior_a, args.min_trick_a, args.infer_a, args.bid_infer_a,
+              args.belief_a, args.belief_temp_a)
     b_args = (args.b, args.script_b, None, args.worlds_b, args.search_b,
-              args.prior_b, args.min_trick_b, args.infer_b, args.bid_infer_b)
+              args.prior_b, args.min_trick_b, args.infer_b, args.bid_infer_b,
+              args.belief_b, args.belief_temp_b)
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
          workers=args.workers, side_args=(a_args, b_args))
