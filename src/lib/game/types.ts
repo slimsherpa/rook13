@@ -66,6 +66,34 @@ export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen16', 'gen13', 'gen11', 'gen1
 /** Every new bot starts as the hottest brain we've shipped. */
 export const DEFAULT_BOT_STYLE: BotStyle = PLAYABLE_BOT_STYLES[0];
 
+// The camp roster: the family's Rook-camp names for the seven AlphaRook
+// brains, strongest to weakest. Purely cosmetic — the underlying gen (and
+// its real ranking, shown by the AI·chip) is unchanged. `img` points at an
+// optional portrait under public/bots/; when the file is missing the badge
+// falls back to the emoji, so this all works before the art lands.
+export interface BotPersona {
+    name: string;
+    emoji: string;
+    img: string; // /bots/<key>.png
+    tagline: string;
+}
+export const BOT_PERSONAS: Partial<Record<BotStyle, BotPersona>> = {
+    gen16: { name: 'Stomper', emoji: '🦖', img: '/bots/stomper.png', tagline: 'the mighty one' },
+    gen13: { name: 'Kitten', emoji: '🐱', img: '/bots/kitten.png', tagline: 'small but sharp' },
+    gen11: { name: 'Bobcat', emoji: '🐆', img: '/bots/bobcat.png', tagline: 'quick and cunning' },
+    gen10: { name: 'Cub', emoji: '🦁', img: '/bots/cub.png', tagline: 'young lion' },
+    gen9: { name: 'Puma', emoji: '🐈‍⬛', img: '/bots/puma.png', tagline: 'silent hunter' },
+    gen8: { name: 'Cougar', emoji: '🐅', img: '/bots/cougar.png', tagline: 'seasoned prowler' },
+    gen7: { name: 'Cosmo', emoji: '🐈', img: '/bots/cosmo.png', tagline: 'the wildcard' },
+};
+
+/** The camp persona for a style, or a plain fallback for the heuristic bots. */
+export const personaFor = (style: BotStyle | undefined): BotPersona =>
+    (style && BOT_PERSONAS[style]) || {
+        name: style ? BOT_STYLE_LABELS[style] : 'Bot',
+        emoji: '🤖', img: '', tagline: '',
+    };
+
 export interface SeatInfo {
     kind: 'human' | 'bot' | 'open';
     uid?: string; // for humans, the Firebase auth uid

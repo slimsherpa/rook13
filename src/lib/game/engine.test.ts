@@ -802,6 +802,28 @@ describe('laydown', () => {
     });
 });
 
+describe('camp personas', () => {
+    it('a quick start fills open seats with four distinct camp characters', () => {
+        let g = createGameDoc({ id: 'personas', joinCode: 'CMP', host: { uid: 'h', name: 'Host' }, now: 1 });
+        g = applyAction(g, { type: 'START_GAME' });
+        const bots = SEATS.map((s) => g.seats[s]).filter((si) => si.kind === 'bot');
+        const styles = bots.map((b) => b.botStyle);
+        const names = bots.map((b) => b.name);
+        // the host holds one seat; the other three are distinct brains + names
+        expect(new Set(styles).size).toBe(styles.length);
+        expect(new Set(names).size).toBe(names.length);
+        expect(names).toContain('Stomper'); // the strongest brain leads the fill
+    });
+
+    it('SET_BOT names the seat after its chosen camp persona', () => {
+        let g = createGameDoc({ id: 'setbot', joinCode: 'SBT', host: { uid: 'h', name: 'Host' }, now: 1 });
+        g = applyAction(g, { type: 'SET_BOT', seat: 'B1', botStyle: 'gen13' });
+        expect(g.seats.B1.name).toBe('Kitten');
+        g = applyAction(g, { type: 'SET_BOT', seat: 'B1', botStyle: 'gen7' });
+        expect(g.seats.B1.name).toBe('Cosmo');
+    });
+});
+
 describe('bid log (the auction blow-by-blow)', () => {
     it('records every bid in order and lands in the hand summary', () => {
         let g = startedGame();

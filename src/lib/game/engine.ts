@@ -8,18 +8,11 @@
 import {
     GameDoc, GameAction, Card, Seat, Suit, Team, SeatInfo, HandSummary,
     SEATS, SUITS, VALID_BIDS, TRICKS_PER_HAND, WIN_SCORE, LOSE_SCORE, TAKING_TRICKS_BONUS,
-    DEFAULT_BOT_STYLE, getCardPoints, teamOf, nextSeat, sameCard,
+    PLAYABLE_BOT_STYLES, DEFAULT_BOT_STYLE, personaFor, getCardPoints, teamOf, nextSeat, sameCard,
 } from './types';
 import { splitDeal, isRedealHand, isValidDeck, sortHand } from './deck';
 
 export class InvalidActionError extends Error {}
-
-const DEFAULT_BOT_NAMES: Record<Seat, string> = {
-    A1: 'Rookie',
-    B1: 'Lefty',
-    A2: 'Birdie',
-    B2: 'Righty',
-};
 
 const emptySeat = (): SeatInfo => ({ kind: 'open', name: 'Open Seat' });
 
@@ -320,7 +313,9 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
         case 'SET_BOT': {
             next.seats[action.seat] = {
                 kind: 'bot',
-                name: action.name || DEFAULT_BOT_NAMES[action.seat],
+                // a bot wears its camp persona (Stomper, Kitten, …); the
+                // caller may still override with an explicit name
+                name: action.name || personaFor(action.botStyle).name,
                 botStyle: action.botStyle,
             };
             return next;
@@ -335,9 +330,20 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
             return next;
         }
         case 'START_GAME': {
+            // fill empty seats with a spread of the top brains so a quick
+            // table is four distinct camp characters (Stomper, Kitten, …),
+            // not four clones — skipping any brain already seated, and the
+            // host can still swap any seat in the lobby
+            const taken = new Set(
+                SEATS.map((s) => next.seats[s].botStyle).filter(Boolean),
+            );
+            const roster = PLAYABLE_BOT_STYLES.filter((s) => !taken.has(s));
+            let nextBrain = 0;
             for (const s of SEATS) {
                 if (next.seats[s].kind === 'open') {
-                    next.seats[s] = { kind: 'bot', name: DEFAULT_BOT_NAMES[s], botStyle: DEFAULT_BOT_STYLE };
+                    const style = roster[nextBrain] ?? DEFAULT_BOT_STYLE;
+                    nextBrain += 1;
+                    next.seats[s] = { kind: 'bot', name: personaFor(style).name, botStyle: style };
                 }
             }
             next.status = 'active';

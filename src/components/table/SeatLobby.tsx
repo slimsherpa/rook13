@@ -5,7 +5,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GameDoc, Seat, SeatInfo, GameAction, BotStyle, BOT_STYLE_LABELS, PLAYABLE_BOT_STYLES, DEFAULT_BOT_STYLE } from '@/lib/game/types';
+import { GameDoc, Seat, SeatInfo, GameAction, BotStyle, BOT_STYLE_LABELS, PLAYABLE_BOT_STYLES, DEFAULT_BOT_STYLE, personaFor } from '@/lib/game/types';
+import BotAvatar from './BotAvatar';
 
 interface SeatLobbyProps {
     game: GameDoc;
@@ -59,7 +60,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={info.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : info.kind === 'bot' ? (
-                        <span className="material-symbols-outlined text-white/80">smart_toy</span>
+                        <BotAvatar style={info.botStyle} size={40} />
                     ) : (
                         <span className="material-symbols-outlined text-white/40">chair</span>
                     )}
@@ -69,7 +70,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                         {info.kind === 'open' ? 'Open Seat' : info.name}{isMe ? ' (you)' : ''}
                     </div>
                     <div className="text-white/50 text-[11px] font-orbitron">
-                        {seat}{info.kind === 'bot' ? ` · ${BOT_STYLE_LABELS[info.botStyle ?? 'basic']} Bot` : ''}
+                        {seat}{info.kind === 'bot' ? ` · ${BOT_STYLE_LABELS[info.botStyle ?? 'basic']}` : ''}
                     </div>
                     {/* bot mode picker (host only) — the trained AlphaRook brains */}
                     {isHost && info.kind === 'bot' && (() => {
@@ -80,12 +81,19 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                         return (
                             <select
                                 value={current}
-                                onChange={(e) => act({ type: 'SET_BOT', seat, botStyle: e.target.value as BotStyle, name: info.name })}
-                                className="mt-1.5 w-full max-w-[9rem] rounded-md bg-navy-950 border border-white/15 text-white text-xs px-2 py-1 focus:outline-none focus:border-sky-400"
+                                onChange={(e) => {
+                                    const style = e.target.value as BotStyle;
+                                    // switching agent renames the seat to the
+                                    // new character (Stomper, Kitten, …)
+                                    act({ type: 'SET_BOT', seat, botStyle: style, name: personaFor(style).name });
+                                }}
+                                className="mt-1.5 w-full max-w-[11rem] rounded-md bg-navy-950 border border-white/15 text-white text-xs px-2 py-1 focus:outline-none focus:border-sky-400"
                             >
-                                {styles.map((s) => (
-                                    <option key={s} value={s}>{BOT_STYLE_LABELS[s]}</option>
-                                ))}
+                                {styles.map((s) => {
+                                    const p = personaFor(s);
+                                    const rank = /^gen(\d+)$/.test(s) ? ` (AI·${s.slice(3)})` : '';
+                                    return <option key={s} value={s}>{p.emoji} {p.name}{rank}</option>;
+                                })}
                             </select>
                         );
                     })()}

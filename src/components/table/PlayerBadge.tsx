@@ -2,6 +2,7 @@
 
 import { Seat, SeatInfo, BotStyle, BOT_STYLE_LABELS, teamOf } from '@/lib/game/types';
 import { ASSIST_PINK } from './AssistDial';
+import BotAvatar from './BotAvatar';
 
 interface PlayerBadgeProps {
     seat: Seat;
@@ -13,15 +14,12 @@ interface PlayerBadgeProps {
     horizontal?: boolean; // side seats stack vertically by default
 }
 
-// How a bot introduces itself: the AlphaRook generations wear their gen
-// number as a rank chip; the legacy heuristics show their difficulty name.
-function botTag(style: BotStyle | undefined): { chip: string; icon: string } {
-    if (style && /^gen(\d+)$/.test(style)) {
-        const n = style.slice(3);
-        return { chip: `AI·${n}`, icon: 'smart_toy' };
-    }
-    const label = style ? BOT_STYLE_LABELS[style] : 'Bot';
-    return { chip: label, icon: 'smart_toy' };
+// The rank chip a bot wears — its AlphaRook generation (so the camp names
+// stay honest about who's actually the strongest), or the difficulty name
+// for the legacy heuristic bots.
+function botChip(style: BotStyle | undefined): string {
+    if (style && /^gen(\d+)$/.test(style)) return `AI·${style.slice(3)}`;
+    return style ? BOT_STYLE_LABELS[style] : 'Bot';
 }
 
 export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, cardsLeft, horizontal }: PlayerBadgeProps) {
@@ -33,7 +31,7 @@ export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, cardsLe
     const chipColor = isA ? 'bg-sky-600 text-white' : 'bg-orange-600 text-white';
     const firstName = info.name.split(' ')[0];
     const isBot = info.kind === 'bot';
-    const tag = isBot ? botTag(info.botStyle) : null;
+    const chip = isBot ? botChip(info.botStyle) : null;
 
     return (
         <div className={`flex ${horizontal ? 'flex-row items-center gap-2' : 'flex-col items-center gap-1'}`}>
@@ -48,17 +46,17 @@ export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, cardsLe
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={info.photoURL} alt={info.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : isBot ? (
-                        <span className={`material-symbols-outlined text-2xl ${isA ? 'text-sky-200' : 'text-orange-200'}`}>{tag!.icon}</span>
+                        <BotAvatar style={info.botStyle} className="w-full h-full" />
                     ) : (
                         <span className="text-white font-orbitron text-lg">{firstName.charAt(0)}</span>
                     )}
                 </div>
                 {/* bot rank chip: the AlphaRook gen (or difficulty), team-tinted,
                     sits on the shoulder of the avatar */}
-                {tag && (
+                {chip && (
                     <div className={`absolute -bottom-1 -left-1 px-1 h-4 min-w-[1rem] rounded-full ${chipColor} border border-white/30 flex items-center justify-center shadow`}
                         title={info.botStyle ? BOT_STYLE_LABELS[info.botStyle] : 'Bot'}>
-                        <span className="text-[9px] font-orbitron font-bold leading-none px-0.5">{tag.chip}</span>
+                        <span className="text-[9px] font-orbitron font-bold leading-none px-0.5">{chip}</span>
                     </div>
                 )}
                 {/* dealer chip: the yellow card badge the family knows from v1 */}
