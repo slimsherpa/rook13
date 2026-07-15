@@ -1,9 +1,16 @@
 // The AlphaRook seat drivers.
 //
-// 'gen11' — the champion: gen10's weights with PIMC look-ahead bolted onto
-// endgame card play (search.ts). Same brain file as gen10 — the strength is
-// calculation. Beats pure gen10 54% duplicate-deck (65/35 marathon in the
-// Python lab, ml/alpharook/search.py).
+// 'gen16' — the champion: gen13's weights with belief-GUIDED look-ahead on
+// endgame card play. Two brains in one seat: gen13.bin answers "what is
+// this card worth", gen15belief.bin answers "who holds what" — and the
+// searcher imagines worlds where the belief posterior says the hidden
+// cards actually live, instead of uniformly. Beat the gen13 search stack
+// 56.7% sprint / 68.6% marathon (sweeps 30-4) in the Python lab.
+//
+// 'gen11' — gen10's weights with (uniform-world) PIMC look-ahead bolted
+// onto endgame card play (search.ts). Same brain file as gen10 — the
+// strength is calculation. Beats pure gen10 54% duplicate-deck (65/35
+// marathon in the Python lab, ml/alpharook/search.py).
 //
 // 'gen9' — the first FULLY neural brain: bids,
 // trump intent, go-down, and card play are all QNet decisions (beat gen8
@@ -33,30 +40,28 @@ import {
     encodeStateFor, encodeAction, cardToInt, intToCard, AuctionContext,
     D_BID, D_DISCARD, D_TRUMP, D_PLAY, PASS,
 } from './encoder';
-import { QNetWeights, qForward, loadQNet, NeuralGen } from './qnet';
-import { chooseSearchCard, GEN11_SEARCH } from './search';
+import { QNetWeights, qForward, loadQNet, loadBeliefNet, NeuralGen } from './qnet';
+import { chooseSearchCard, GEN11_SEARCH, GEN16_SEARCH } from './search';
 
 export const ALPHAROOK_SAMPLES = 25;
 export const ALPHAROOK_BID_SAMPLES = 20;
 
-/** Styles driven by a QNet (gen11 runs on gen10's weight file). */
-export type NeuralStyle = NeuralGen | 'gen11';
+/** Styles driven by a QNet (gen11 runs on gen10's weight file; gen16 runs
+ * on gen13's, plus gen15's belief organ for its imagination). */
+export type NeuralStyle = NeuralGen | 'gen11' | 'gen16';
 
 export const isNeuralStyle = (s: BotStyle | undefined): s is NeuralStyle =>
     s === 'gen7' || s === 'gen8' || s === 'gen9' || s === 'gen10'
-    || s === 'gen11' || s === 'gen13';
+    || s === 'gen11' || s === 'gen13' || s === 'gen16';
 
 /** Which weight file a neural style runs on. */
 export const weightsGenFor = (s: NeuralStyle): NeuralGen =>
-    s === 'gen11' ? 'gen10' : s;
+    s === 'gen11' ? 'gen10' : s === 'gen16' ? 'gen13' : s;
 
 /** Generations whose go-down/trump are ALSO net decisions (gen9+). */
 export const isFullyNeural = (s: BotStyle | undefined): boolean =>
-    s === 'gen9' || s === 'gen10' || s === 'gen11' || s === 'gen13';
-
-/** Styles that add endgame look-ahead on top of their reflex net. */
-const SEARCHES_ENDGAME = (s: NeuralStyle): boolean =>
-    s === 'gen11' || s === 'gen13';
+    s === 'gen9' || s === 'gen10' || s === 'gen11' || s === 'gen13'
+    || s === 'gen16';
 
 export interface NeuralChoice {
     dtype: number;
@@ -156,14 +161,21 @@ export const neuralTrumpIntent = (g: GameDoc, seat: Seat, net: QNetWeights): Neu
     return argmaxChoice(net, o13, [], D_TRUMP, [0, 1, 2, 3], auctionCtx(g), null);
 };
 
-const neuralAction = (g: GameDoc, seat: Seat, gen: NeuralStyle, net: QNetWeights): GameAction | null => {
+const neuralAction = (g: GameDoc, seat: Seat, gen: NeuralStyle, net: QNetWeights, beliefNet?: QNetWeights): GameAction | null => {
     // gen11 = gen10 + look-ahead: endgame card plays go through PIMC search
-    // (8 imagined worlds, net rollouts); everything else is the gen10 reflex
-    if (gen === 'gen11' && g.phase === 'playing'
+    // (8 imagined worlds, net rollouts); everything else is the reflex.
+    // gen16 = gen13 + the same look-ahead, but its worlds are DRAWN from
+    // gen15's belief posterior instead of uniformly (68.6% vs the gen13
+    // stack at marathon rules in the Python lab).
+    const searches = gen === 'gen11' || (gen === 'gen16' && !!beliefNet);
+    if (searches && g.phase === 'playing'
             && g.completedTricks.length >= GEN11_SEARCH.minTrick) {
-        const d = chooseSearchCard(g, net, GEN11_SEARCH);
+        const opts = gen === 'gen16' ? GEN16_SEARCH : GEN11_SEARCH;
+        const d = chooseSearchCard(g, net, opts, Math.random,
+            gen === 'gen16' ? beliefNet : undefined);
         const note = d.overrode ? ', search overrode the reflex' : '';
-        console.info(`🔮 gen11 ${seat} searched ${GEN11_SEARCH.worlds} worlds, `
+        const brain = gen === 'gen16' ? 'belief-guided worlds' : 'worlds';
+        console.info(`🔮 ${gen} ${seat} searched ${opts.worlds} ${brain}, `
             + `plays ${d.card.suit} ${d.card.number} `
             + `(score ${Math.max(...d.scores).toFixed(3)}${note})`);
         return { type: 'PLAY_CARD', seat, card: d.card };
@@ -200,6 +212,7 @@ export const preloadNets = (g: GameDoc): void => {
     for (const seat of Object.values(g.seats)) {
         if (seat.kind === 'bot' && isNeuralStyle(seat.botStyle)) {
             loadQNet(weightsGenFor(seat.botStyle)).catch(() => {});
+            if (seat.botStyle === 'gen16') loadBeliefNet().catch(() => {});
         }
     }
 };
@@ -213,7 +226,16 @@ export const nextAgentActionAsync = async (g: GameDoc): Promise<GameAction | nul
              (isFullyNeural(info.botStyle) && (g.phase === 'widow' || g.phase === 'trump')))) {
             try {
                 const net = await loadQNet(weightsGenFor(info.botStyle));
-                const action = neuralAction(g, g.turn, info.botStyle, net);
+                // gen16's imagination is optional at runtime: if the belief
+                // file won't load it degrades to the gen13 reflex, never to
+                // the heuristic
+                const beliefNet = info.botStyle === 'gen16'
+                    ? await loadBeliefNet().catch((e) => {
+                        console.error('gen16 belief organ unavailable — reflex only', e);
+                        return undefined;
+                    })
+                    : undefined;
+                const action = neuralAction(g, g.turn, info.botStyle, net, beliefNet);
                 if (action) return action;
             } catch (e) {
                 console.error(`AlphaRook ${info.botStyle} weights unavailable — playing the hand heuristically`, e);

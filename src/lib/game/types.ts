@@ -43,7 +43,7 @@ export interface Card {
 //                (bots.ts PERSONALITIES); 'basic' is also the fallback brain
 //                for gen7/gen8 go-down/trump and for neural seats if weights
 //                fail to load
-export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen11' | 'gen13';
+export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen11' | 'gen13' | 'gen16';
 
 export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     random: 'Easy',
@@ -57,10 +57,11 @@ export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     gen10: 'AlphaRook Gen10',
     gen11: 'AlphaRook Gen11',
     gen13: 'AlphaRook Gen13',
+    gen16: 'AlphaRook Gen16',
 };
 
 /** What the lobby's bot picker offers (strongest first); legacy styles live on only in old games. */
-export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen13', 'gen11', 'gen10', 'gen9', 'gen8', 'gen7'];
+export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen16', 'gen13', 'gen11', 'gen10', 'gen9', 'gen8', 'gen7'];
 
 /** Every new bot starts as the hottest brain we've shipped. */
 export const DEFAULT_BOT_STYLE: BotStyle = PLAYABLE_BOT_STYLES[0];

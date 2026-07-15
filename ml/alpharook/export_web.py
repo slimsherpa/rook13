@@ -62,8 +62,7 @@ def load_net(gen: str) -> QNet:
     return load_qnet(str(MODELS_DIR / f"{gen}.pt"))
 
 
-def write_bin(net: QNet, path: Path) -> None:
-    linears = [m for m in net.net if isinstance(m, torch.nn.Linear)]
+def _write_rkqn(linears: list[torch.nn.Linear], path: Path) -> None:
     buf = bytearray()
     buf += b"RKQN"
     buf += struct.pack("<II", 1, len(linears))
@@ -76,6 +75,20 @@ def write_bin(net: QNet, path: Path) -> None:
         buf += b.tobytes()
     path.write_bytes(bytes(buf))
     print(f"wrote {path} ({len(buf):,} bytes, {len(linears)} layers)")
+
+
+def write_bin(net: QNet, path: Path) -> None:
+    _write_rkqn([m for m in net.net if isinstance(m, torch.nn.Linear)], path)
+
+
+def write_belief_bin(net: QNet, path: Path) -> None:
+    """The belief ORGAN alone, as a plain 3-layer MLP in the same RKQN
+    format qnet.ts already reads: gen15's first hidden layer + the belief
+    head. beliefForward = relu(L0) -> relu(L1) -> L2, a [40*4] logit grid
+    over who holds each card. The browser never needs gen15's Q layers —
+    gen13 stays the muscle, this file is just the imagination."""
+    assert net.belief_head is not None
+    _write_rkqn([net.net[0], net.belief_head[0], net.belief_head[2]], path)
 
 
 @torch.no_grad()
@@ -162,10 +175,33 @@ def trace_game(gen: str, net: QNet, seed: int, path: Path) -> None:
           f"final scores {env.g.scores})")
 
 
+@torch.no_grad()
+def belief_golden(net: QNet, path: Path, n: int = 8) -> None:
+    """Raw belief-forward parity vectors: random (state, action) rows and
+    the 160 logits gen15's organ produces for each — the RNG-free proof
+    that TS beliefForward reproduces the training stack bit-for-bit."""
+    rng = np.random.default_rng(29)
+    s = rng.standard_normal((n, STATE_DIM_V2)).astype(np.float32)
+    a = rng.standard_normal((n, ACTION_DIM)).astype(np.float32)
+    logits = net.belief_forward(torch.from_numpy(s), torch.from_numpy(a))
+    out = {
+        "state_dim": STATE_DIM_V2,
+        "action_dim": ACTION_DIM,
+        "states": [[float(v) for v in row] for row in s],
+        "actions": [[float(v) for v in row] for row in a],
+        "logits": [[float(v) for v in row.reshape(-1)] for row in logits],
+    }
+    path.write_text(json.dumps(out))
+    print(f"wrote {path}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gens", nargs="+",
                     default=["gen7", "gen8", "gen9", "gen10"])
+    ap.add_argument("--belief-gen", default=None,
+                    help="also export <gen>'s belief head (e.g. gen15) as "
+                         "public/models/<gen>belief.bin + parity fixture")
     args = ap.parse_args()
 
     OUT_BIN.mkdir(parents=True, exist_ok=True)
@@ -179,6 +215,11 @@ def main():
                    state_dim=STATE_DIM_V2)
     for i, (gen, net) in enumerate(nets.items()):
         trace_game(gen, net, seed=13 + i, path=OUT_FIX / f"game.{gen}.json")
+
+    if args.belief_gen:
+        bnet = load_net(args.belief_gen)
+        write_belief_bin(bnet, OUT_BIN / f"{args.belief_gen}belief.bin")
+        belief_golden(bnet, OUT_FIX / f"belief.golden.{args.belief_gen}.json")
 
 
 if __name__ == "__main__":

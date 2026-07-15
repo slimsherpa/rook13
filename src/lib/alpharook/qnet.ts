@@ -53,8 +53,7 @@ export const parseWeights = (buf: ArrayBuffer): QNetWeights => {
     return { layers };
 };
 
-/** q(state, action) — ReLU between layers, linear output. */
-export const qForward = (net: QNetWeights, state: Float32Array, action: Float32Array): number => {
+const mlpForward = (net: QNetWeights, state: Float32Array, action: Float32Array): Float32Array => {
     let x = new Float32Array(state.length + action.length);
     x.set(state);
     x.set(action, state.length);
@@ -71,31 +70,52 @@ export const qForward = (net: QNetWeights, state: Float32Array, action: Float32A
         }
         x = y;
     }
-    return x[0];
+    return x;
 };
+
+/** q(state, action) — ReLU between layers, linear output. */
+export const qForward = (net: QNetWeights, state: Float32Array, action: Float32Array): number =>
+    mlpForward(net, state, action)[0];
+
+/**
+ * gen15's belief organ (public/models/gen15belief.bin): who holds each of
+ * the 40 cards the observer can't see. Same RKQN MLP format, but the last
+ * layer is 160 wide — logits[card*4 + cls], cls 0/1/2 = the seats one/two/
+ * three to my left in play order, cls 3 = the hidden go-down. Port of
+ * QNet.belief_forward (ml/alpharook/model.py).
+ */
+export const beliefForward = (net: QNetWeights, state: Float32Array, action: Float32Array): Float32Array =>
+    mlpForward(net, state, action);
 
 // ---------------------------------------------------------------------------
 // Browser-side weight cache. Tests parse buffers directly via parseWeights;
 // the app fetches /models/<gen>.bin once and keeps it for the session.
 // ---------------------------------------------------------------------------
 
-const cache = new Map<NeuralGen, Promise<QNetWeights>>();
+const cache = new Map<string, Promise<QNetWeights>>();
 
-export const loadQNet = (gen: NeuralGen): Promise<QNetWeights> => {
-    let p = cache.get(gen);
+const loadBin = (file: string, label: string): Promise<QNetWeights> => {
+    let p = cache.get(file);
     if (!p) {
-        p = fetch(`/models/${gen}.bin`).then(async (res) => {
-            if (!res.ok) throw new Error(`weights ${gen}: HTTP ${res.status}`);
+        p = fetch(`/models/${file}`).then(async (res) => {
+            if (!res.ok) throw new Error(`weights ${label}: HTTP ${res.status}`);
             const buf = await res.arrayBuffer();
             const net = parseWeights(buf);
             // proof-of-life for anyone watching the console: the trained
             // brain is in memory, not the heuristic fallback
-            console.info(`🧠 AlphaRook ${gen} brain loaded (${(buf.byteLength / 1e6).toFixed(1)}MB, ${net.layers.length} layers)`);
+            console.info(`🧠 AlphaRook ${label} loaded (${(buf.byteLength / 1e6).toFixed(1)}MB, ${net.layers.length} layers)`);
             return net;
         });
         // a failed fetch must not poison the session — retry on next call
-        p.catch(() => cache.delete(gen));
-        cache.set(gen, p);
+        p.catch(() => cache.delete(file));
+        cache.set(file, p);
     }
     return p;
 };
+
+export const loadQNet = (gen: NeuralGen): Promise<QNetWeights> =>
+    loadBin(`${gen}.bin`, `${gen} brain`);
+
+/** gen15's belief head — gen16's imagination (Q still runs on gen13.bin). */
+export const loadBeliefNet = (): Promise<QNetWeights> =>
+    loadBin('gen15belief.bin', 'gen15 belief organ');

@@ -21,11 +21,11 @@ import {
 } from '../game/types';
 import { legalCards, minNextBid, mustBid } from '../game/engine';
 import { Observation, observe } from './observation';
-import { sampleWorld } from './determinize';
+import { sampleWorld, sampleWorldWeighted } from './determinize';
 import { materialize, applyPlayFast, scoreHand } from './rollout';
 import { legalFromObservation } from './pimc';
 import { encodeStateFor, encodeAction, cardToInt, D_PLAY } from './encoder';
-import { QNetWeights, qForward } from './qnet';
+import { QNetWeights, qForward, beliefForward } from './qnet';
 
 export interface SearchOptions {
     /** consistent worlds sampled per searched decision */
@@ -34,10 +34,50 @@ export interface SearchOptions {
     prior: number;
     /** only search plays once this many tricks are complete */
     minTrick: number;
+    /** softmax temperature over the belief head's 4 holder classes (gen16) */
+    beliefTemp?: number;
 }
 
 /** The shipped gen11 configuration (Python-duel-validated: 54% vs gen10). */
 export const GEN11_SEARCH: SearchOptions = { worlds: 8, prior: 2, minTrick: 4 };
+
+/** gen16: gen11's budget, but worlds are DRAWN from gen15's belief posterior
+ * instead of uniformly (temp 0.5 beat 0.3/0.7/1.0 in the Python lab). */
+export const GEN16_SEARCH: SearchOptions = {
+    worlds: 8, prior: 2, minTrick: 4, beliefTemp: 0.5,
+};
+
+/**
+ * The belief organ's posterior over who holds every hidden card, averaged
+ * over the candidate actions at this decision — port of
+ * ml/alpharook/beliefs.py BeliefOracle.posterior. Returns probs[40][4].
+ */
+export const beliefPosterior = (
+    beliefNet: QNetWeights,
+    state: Float32Array,
+    cands: number[],
+    temp: number,
+): number[][] => {
+    const p: number[][] = Array.from({ length: 40 }, () => [0, 0, 0, 0]);
+    for (const c of cands) {
+        const logits = beliefForward(beliefNet, state, encodeAction(D_PLAY, c));
+        for (let card = 0; card < 40; card++) {
+            let m = -Infinity;
+            for (let k = 0; k < 4; k++) m = Math.max(m, logits[card * 4 + k] / temp);
+            let z = 0;
+            const e = [0, 0, 0, 0];
+            for (let k = 0; k < 4; k++) {
+                e[k] = Math.exp(logits[card * 4 + k] / temp - m);
+                z += e[k];
+            }
+            for (let k = 0; k < 4; k++) p[card][k] += e[k] / z;
+        }
+    }
+    for (let card = 0; card < 40; card++) {
+        for (let k = 0; k < 4; k++) p[card][k] /= cands.length;
+    }
+    return p;
+};
 
 const clamp1 = (v: number): number => Math.max(-1, Math.min(1, v));
 
@@ -109,6 +149,7 @@ export const chooseSearchCard = (
     net: QNetWeights,
     opts: SearchOptions = GEN11_SEARCH,
     rand: () => number = Math.random,
+    beliefNet?: QNetWeights,
 ): SearchChoice => {
     const seat = g.turn!;
     const o: Observation = observe(g, seat);
@@ -123,10 +164,19 @@ export const chooseSearchCard = (
         return { card: legal[0], scores: [...prior], prior, overrode: false };
     }
 
+    // gen16: imagination from the learned posterior — worlds are drawn
+    // where the belief organ says the hidden cards live, not uniformly
+    const probs = beliefNet
+        ? beliefPosterior(beliefNet, rootState, legal.map(cardToInt),
+            opts.beliefTemp ?? 0.5)
+        : null;
+
     const totals = new Array(legal.length).fill(0);
     for (let k = 0; k < opts.worlds; k++) {
         // same world across candidates: apples-to-apples inside each guess
-        const world = sampleWorld(o, rand);
+        const world = probs
+            ? sampleWorldWeighted(o, probs, rand)
+            : sampleWorld(o, rand);
         for (let i = 0; i < legal.length; i++) {
             const sim = materialize(o, world);
             applyPlayFast(sim, seat, legal[i]);
