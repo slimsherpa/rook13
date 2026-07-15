@@ -80,13 +80,13 @@ export interface BotPersona {
     tagline: string;
 }
 export const BOT_PERSONAS: Partial<Record<BotStyle, BotPersona>> = {
-    gen16: { name: 'Cosmo', emoji: '🐾', img: '/bots/cosmo.png', tagline: 'the grandmaster' },
-    gen13: { name: 'Cougar', emoji: '🐅', img: '/bots/cougar.png', tagline: 'seasoned prowler' },
-    gen11: { name: 'Puma', emoji: '🐈‍⬛', img: '/bots/puma.png', tagline: 'silent hunter' },
-    gen10: { name: 'Cub', emoji: '🦁', img: '/bots/cub.png', tagline: 'young lion' },
-    gen9: { name: 'Bobcat', emoji: '🐆', img: '/bots/bobcat.png', tagline: 'quick and cunning' },
-    gen8: { name: 'Kitten', emoji: '🐱', img: '/bots/kitten.png', tagline: 'small but sharp' },
-    gen7: { name: 'Stomper', emoji: '🦖', img: '/bots/stomper.png', tagline: 'the rookie' },
+    gen16: { name: 'Cosmo', emoji: '🐾', img: '/bots/07-Cosmo.jpg', tagline: 'the grandmaster' },
+    gen13: { name: 'Cougar', emoji: '🐅', img: '/bots/06-Cougar.jpg', tagline: 'seasoned prowler' },
+    gen11: { name: 'Puma', emoji: '🐈‍⬛', img: '/bots/05-Puma.jpg', tagline: 'silent hunter' },
+    gen10: { name: 'Cub', emoji: '🦁', img: '/bots/04-Cub.jpg', tagline: 'young lion' },
+    gen9: { name: 'Bobcat', emoji: '🐆', img: '/bots/03-Bobcat.jpg', tagline: 'quick and cunning' },
+    gen8: { name: 'Kitten', emoji: '🐱', img: '/bots/02-Kitten.jpg', tagline: 'small but sharp' },
+    gen7: { name: 'Stomper', emoji: '🦖', img: '/bots/01-Stomper.jpg', tagline: 'the rookie' },
 };
 
 /** The camp persona for a style, or a plain fallback for the heuristic bots. */
