@@ -130,28 +130,38 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
 
         case 'trump': {
             if (game.bidWinner !== mySeat) return <Status text={`${turnName} is calling trump…`} />;
+            // Pick a color in the dock, then confirm with the big button that
+            // appears in the CENTER of the table — no more sliding a thumb
+            // across a crowded row to reach a tiny "Confirm" on a phone.
             return (
-                <div className="flex items-center justify-center gap-2 py-1.5">
-                    <span className="text-white/90 font-orbitron text-xs sm:text-sm mr-1">Trump:</span>
-                    {SUITS.map((suit) => (
+                <>
+                    <div className="flex items-center justify-center gap-2 py-1.5 flex-wrap">
+                        <span className="text-white/90 font-orbitron text-xs sm:text-sm mr-1">Trump:</span>
+                        {SUITS.map((suit) => (
+                            <button
+                                key={suit}
+                                disabled={!settled}
+                                onClick={() => setTrumpPick(suit)}
+                                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition disabled:opacity-40 ${suitButtonColors[suit]} ${trumpPick === suit ? 'ring-4 ring-white' : trumpPick ? 'opacity-50' : ''}`}
+                            >
+                                {suit}
+                                {advice && <AssistDial p={advice.get(optionKey.trump(suit))} />}
+                            </button>
+                        ))}
+                    </div>
+                    {trumpPick && settled && (
                         <button
-                            key={suit}
-                            disabled={!settled}
-                            onClick={() => setTrumpPick(suit)}
-                            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition disabled:opacity-40 ${suitButtonColors[suit]} ${trumpPick === suit ? 'ring-4 ring-white' : trumpPick ? 'opacity-50' : ''}`}
+                            onClick={() => onAct({ type: 'SELECT_TRUMP', seat: mySeat, suit: trumpPick })}
+                            className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40 px-8 py-5 rounded-3xl text-white font-orbitron shadow-2xl ring-4 ring-white/70 active:scale-95 transition animate-announce-pop ${suitButtonColors[trumpPick]}`}
                         >
-                            {suit}
-                            {advice && <AssistDial p={advice.get(optionKey.trump(suit))} />}
+                            <span className="block text-2xl font-black leading-tight">{trumpPick} Trump</span>
+                            <span className="block text-sm font-bold mt-1 flex items-center justify-center gap-1">
+                                Start the hand
+                                <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                            </span>
                         </button>
-                    ))}
-                    <button
-                        disabled={!settled || !trumpPick}
-                        onClick={() => trumpPick && onAct({ type: 'SELECT_TRUMP', seat: mySeat, suit: trumpPick })}
-                        className="ml-2 px-5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-orbitron text-sm font-bold active:scale-95 transition"
-                    >
-                        Confirm
-                    </button>
-                </div>
+                    )}
+                </>
             );
         }
 

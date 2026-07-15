@@ -198,6 +198,28 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
                     <span className="text-white/85 text-sm sm:text-base font-orbitron leading-snug">{message}</span>
                 </div>
             )}
+            {/* the gap between the swept trick and the next lead used to be a
+                blank felt — hold a dimmed "last trick" ghost there so you can
+                still see what just happened while deciding your next card */}
+            {plays.length === 0 && !message && game.phase === 'playing' && lastTrick && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 pointer-events-none opacity-70">
+                    <span className="text-white/45 text-[9px] font-orbitron uppercase tracking-widest">Last trick</span>
+                    <div className="flex gap-1">
+                        {lastTrick.plays.map(({ seat, card }) => (
+                            <PlayingCard
+                                key={`${seat}-${card.suit}-${card.number}`}
+                                card={card}
+                                trump={trump}
+                                size="xs"
+                                highlight={seat === lastTrick.winner}
+                            />
+                        ))}
+                    </div>
+                    <span className="text-yellow-300/80 text-[9px] font-orbitron">
+                        {game.seats[lastTrick.winner].name.split(' ')[0]} took it
+                    </span>
+                </div>
+            )}
             {plays.map(({ seat, card }) => {
                 const slotPosition = positionOfSeat(seat, bottomSeat);
                 // capture sweep: every card slides to the winner's slot and shrinks
