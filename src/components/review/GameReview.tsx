@@ -101,7 +101,6 @@ export default function GameReview({ gameId }: { gameId: string }) {
                             seats={game.seats}
                             h={{ ...s, dealtHands: s.dealtHands ?? h.dealtHands, dealtWidow: s.dealtWidow ?? h.dealtWidow }}
                             goDown={h.goDown}
-                            tricksSource={h.tricks}
                             auction={h.bids.map((b) => ({ seat: b.seat as Seat, bid: b.bid }))}
                         />
 
