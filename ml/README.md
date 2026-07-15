@@ -216,19 +216,39 @@ what is provably identical to the arena champion.
   and loses) and beat 0.7/1.0 on world-truth; belief searching ALL
   tricks (t=0) scored 54.3% vs the same opponent — better imagination
   still doesn't open tricks 1-2 at K=24, the endgame gate survives.
-  Phase 2 — the plan tree (`fork_depth`/`fork_width`: the searcher's
-  next D plays branch top-M-by-Q inside each world, per-world MAX
-  backup; my plays only; width-1 == depth-0 by test) — is built and its
-  first config is an HONEST NEGATIVE: f2x3 loses to flat belief-search
-  45.7% (sweeps 17-30, make rate 67->64) over 150 pairs. Suspected
-  killer: strategy fusion — per-world max lets the searcher pick a
-  DIFFERENT line in each imagined world, inflating flexible-looking
-  cards over better ones. f1x2 (minimal tree, minimal fusion) running
-  as the isolating experiment; if it also loses, the next tree must
-  evaluate WORLD-CONSISTENT plans (one line, averaged across worlds,
-  chosen by aggregate — same shape as the root decision itself). Duel
-  logs: history/gen16-duels/. Gauge for what remains: the gen14 audit's
-  multi-trick blunder classes shrink.
+  Phase 2 — planning — produced one law, one clean negative, and one
+  parity, all at 150-pair scale (logs: history/gen16-duels/):
+  * **Fusion is real and scales with forking.** The per-world fork tree
+    (`fork_depth`/`fork_width`, per-world MAX backup) loses 45.7% at
+    f2x3 and sits at exact parity (50.3%) at f1x2: every fork lets the
+    searcher pick a DIFFERENT line in each imagined world, pricing
+    flexibility as value. Machinery kept for the record; don't use.
+  * **World-consistent plans (`plan_lines`) fix the bias but don't yet
+    add strength: 51.0% sprint** (sweeps 20-17, +5.3). L plan cards
+    chosen once at the root, same line scored in every world, max only
+    after aggregation; reflex line always included. Marathon check ran
+    overnight (grind edges hide in sprints — gen13's own 52% sprint was
+    60.7% marathon).
+  * **The trick-3 gate survives even truer imagination**: belief search
+    from trick 2 loses 45.3% (sweeps 13-27) to the same stack gated at
+    3; with the t0 result (54.3% vs the t3 champion), the curve says
+    search pays only where world-truth crosses ~40% — trick-2 worlds at
+    36.5% still lose to the reflex's implicit knowledge.
+  * **The role audit names the payoff** (audit.py --actor-*: the search
+    stack as the audited player; blunders split by who-took-the-bid,
+    Riley's four situations). gen13 reflex: declarer 4.02% blunder rate
+    — twice any other role (right-def 2.76, left-def 2.44, partner
+    1.92; 40% of all preventable blunders from 28% of decisions;
+    partner-of-declarer is the EASIEST seat without conventions, not
+    the hardest). The belief-search champion stack cuts declarer to
+    3.17% (-21%) while barely moving the other seats — belief-guided
+    imagination is largely a DECLARER-PLAY fix, which makes sense: the
+    declarer holds the most private information, so knowing where the
+    defense sits is worth the most. Declarer is still the worst seat;
+    the residue lives in tricks 1-2 (gated) and deeper plans.
+  Standing hypothesis after phase 2: intentions need EARLY search, and
+  early search needs truer early worlds — the next lever is the belief
+  head itself (bid-conditioned, search-refined), not more tree.
 - **gen17 — exploiter league.** AlphaStar's move: train agents whose only
   job is to find and abuse the champion's habits (synthetic humans
   hunting traps), fold their winning lines back into the league, repeat.
