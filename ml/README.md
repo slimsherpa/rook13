@@ -223,12 +223,15 @@ what is provably identical to the arena champion.
     f2x3 and sits at exact parity (50.3%) at f1x2: every fork lets the
     searcher pick a DIFFERENT line in each imagined world, pricing
     flexibility as value. Machinery kept for the record; don't use.
-  * **World-consistent plans (`plan_lines`) fix the bias but don't yet
-    add strength: 51.0% sprint** (sweeps 20-17, +5.3). L plan cards
-    chosen once at the root, same line scored in every world, max only
-    after aggregation; reflex line always included. Marathon check ran
-    overnight (grind edges hide in sprints — gen13's own 52% sprint was
-    60.7% marathon).
+  * **World-consistent plans (`plan_lines`) fix the bias but don't add
+    strength: 51.0% sprint, 47.1% marathon** (sweeps 7-11) — no hidden
+    grind edge (the anti-gen13 pattern), CLOSED at this design point.
+    L plan cards chosen once at the root, same line scored in every
+    world, max only after aggregation; reflex line always included.
+    Why it can't win yet: a committed next-card intention only matters
+    where the reflex continuation wouldn't find it, and from trick 3 on
+    (the only place search runs) the reflex already plays those lines;
+    the plans that WOULD matter live in tricks 1-2, behind the gate.
   * **The trick-3 gate survives even truer imagination**: belief search
     from trick 2 loses 45.3% (sweeps 13-27) to the same stack gated at
     3; with the t0 result (54.3% vs the t3 champion), the curve says
