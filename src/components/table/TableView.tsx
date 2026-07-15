@@ -162,6 +162,28 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [game]);
 
+    // LAYDOWN: somebody just claimed the rest of the hand with all winners —
+    // announce it big so nobody wonders why the tricks flew by. Perspective-
+    // aware like the set announcements, once per hand.
+    useEffect(() => {
+        if (!game.laydownSeat) return;
+        const key = `laydown-${game.handNumber}`;
+        if (announcedRef.current.has(key)) return;
+        announcedRef.current.add(key);
+        const who = game.seats[game.laydownSeat].name.split(' ')[0];
+        const myTeam: Team | null = mySeat ? teamOf(mySeat) : null;
+        const laydownTeam = teamOf(game.laydownSeat);
+        const mine = myTeam === laydownTeam;
+        setAnnouncement(mine && game.laydownSeat === mySeat
+            ? { text: 'All winners — you lay them down!', emoji: '🙌', tone: 'good' }
+            : mine
+                ? { text: `${who} lays them down — all winners!`, emoji: '🙌', tone: 'good' }
+                : { text: `${who} lays them down — the rest are all winners.`, emoji: '🫳', tone: 'info' });
+        if (announceTimer.current) clearTimeout(announceTimer.current);
+        announceTimer.current = setTimeout(() => setAnnouncement(null), paced(ANNOUNCE_MS));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [game.laydownSeat, game.handNumber]);
+
     // hand-points ticker: pulse the team chip that just captured points
     const [pointsFlash, setPointsFlash] = useState<Record<Team, boolean>>({ A: false, B: false });
     const prevPoints = useRef(game.pointsTaken);

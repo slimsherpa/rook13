@@ -788,6 +788,18 @@ describe('laydown', () => {
         const b = applyAction(g, { type: 'LAYDOWN', seat: bidder }, 42);
         expect(a).toEqual(b);
     });
+
+    it('records who laid down and before which trick, cleared on the next hand', () => {
+        const { g, bidder } = laydownReady();
+        const done = applyAction(g, { type: 'LAYDOWN', seat: bidder });
+        expect(done.laydownSeat).toBe(bidder);
+        expect(done.laydownTrick).toBe(0); // claimed straight off the lead
+        if (done.phase === 'hand_done') {
+            const fresh = applyAction(done, { type: 'NEXT_HAND' });
+            expect(fresh.laydownSeat).toBeNull();
+            expect(fresh.laydownTrick).toBeNull();
+        }
+    });
 });
 
 describe('bid log (the auction blow-by-blow)', () => {

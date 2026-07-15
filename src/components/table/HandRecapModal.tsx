@@ -189,14 +189,17 @@ const teamNames = (seats: Seats, t: Team) =>
         : `${firstName(seats, 'B1')} & ${firstName(seats, 'B2')}`;
 
 /** Trick-by-trick replay, with the "…got SET!" beat dropped in exactly where
- *  the set became inevitable. Shared by the live recap and the review page. */
-export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact }: {
+ *  the set became inevitable — and the "laid them down" beat where a player
+ *  claimed the rest. Shared by the live recap and the review page. */
+export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown }: {
     seats: Seats;
     tricks: TrickRecord[];
     trump: Suit | null;
     h: HandSummary;
     mySeat?: Seat | null;
     compact?: boolean;
+    /** who laid their hand down, and before which trick (0-indexed) */
+    laydown?: { seat: Seat; trick: number } | null;
 }) {
     const sealed = setSealedTrick(tricks, h);
     const bidTeam = teamOf(h.bidWinner);
@@ -215,11 +218,22 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact }: {
         );
     };
 
+    const laydownBanner = laydown && (
+        <div className="flex items-center justify-center gap-2 my-1 py-2 px-3 rounded-xl bg-sky-800/50 border border-sky-400/40">
+            <span className="text-lg leading-none">🙌</span>
+            <span className="font-orbitron text-sky-200 text-sm font-bold text-center">
+                {firstName(seats, laydown.seat)} laid them down — the rest were all winners
+            </span>
+        </div>
+    );
+
     const numW = compact ? 'w-6 text-lg' : 'w-7 text-2xl';
     return (
         <div className={compact ? 'space-y-3' : 'space-y-4'}>
+            {laydown && laydown.trick === 0 && laydownBanner}
             {tricks.map((trick, idx) => (
                 <div key={idx}>
+                    {laydown && laydown.trick === idx && idx > 0 && laydownBanner}
                     <div className="flex items-center gap-2">
                         <div className={`${numW} flex-shrink-0 text-white/40 font-orbitron font-bold text-center`}>
                             {idx + 1}
@@ -330,7 +344,16 @@ export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores 
                         <div className="text-white/50 font-orbitron text-[11px] uppercase tracking-widest mb-3">
                             Trick by trick
                         </div>
-                        <TrickByTrick seats={game.seats} tricks={game.completedTricks} trump={game.trump} h={h} mySeat={mySeat} />
+                        <TrickByTrick
+                            seats={game.seats}
+                            tricks={game.completedTricks}
+                            trump={game.trump}
+                            h={h}
+                            mySeat={mySeat}
+                            laydown={game.laydownSeat != null && game.laydownTrick != null
+                                ? { seat: game.laydownSeat, trick: game.laydownTrick }
+                                : null}
+                        />
                     </div>
                 </div>
 

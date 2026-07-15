@@ -168,6 +168,11 @@ export interface GameDoc {
     // special
     redealSeat: Seat | null; // seat that triggered the celebrated redeal
     redealCount: number;     // total redeals this game (for the wow factor)
+    // who claimed the rest of the hand with all winners, and how many tricks
+    // were on the table when they did — drives the table-wide announcement
+    // and the recap's "laid them down" beat. Absent on older game docs.
+    laydownSeat?: Seat | null;
+    laydownTrick?: number | null;
     winner: Team | null;
 }
 

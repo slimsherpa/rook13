@@ -33,7 +33,7 @@
 
 import { GameDoc, GameAction, Seat, SUITS, VALID_BIDS, BotStyle } from '../game/types';
 import { nextBotAction } from '../game/bots';
-import { legalCards, minNextBid, mustBid } from '../game/engine';
+import { legalCards, minNextBid, mustBid, isLaydown } from '../game/engine';
 import { Observation, observe } from './observation';
 import { choosePIMCCard, choosePIMCBid } from './pimc';
 import {
@@ -240,6 +240,14 @@ export const preloadNets = (g: GameDoc): void => {
 export const nextAgentActionAsync = async (g: GameDoc): Promise<GameAction | null> => {
     if (g.status === 'active' && g.turn) {
         const info = g.seats[g.turn];
+        // every bot style claims a laydown, exactly like a human would: when
+        // everything left is a guaranteed winner, put them down instead of
+        // grinding out the tricks. Driver-level only — the parity-tested
+        // pure bots (nextBotAction / neuralChoice) never see this decision.
+        if (info.kind === 'bot' && isLaydown(g, g.turn)) {
+            console.info(`🙌 ${info.botStyle ?? 'bot'} ${g.turn} lays them down — all winners`);
+            return { type: 'LAYDOWN', seat: g.turn };
+        }
         if (info.kind === 'bot' && isNeuralStyle(info.botStyle) &&
             (g.phase === 'bidding' || g.phase === 'playing' ||
              (isFullyNeural(info.botStyle) && (g.phase === 'widow' || g.phase === 'trump')))) {

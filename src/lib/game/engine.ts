@@ -440,6 +440,8 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
             // everyone else follows with their lowest legal card. isLaydown
             // guaranteed each lead wins, so this is just the PLAY_CARD path
             // run to the end of the hand — replays reproduce it exactly.
+            next.laydownSeat = action.seat;
+            next.laydownTrick = g.completedTricks.length;
             while (next.phase === 'playing') {
                 const turn = next.turn!;
                 const card = turn === action.seat
@@ -468,6 +470,8 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
             next.tricksWon = { A: 0, B: 0 };
             next.pointsTaken = { A: 0, B: 0 };
             next.redealSeat = null;
+            next.laydownSeat = null;
+            next.laydownTrick = null;
             // Integrity invariant (prod incident 2026-07-14, game 8563im…: trump
     // observed flipping Red -> Yellow mid-hand): within a hand, once trump
     // is set it is immutable. No current action can violate this; the guard
