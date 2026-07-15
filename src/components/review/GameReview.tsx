@@ -9,9 +9,8 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { GameDoc, GameAction, Seat, teamOf } from '@/lib/game/types';
 import { getGame, loadActionLog } from '@/lib/firebase/gameService';
 import { HandReview, reconstructGame } from '@/lib/game/review';
-import PlayingCard from '@/components/ui/PlayingCard';
 import LoadingPage from '@/components/LoadingPage';
-import { DealBreakdown } from '@/components/table/HandRecapModal';
+import { DealBreakdown, TrickByTrick } from '@/components/table/HandRecapModal';
 
 export default function GameReview({ gameId }: { gameId: string }) {
     const { user, loading: authLoading } = useAuth();
@@ -106,27 +105,18 @@ export default function GameReview({ gameId }: { gameId: string }) {
                             auction={h.bids.map((b) => ({ seat: b.seat as Seat, bid: b.bid }))}
                         />
 
-                        {/* trick by trick */}
-                        <div className="space-y-3">
-                            {h.tricks.map((trick, tIdx) => (
-                                <div key={tIdx} className="flex items-center gap-2">
-                                    <div className="w-6 flex-shrink-0 text-white/40 font-orbitron text-lg font-bold text-center">{tIdx + 1}</div>
-                                    <div className="grid grid-cols-4 gap-1.5 flex-1">
-                                        {trick.plays.map(({ seat, card }) => {
-                                            const isWinner = seat === trick.winner;
-                                            return (
-                                                <div key={seat} className="flex flex-col items-center gap-1">
-                                                    <span className={`px-1.5 py-px rounded text-[10px] font-orbitron max-w-full truncate ${isWinner ? 'bg-yellow-500/20 text-yellow-300 font-bold' : 'text-white/60'}`}>
-                                                        {name(seat)}
-                                                    </span>
-                                                    <PlayingCard card={card} trump={h.trump} size="sm" highlight={isWinner} />
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        {/* trick by trick, with the SET beat where it turned */}
+                        <TrickByTrick
+                            seats={game.seats}
+                            tricks={h.tricks}
+                            trump={h.trump}
+                            h={{ ...s, dealtHands: s.dealtHands ?? h.dealtHands, dealtWidow: s.dealtWidow ?? h.dealtWidow }}
+                            mySeat={game.seats.A1.uid === user?.uid ? 'A1'
+                                : game.seats.B1.uid === user?.uid ? 'B1'
+                                : game.seats.A2.uid === user?.uid ? 'A2'
+                                : game.seats.B2.uid === user?.uid ? 'B2' : null}
+                            compact
+                        />
                     </div>
                 )}
             </div>

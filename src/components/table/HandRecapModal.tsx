@@ -7,8 +7,9 @@
 // in v1. The Next Hand button stays pinned at the bottom no matter how far
 // you scroll. Any player can start the next hand.
 
-import { Card, GameDoc, Seat, Team, HandSummary, teamOf, nextSeat, getCardPoints } from '@/lib/game/types';
+import { Card, GameDoc, Seat, Suit, Team, HandSummary, TrickRecord, teamOf, nextSeat, getCardPoints } from '@/lib/game/types';
 import { rainbowNumbersFor } from '@/lib/game/stats';
+import { setSealedTrick } from '@/lib/game/setPoint';
 import { sortHand } from '@/lib/game/deck';
 import PlayingCard from '@/components/ui/PlayingCard';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
@@ -70,14 +71,23 @@ const seatsFromDealer = (dealer: Seat): Seat[] => {
     return [first, nextSeat(first), nextSeat(nextSeat(first)), nextSeat(nextSeat(nextSeat(first)))];
 };
 
-/** The dealt hands + bids + widow + go-down, one compact row per seat —
- *  plus the auction blow-by-blow when we have it.
- *  Shared between the live recap and the /review page. */
+const bidChipClass = (kind: 'win' | 'live' | 'pass') =>
+    `px-1.5 py-px rounded-md text-[10px] font-orbitron font-bold flex-shrink-0 ${
+        kind === 'win'
+            ? 'bg-yellow-400 text-navy-950 shadow-[0_0_8px_rgba(234,179,8,0.45)]'
+            : kind === 'pass' ? 'bg-white/10 text-white/50' : 'bg-sky-800 text-sky-200'
+    }`;
+
+/** The deal AND the auction as one section: each seat in bidding order (the
+ *  first bidder on top), their whole run of bids beside their name, then the
+ *  hand they were dealt. The seat that took it expands right there — widow,
+ *  the 13-card hand it became, and the go-down — because that's where those
+ *  cards belong. Shared between the live recap and the /review page. */
 export function DealBreakdown({ seats, h, goDown, tricksSource, auction }: {
     seats: Seats;
     h: HandSummary;
     goDown: Card[];
-    /** completed tricks of this hand, for "who got the go-down" */
+    /** completed tricks of this hand, for "who collected the go-down points" */
     tricksSource: { winner: Seat }[];
     /** every bid in order (overrides h.bidLog when the caller has its own) */
     auction?: { seat: Seat; bid: number | 'pass' }[];
@@ -86,95 +96,143 @@ export function DealBreakdown({ seats, h, goDown, tricksSource, auction }: {
     const lastTrick = tricksSource[tricksSource.length - 1];
     const goDownSeat = lastTrick?.winner ?? h.bidWinner;
     const bidLog = auction ?? h.bidLog ?? [];
-    // the winning bid is the last non-pass entry — light it up
-    const winningIdx = bidLog.reduce((best, b, i) => (b.bid !== 'pass' ? i : best), -1);
 
-    const bidChip = (seat: Seat) => {
-        const bid = h.bids?.[seat];
-        if (bid === undefined) return null;
-        const isWinner = seat === h.bidWinner;
-        return (
-            <span className={`px-1.5 py-px rounded-md text-[10px] font-orbitron font-bold flex-shrink-0 ${
-                isWinner
-                    ? 'bg-yellow-400 text-navy-950 shadow-[0_0_8px_rgba(234,179,8,0.45)]'
-                    : bid === 'pass' ? 'bg-white/10 text-white/50' : 'bg-sky-800 text-sky-200'
-            }`}>
-                {bid === 'pass' ? 'PASS' : bid}
-            </span>
-        );
+    // each seat's bids in the order they were made; falls back to the single
+    // final bid for older games that didn't log the blow-by-blow
+    const bidsBySeat = (seat: Seat): (number | 'pass')[] => {
+        const run = bidLog.filter((b) => b.seat === seat).map((b) => b.bid);
+        if (run.length > 0) return run;
+        const only = h.bids?.[seat];
+        return only === undefined ? [] : [only];
     };
+
+    const cardRow = (cards: Card[], key: string) => (
+        <div className="flex -space-x-3.5 flex-1 min-w-0" key={key}>
+            {sortHand(cards, h.trump).map((card) => (
+                <PlayingCard key={`${card.suit}-${card.number}`} card={card} trump={h.trump} size="xs" />
+            ))}
+        </div>
+    );
+
+    const nested = (label: string, sub: string | null, cards: Card[]) => (
+        <div className="flex items-center gap-2 pl-4">
+            <div className="w-14 flex-shrink-0 flex flex-col items-start">
+                <span className="text-[9px] font-orbitron text-white/50 uppercase tracking-wide">{label}</span>
+                {sub && <span className="text-[9px] text-white/40">{sub}</span>}
+            </div>
+            {cardRow(cards, label)}
+        </div>
+    );
+
+    const newHand = [...h.dealtHands[h.bidWinner], ...(h.dealtWidow ?? [])];
 
     return (
         <div>
             <div className="text-white/50 font-orbitron text-[11px] uppercase tracking-widest mb-2">
-                The Deal
+                The Deal &amp; Auction
             </div>
-            <div className="space-y-1.5">
-                {seatsFromDealer(h.dealer).map((seat) => (
-                    <div key={seat} className="flex items-center gap-2">
-                        <div className="w-16 flex-shrink-0 flex flex-col items-start gap-0.5">
-                            <span className={`text-[11px] font-orbitron truncate max-w-full ${teamOf(seat) === 'A' ? 'text-sky-300' : 'text-orange-300'}`}>
-                                {firstName(seats, seat)}{h.dealer === seat ? ' ·D' : ''}
-                            </span>
-                            {bidChip(seat)}
-                        </div>
-                        <div className="flex -space-x-3.5 flex-1 min-w-0">
-                            {sortHand(h.dealtHands![seat], h.trump).map((card) => (
-                                <PlayingCard key={`${card.suit}-${card.number}`} card={card} trump={h.trump} size="xs" />
-                            ))}
-                        </div>
-                    </div>
-                ))}
-                {/* the widow, revealed */}
-                {h.dealtWidow && h.dealtWidow.length > 0 && (
-                    <div className="flex items-center gap-2 pt-1.5 mt-1.5 border-t border-white/10">
-                        <div className="w-16 flex-shrink-0">
-                            <span className="text-[10px] font-orbitron text-white/50 uppercase">Widow</span>
-                        </div>
-                        <div className="flex -space-x-3.5">
-                            {sortHand(h.dealtWidow, h.trump).map((card) => (
-                                <PlayingCard key={`${card.suit}-${card.number}`} card={card} trump={h.trump} size="xs" />
-                            ))}
-                        </div>
-                    </div>
-                )}
-                {/* the go-down + where its points went */}
-                {goDown.length > 0 && (
-                    <div className="flex items-center gap-2">
-                        <div className="w-16 flex-shrink-0 flex flex-col items-start">
-                            <span className="text-[10px] font-orbitron text-white/50 uppercase">Go-Down</span>
-                            <span className="text-[10px] text-white/40">{h.goDownPoints} pts → {firstName(seats, goDownSeat)}</span>
-                        </div>
-                        <div className="flex -space-x-3.5">
-                            {sortHand(goDown, h.trump).map((card) => (
-                                <PlayingCard key={`${card.suit}-${card.number}`} card={card} trump={h.trump} size="xs" />
-                            ))}
-                        </div>
-                    </div>
-                )}
-                {/* the auction, bid by bid, winning bid lit */}
-                {bidLog.length > 0 && (
-                    <div className="pt-1.5 mt-1.5 border-t border-white/10">
-                        <span className="text-[10px] font-orbitron text-white/50 uppercase">The Auction</span>
-                        <div className="flex flex-wrap items-center gap-x-1 gap-y-1.5 mt-1">
-                            {bidLog.map((b, i) => (
-                                <span key={i} className="flex items-center gap-1">
-                                    <span className={`px-1.5 py-0.5 rounded-md text-[11px] font-orbitron whitespace-nowrap ${
-                                        i === winningIdx
-                                            ? 'bg-yellow-400 text-navy-950 font-bold'
-                                            : b.bid === 'pass'
-                                                ? 'bg-white/10 text-white/50'
-                                                : 'bg-sky-800 text-sky-200 font-bold'
-                                    }`}>
-                                        {firstName(seats, b.seat)} {b.bid === 'pass' ? 'pass' : b.bid}
+            <div className="space-y-2">
+                {seatsFromDealer(h.dealer).map((seat) => {
+                    const isWinner = seat === h.bidWinner;
+                    const bids = bidsBySeat(seat);
+                    return (
+                        <div key={seat} className={isWinner ? 'rounded-lg bg-yellow-400/[0.06] -mx-1 px-1 py-1' : ''}>
+                            <div className="flex items-center gap-2">
+                                <div className="w-16 flex-shrink-0 flex flex-col items-start gap-0.5">
+                                    <span className={`text-[11px] font-orbitron truncate max-w-full ${teamOf(seat) === 'A' ? 'text-sky-300' : 'text-orange-300'}`}>
+                                        {firstName(seats, seat)}{h.dealer === seat ? ' ·D' : ''}
                                     </span>
-                                    {i < bidLog.length - 1 && <span className="text-white/30 text-[10px]">→</span>}
-                                </span>
-                            ))}
+                                    <div className="flex flex-wrap gap-0.5">
+                                        {bids.length === 0
+                                            ? <span className="text-[10px] text-white/30 font-orbitron">—</span>
+                                            : bids.map((bid, i) => (
+                                                <span key={i} className={bidChipClass(
+                                                    isWinner && bid === h.bid ? 'win' : bid === 'pass' ? 'pass' : 'live',
+                                                )}>
+                                                    {bid === 'pass' ? 'PASS' : bid}
+                                                </span>
+                                            ))}
+                                    </div>
+                                </div>
+                                {cardRow(h.dealtHands![seat], 'hand')}
+                            </div>
+                            {/* the taker's cards live under the taker */}
+                            {isWinner && (
+                                <div className="mt-1.5 space-y-1.5">
+                                    {h.dealtWidow && h.dealtWidow.length > 0 &&
+                                        nested('Widow', null, h.dealtWidow)}
+                                    {h.dealtWidow && h.dealtWidow.length > 0 &&
+                                        nested('New Hand', '13 cards', newHand)}
+                                    {goDown.length > 0 &&
+                                        nested('Go-Down', `${h.goDownPoints} pts → ${firstName(seats, goDownSeat)}`, goDown)}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+const teamNames = (seats: Seats, t: Team) =>
+    t === 'A'
+        ? `${firstName(seats, 'A1')} & ${firstName(seats, 'A2')}`
+        : `${firstName(seats, 'B1')} & ${firstName(seats, 'B2')}`;
+
+/** Trick-by-trick replay, with the "…got SET!" beat dropped in exactly where
+ *  the set became inevitable. Shared by the live recap and the review page. */
+export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact }: {
+    seats: Seats;
+    tricks: TrickRecord[];
+    trump: Suit | null;
+    h: HandSummary;
+    mySeat?: Seat | null;
+    compact?: boolean;
+}) {
+    const sealed = setSealedTrick(tricks, h);
+    const bidTeam = teamOf(h.bidWinner);
+    const myTeam = mySeat ? teamOf(mySeat) : null;
+    const setBanner = () => {
+        const names = teamNames(seats, bidTeam);
+        const { emoji, text } =
+            myTeam === bidTeam ? { emoji: '😭', text: 'Oh no — we got SET!' }
+            : myTeam ? { emoji: '🎉', text: `${names} got SET!` }
+            : { emoji: '💥', text: `${names} got SET!` };
+        return (
+            <div className="flex items-center justify-center gap-2 my-1 py-2 px-3 rounded-xl bg-red-900/50 border border-red-400/40">
+                <span className="text-lg leading-none">{emoji}</span>
+                <span className="font-orbitron text-red-200 text-sm font-bold text-center">{text}</span>
+            </div>
+        );
+    };
+
+    const numW = compact ? 'w-6 text-lg' : 'w-7 text-2xl';
+    return (
+        <div className={compact ? 'space-y-3' : 'space-y-4'}>
+            {tricks.map((trick, idx) => (
+                <div key={idx}>
+                    <div className="flex items-center gap-2">
+                        <div className={`${numW} flex-shrink-0 text-white/40 font-orbitron font-bold text-center`}>
+                            {idx + 1}
+                        </div>
+                        <div className="grid grid-cols-4 gap-1.5 flex-1">
+                            {trick.plays.map(({ seat, card }) => {
+                                const isWinner = seat === trick.winner;
+                                return (
+                                    <div key={seat} className="flex flex-col items-center gap-1">
+                                        <span className={`px-1.5 py-px rounded text-[10px] font-orbitron max-w-full truncate ${isWinner ? 'bg-yellow-500/20 text-yellow-300 font-bold' : 'text-white/60'}`}>
+                                            {firstName(seats, seat)}
+                                        </span>
+                                        <PlayingCard card={card} trump={trump} size="sm" highlight={isWinner} />
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
-                )}
-            </div>
+                    {idx === sealed && setBanner()}
+                </div>
+            ))}
         </div>
     );
 }
@@ -254,36 +312,17 @@ export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores 
                         </div>
                     </div>
 
-                    {/* the deal: hands, bids, widow, go-down */}
+                    {/* the deal + auction, one section, with the taker's widow
+                        and go-down nested under them */}
                     <DealBreakdown seats={game.seats} h={h} goDown={game.goDown} tricksSource={game.completedTricks} />
 
-                    {/* trick-by-trick review, straight from v1 */}
+                    {/* trick-by-trick review, straight from v1 — with the SET
+                        beat dropped in where the hand turned */}
                     <div className="pt-2 border-t border-white/10">
                         <div className="text-white/50 font-orbitron text-[11px] uppercase tracking-widest mb-3">
                             Trick by trick
                         </div>
-                        <div className="space-y-4">
-                            {game.completedTricks.map((trick, idx) => (
-                                <div key={idx} className="flex items-center gap-2">
-                                    <div className="w-7 flex-shrink-0 text-white/40 font-orbitron text-2xl font-bold text-center">
-                                        {idx + 1}
-                                    </div>
-                                    <div className="grid grid-cols-4 gap-1.5 flex-1">
-                                        {trick.plays.map(({ seat, card }) => {
-                                            const isWinner = seat === trick.winner;
-                                            return (
-                                                <div key={seat} className="flex flex-col items-center gap-1">
-                                                    <span className={`px-1.5 py-px rounded text-[10px] font-orbitron max-w-full truncate ${isWinner ? 'bg-yellow-500/20 text-yellow-300 font-bold' : 'text-white/60'}`}>
-                                                        {firstName(game.seats, seat)}
-                                                    </span>
-                                                    <PlayingCard card={card} trump={game.trump} size="sm" highlight={isWinner} />
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        <TrickByTrick seats={game.seats} tricks={game.completedTricks} trump={game.trump} h={h} mySeat={mySeat} />
                     </div>
                 </div>
 
