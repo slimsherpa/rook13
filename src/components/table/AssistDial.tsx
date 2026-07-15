@@ -1,9 +1,15 @@
 'use client';
 
 // The trainer's dial: a little clock that fills to show how likely the latest
-// brain would be to make this pick. Empty ring = the model wouldn't; a full
-// sweep = the model's clear choice. Rendered next to bids, trump suits,
-// go-down candidates and playable cards when AI-assistant mode is on.
+// brain would be to make this pick. Solid hot-pink sweep on black, filling
+// clockwise from 12 o'clock — empty means the model wouldn't, a full circle
+// means it's the model's clear choice. Hot pink is the AI assistant's signature
+// color, used nowhere else, so a coached table reads at a glance. Hover for the
+// exact percentage. Shown beside bids, trump suits, go-down candidates and
+// playable cards when AI-assistant mode is on.
+
+// The AI assistant's signature color — reserved for the trainer, nothing else.
+export const ASSIST_PINK = '#ff2d95';
 
 interface AssistDialProps {
     /** 0..1 pick-likelihood, or undefined while the model is still thinking */
@@ -12,32 +18,21 @@ interface AssistDialProps {
     className?: string;
 }
 
-export default function AssistDial({ p, size = 20, className = '' }: AssistDialProps) {
+export default function AssistDial({ p, size = 18, className = '' }: AssistDialProps) {
     if (p === undefined) return null;
     const pct = Math.round(p * 100);
-    // fill clockwise from 12 o'clock; a hint of ring even at 0 so the dial
-    // is always visible as "the model considered this"
+    // fill clockwise from 12 o'clock; solid pink pie on black, no ring, no label
     const deg = Math.max(0, Math.min(360, p * 360));
-    const strong = p >= 0.5;
-    const fill = strong ? '#facc15' /* yellow-400 */ : '#38bdf8' /* sky-400 */;
     return (
         <span
-            className={`inline-flex items-center justify-center rounded-full shrink-0 ${className}`}
+            className={`inline-block rounded-full shrink-0 ${className}`}
             style={{
                 width: size,
                 height: size,
-                background: `conic-gradient(${fill} ${deg}deg, rgba(255,255,255,0.14) ${deg}deg)`,
+                background: `conic-gradient(${ASSIST_PINK} ${deg}deg, #000 ${deg}deg)`,
+                boxShadow: `0 0 0 1px ${ASSIST_PINK}66`,
             }}
             title={`AI would pick this ${pct}% of the time`}
-        >
-            <span
-                className="rounded-full bg-black/80 flex items-center justify-center"
-                style={{ width: size - 6, height: size - 6 }}
-            >
-                <span className="font-orbitron text-white leading-none" style={{ fontSize: size * 0.34 }}>
-                    {pct}
-                </span>
-            </span>
-        </span>
+        />
     );
 }

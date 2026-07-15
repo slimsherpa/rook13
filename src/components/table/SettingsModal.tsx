@@ -6,6 +6,7 @@
 // to move the bots).
 
 import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist } from '@/lib/settings';
+import { ASSIST_PINK } from './AssistDial';
 
 const PACES: { id: TablePace; label: string; blurb: string; icon: string }[] = [
     { id: 'auto',   label: 'Auto',   blurb: 'Tricks sweep away on their own',                icon: 'play_circle' },
@@ -72,22 +73,23 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                     )}
                 </div>
 
-                <div className="flex items-center gap-2 text-white font-orbitron text-sm mt-5 mb-1">
+                <div className="flex items-center gap-2 font-orbitron text-sm mt-5 mb-1" style={{ color: assist ? ASSIST_PINK : 'white' }}>
                     <span className="material-symbols-outlined text-lg">neurology</span>
                     AI Trainer
                 </div>
                 <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
-                    A coach over your shoulder: every choice shows a dial for how likely the latest
-                    AlphaRook brain would be to pick it. The rest of the table can see the trainer is
-                    on — flip it any time.
+                    A coach over your shoulder: every choice shows a hot-pink dial for how likely the
+                    latest AlphaRook brain would be to pick it. The rest of the table can see the
+                    trainer is on — flip it any time.
                 </p>
                 <button
                     onClick={() => setAssist(!assist)}
-                    className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition ${
-                        assist ? 'border-yellow-400 bg-yellow-400/15' : 'border-white/10 bg-white/5 hover:border-white/30'
-                    }`}
+                    className="w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition hover:border-white/30"
+                    style={assist
+                        ? { borderColor: ASSIST_PINK, backgroundColor: `${ASSIST_PINK}26` }
+                        : { borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)' }}
                 >
-                    <span className={`material-symbols-outlined text-xl ${assist ? 'text-yellow-300' : 'text-white/50'}`}>
+                    <span className="material-symbols-outlined text-xl" style={{ color: assist ? ASSIST_PINK : 'rgba(255,255,255,0.5)' }}>
                         {assist ? 'toggle_on' : 'toggle_off'}
                     </span>
                     <span className="flex-1 min-w-0">
@@ -98,7 +100,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                             {assist ? 'Pick-likelihood dials are showing' : 'Play unassisted'}
                         </span>
                     </span>
-                    {assist && <span className="material-symbols-outlined text-yellow-300 text-lg">check_circle</span>}
+                    {assist && <span className="material-symbols-outlined text-lg" style={{ color: ASSIST_PINK }}>check_circle</span>}
                 </button>
 
                 <button

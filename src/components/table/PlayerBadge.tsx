@@ -1,6 +1,7 @@
 'use client';
 
 import { Seat, SeatInfo, BotStyle, BOT_STYLE_LABELS, teamOf } from '@/lib/game/types';
+import { ASSIST_PINK } from './AssistDial';
 
 interface PlayerBadgeProps {
     seat: Seat;
@@ -74,11 +75,13 @@ export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, cardsLe
                         <span className="text-white text-[11px] font-bold leading-none">{cardsLeft}</span>
                     </div>
                 )}
-                {/* AI trainer: this player has a coach over their shoulder */}
+                {/* AI trainer: this player has a coach over their shoulder —
+                    hot pink, the assistant's signature color */}
                 {info.kind === 'human' && info.assist && (
-                    <div className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-yellow-400 border-2 border-yellow-200/80 flex items-center justify-center shadow-md"
+                    <div className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full border-2 border-white/70 flex items-center justify-center shadow-md"
+                        style={{ backgroundColor: ASSIST_PINK }}
                         title={`${firstName} has the AI trainer on`}>
-                        <span className="material-symbols-outlined text-navy-950" style={{ fontSize: 14 }}>neurology</span>
+                        <span className="material-symbols-outlined text-white" style={{ fontSize: 14 }}>neurology</span>
                     </div>
                 )}
             </div>
