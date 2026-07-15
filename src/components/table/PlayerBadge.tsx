@@ -1,6 +1,6 @@
 'use client';
 
-import { Seat, SeatInfo, BotStyle, BOT_STYLE_LABELS, teamOf } from '@/lib/game/types';
+import { Seat, SeatInfo, teamOf } from '@/lib/game/types';
 import { ASSIST_PINK } from './AssistDial';
 import BotAvatar from './BotAvatar';
 
@@ -10,28 +10,17 @@ interface PlayerBadgeProps {
     isDealer: boolean;
     isTurn: boolean;
     bid?: number | 'pass';
-    cardsLeft?: number;
     horizontal?: boolean; // side seats stack vertically by default
 }
 
-// The rank chip a bot wears — its AlphaRook generation (so the camp names
-// stay honest about who's actually the strongest), or the difficulty name
-// for the legacy heuristic bots.
-function botChip(style: BotStyle | undefined): string {
-    if (style && /^gen(\d+)$/.test(style)) return `AI·${style.slice(3)}`;
-    return style ? BOT_STYLE_LABELS[style] : 'Bot';
-}
-
-export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, cardsLeft, horizontal }: PlayerBadgeProps) {
+export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, horizontal }: PlayerBadgeProps) {
     const team = teamOf(seat);
     const isA = team === 'A';
     const teamBorder = isA ? 'border-sky-400' : 'border-orange-400';
     // team color soaks the avatar so partnerships read at a glance
     const teamFill = isA ? 'bg-sky-900/70' : 'bg-orange-900/70';
-    const chipColor = isA ? 'bg-sky-600 text-white' : 'bg-orange-600 text-white';
     const firstName = info.name.split(' ')[0];
     const isBot = info.kind === 'bot';
-    const chip = isBot ? botChip(info.botStyle) : null;
 
     return (
         <div className={`flex ${horizontal ? 'flex-row items-center gap-2' : 'flex-col items-center gap-1'}`}>
@@ -51,26 +40,11 @@ export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, cardsLe
                         <span className="text-white font-orbitron text-lg">{firstName.charAt(0)}</span>
                     )}
                 </div>
-                {/* bot rank chip: the AlphaRook gen (or difficulty), team-tinted,
-                    sits on the shoulder of the avatar */}
-                {chip && (
-                    <div className={`absolute -bottom-1 -left-1 px-1 h-4 min-w-[1rem] rounded-full ${chipColor} border border-white/30 flex items-center justify-center shadow`}
-                        title={info.botStyle ? BOT_STYLE_LABELS[info.botStyle] : 'Bot'}>
-                        <span className="text-[9px] font-orbitron font-bold leading-none px-0.5">{chip}</span>
-                    </div>
-                )}
                 {/* dealer chip: the yellow card badge the family knows from v1 */}
                 {isDealer && (
                     <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-yellow-400 border-2 border-yellow-200/80 flex items-center justify-center shadow-md"
                         title="Dealer">
                         <span className="material-symbols-outlined text-navy-950" style={{ fontSize: 15 }}>playing_cards</span>
-                    </div>
-                )}
-                {/* cards left: shaped like a tiny card back */}
-                {cardsLeft !== undefined && cardsLeft > 0 && (
-                    <div className="absolute -top-1.5 -left-1.5 w-[1.15rem] h-[1.5rem] rounded-[4px] bg-navy-800 border border-white/50 flex items-center justify-center shadow"
-                        title={`${cardsLeft} cards left`}>
-                        <span className="text-white text-[11px] font-bold leading-none">{cardsLeft}</span>
                     </div>
                 )}
                 {/* AI trainer: this player has a coach over their shoulder —

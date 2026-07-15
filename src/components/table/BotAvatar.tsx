@@ -4,6 +4,10 @@
 // persona emoji as an always-there fallback — so a seat looks intentional
 // whether or not the art has been dropped in yet. A missing/failed image
 // quietly reveals the emoji underneath.
+//
+// The avatar fills its parent (which supplies the circular clip + size), so
+// the portrait always fills the badge ring instead of floating inside it.
+// `size` only scales the emoji fallback.
 
 import { useState } from 'react';
 import { BotStyle, personaFor } from '@/lib/game/types';
@@ -17,10 +21,7 @@ export default function BotAvatar({ style, size = 40, className = '' }: {
     const [failed, setFailed] = useState(false);
     const showImg = persona.img && !failed;
     return (
-        <span
-            className={`relative inline-flex items-center justify-center overflow-hidden ${className}`}
-            style={{ width: size, height: size }}
-        >
+        <span className={`relative flex items-center justify-center w-full h-full overflow-hidden rounded-full ${className}`}>
             <span style={{ fontSize: size * 0.6, lineHeight: 1 }}>{persona.emoji}</span>
             {showImg && (
                 // eslint-disable-next-line @next/next/no-img-element

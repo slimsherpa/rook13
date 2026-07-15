@@ -242,7 +242,6 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
             isDealer={game.dealer === seat}
             isTurn={game.turn === seat && game.status === 'active'}
             bid={showBids ? game.bids[seat] : (game.bidWinner === seat && game.highBid ? game.highBid : undefined)}
-            cardsLeft={game.phase === 'playing' ? game.hands[seat].length : undefined}
             horizontal={horizontal}
         />
     );
