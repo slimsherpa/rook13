@@ -1,0 +1,35 @@
+  [5/150 pairs] A 6-4 (60.0%), sweeps 1-0, 7.5s/game
+  [10/150 pairs] A 9-11 (45.0%), sweeps 1-2, 5.5s/game
+  [15/150 pairs] A 15-15 (50.0%), sweeps 3-3, 5.8s/game
+  [20/150 pairs] A 22-18 (55.0%), sweeps 6-4, 5.4s/game
+  [25/150 pairs] A 26-24 (52.0%), sweeps 7-6, 5.7s/game
+  [30/150 pairs] A 32-28 (53.3%), sweeps 8-6, 6.0s/game
+  [35/150 pairs] A 37-33 (52.9%), sweeps 8-6, 6.2s/game
+  [40/150 pairs] A 42-38 (52.5%), sweeps 8-6, 6.6s/game
+  [45/150 pairs] A 47-43 (52.2%), sweeps 8-6, 6.5s/game
+  [50/150 pairs] A 52-48 (52.0%), sweeps 8-6, 6.6s/game
+  [55/150 pairs] A 61-49 (55.5%), sweeps 12-6, 6.9s/game
+  [60/150 pairs] A 64-56 (53.3%), sweeps 12-8, 7.0s/game
+  [65/150 pairs] A 69-61 (53.1%), sweeps 14-10, 7.0s/game
+  [70/150 pairs] A 73-67 (52.1%), sweeps 14-11, 7.1s/game
+  [75/150 pairs] A 80-70 (53.3%), sweeps 16-11, 7.2s/game
+  [80/150 pairs] A 85-75 (53.1%), sweeps 16-11, 7.3s/game
+  [85/150 pairs] A 92-78 (54.1%), sweeps 19-12, 7.4s/game
+  [90/150 pairs] A 97-83 (53.9%), sweeps 20-13, 7.4s/game
+  [95/150 pairs] A 104-86 (54.7%), sweeps 22-13, 7.5s/game
+  [100/150 pairs] A 111-89 (55.5%), sweeps 24-13, 7.4s/game
+  [105/150 pairs] A 118-92 (56.2%), sweeps 26-13, 7.5s/game
+  [110/150 pairs] A 124-96 (56.4%), sweeps 27-13, 7.5s/game
+  [115/150 pairs] A 128-102 (55.7%), sweeps 27-14, 7.4s/game
+  [120/150 pairs] A 133-107 (55.4%), sweeps 28-15, 7.4s/game
+  [125/150 pairs] A 139-111 (55.6%), sweeps 29-15, 7.4s/game
+  [130/150 pairs] A 145-115 (55.8%), sweeps 30-15, 7.4s/game
+  [135/150 pairs] A 149-121 (55.2%), sweeps 30-16, 7.5s/game
+  [140/150 pairs] A 156-124 (55.7%), sweeps 32-16, 7.5s/game
+  [145/150 pairs] A 164-126 (56.6%), sweeps 35-16, 7.4s/game
+  [150/150 pairs] A 170-130 (56.7%), sweeps 36-16, 7.5s/game
+gen13.pt+search24(play,w2,t3,i0,b0,B:best_duel.pt@0.5) vs gen13.pt+search24(play,w2,t3,i0,b0) — 150 deal-pairs (300 games, duplicate decks, seats swapped):
+  gen13.pt+search24(play,w2,t3,i0,b0,B:best_duel.pt@0.5): 56.7% wins (avg diff +62.4)
+  pairs swept: gen13.pt+search24(play,w2,t3,i0,b0,B:best_duel.pt@0.5) 36, gen13.pt+search24(play,w2,t3,i0,b0) 16, split 98
+  gen13.pt+search24(play,w2,t3,i0,b0,B:best_duel.pt@0.5) auctions: won 1790 contracts, made 68% at avg bid 101.3
+  gen13.pt+search24(play,w2,t3,i0,b0) auctions: won 1893 contracts, made 63% at avg bid 101.3

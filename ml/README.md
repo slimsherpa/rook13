@@ -203,21 +203,32 @@ what is provably identical to the arena champion.
   +7.6% truer than uniform at temp 0.5 (39.7% vs 32.1%), lift growing
   +6.7 -> +14.7 from trick 1 to 8, vs the oracle's 44.7% ceiling; temp
   0.5 > 0.7 > 1.0; the belief head in best_duel.pt == latest.pt (the
-  strength drift never touched the organ). THE RESULT: gen13+search+
-  belief beats gen13+search (identical config, K=24 t>=3) **56.7%
-  (+62.4, sweeps 36-16) over 150 sprint pairs** — the biggest sprint
-  edge since gen9, from zero new weights; same avg bid, 68% vs 63% make
-  rate (truer worlds convert contracts). Belief searching ALL tricks
-  (t=0) scores 54.3% vs the same opponent — better imagination still
-  doesn't open tricks 1-2 at K=24; the endgame gate survives. Phase 2 —
-  the plan tree (`fork_depth`/`fork_width`: the searcher's next D plays
-  branch top-M-by-Q inside each world, per-world MAX backup; my plays
-  only, partner/opponents stay reflex; width-1 == depth-0 by test) — is
-  built; tree-vs-flat and the marathon confirmation are running now.
-  Original hypothesis, standing: uniform imagination is why early search
-  loses; learned beliefs fix the imagination, the tree turns imagination
-  into intention. Gauge: stack duels stop being coin flips; the gen14
-  audit's multi-trick blunder classes shrink.
+  strength drift never touched the organ). THE RESULT, confirmed at full
+  protocol scale: gen13+search+belief beats gen13+search (identical
+  config, K=24 t>=3) **56.7% (+62.4, sweeps 36-16) over 150 sprint
+  pairs and 68.6% (+357.6, sweeps 30-4) over 70 marathon pairs — the
+  most lopsided marathon in ladder history** (gen11's 65% was the old
+  record), from zero new weights; same avg bid, 65% vs 60% make rate
+  (truer worlds convert contracts). **PROMOTED: the champion stack is
+  now gen13 x search(K24, play, prior 2, t>=3) x belief(gen15
+  best_duel, temp 0.5).** Config notes: temp 0.5 beat 0.3 (46.5%/100
+  pairs — over-sharpening trades world diversity for per-card accuracy
+  and loses) and beat 0.7/1.0 on world-truth; belief searching ALL
+  tricks (t=0) scored 54.3% vs the same opponent — better imagination
+  still doesn't open tricks 1-2 at K=24, the endgame gate survives.
+  Phase 2 — the plan tree (`fork_depth`/`fork_width`: the searcher's
+  next D plays branch top-M-by-Q inside each world, per-world MAX
+  backup; my plays only; width-1 == depth-0 by test) — is built and its
+  first config is an HONEST NEGATIVE: f2x3 loses to flat belief-search
+  45.7% (sweeps 17-30, make rate 67->64) over 150 pairs. Suspected
+  killer: strategy fusion — per-world max lets the searcher pick a
+  DIFFERENT line in each imagined world, inflating flexible-looking
+  cards over better ones. f1x2 (minimal tree, minimal fusion) running
+  as the isolating experiment; if it also loses, the next tree must
+  evaluate WORLD-CONSISTENT plans (one line, averaged across worlds,
+  chosen by aggregate — same shape as the root decision itself). Duel
+  logs: history/gen16-duels/. Gauge for what remains: the gen14 audit's
+  multi-trick blunder classes shrink.
 - **gen17 — exploiter league.** AlphaStar's move: train agents whose only
   job is to find and abuse the champion's habits (synthetic humans
   hunting traps), fold their winning lines back into the league, repeat.

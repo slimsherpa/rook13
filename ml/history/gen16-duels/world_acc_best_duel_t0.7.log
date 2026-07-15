@@ -1,0 +1,44 @@
+  game 1/30 done
+  game 2/30 done
+  game 3/30 done
+  game 4/30 done
+  game 5/30 done
+  game 6/30 done
+  game 7/30 done
+  game 8/30 done
+  game 9/30 done
+  game 10/30 done
+  game 11/30 done
+  game 12/30 done
+  game 13/30 done
+  game 14/30 done
+  game 15/30 done
+  game 16/30 done
+  game 17/30 done
+  game 18/30 done
+  game 19/30 done
+  game 20/30 done
+  game 21/30 done
+  game 22/30 done
+  game 23/30 done
+  game 24/30 done
+  game 25/30 done
+  game 26/30 done
+  game 27/30 done
+  game 28/30 done
+  game 29/30 done
+  game 30/30 done
+
+World placement accuracy (30 games, 8 worlds/method/decision, temp 0.7):
+ bucket      n   uniform    belief    oracle    lift
+    bid   1858     27.0%     27.2%     31.4%   +0.2%
+  widow   1910     33.4%     33.4%     33.9%   +0.0%
+     t1   1300     28.7%     34.7%     40.3%   +5.9%
+     t2   1201     29.5%     35.4%     40.9%   +5.9%
+     t3   1229     30.3%     37.2%     43.8%   +6.8%
+     t4   1253     30.9%     39.2%     46.5%   +8.3%
+     t5   1267     31.9%     41.7%     49.2%   +9.7%
+     t6   1257     33.6%     44.1%     51.6%  +10.5%
+     t7   1305     35.7%     48.2%     56.5%  +12.5%
+     t8   1308     41.0%     54.6%     64.0%  +13.5%
+    ALL  13888     32.1%     38.8%     44.7%   +6.7%
