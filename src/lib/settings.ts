@@ -81,3 +81,28 @@ export const useTablePace = (): [TablePace, (p: TablePace) => void] => {
     const set = useCallback((p: TablePace) => setTablePace(p), []);
     return [pace, set];
 };
+
+// ---------------------------------------------------------------------------
+// AI assistant: a "trainer over your shoulder". When on, each choice you face
+// (bid, trump, go-down, card) wears a little clock-fill dial showing how
+// likely the latest brain would be to pick it. Device-local toggle, flippable
+// mid-hand; a table-visible flag (below) tells the others you have help.
+// ---------------------------------------------------------------------------
+
+const ASSIST_KEY = 'rook13-ai-assist';
+
+export const getAiAssist = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(ASSIST_KEY) === 'on';
+};
+
+export const setAiAssist = (on: boolean): void => {
+    window.localStorage.setItem(ASSIST_KEY, on ? 'on' : 'off');
+    window.dispatchEvent(new Event(EVT));
+};
+
+export const useAiAssist = (): [boolean, (on: boolean) => void] => {
+    const on = useSyncExternalStore(subscribe, getAiAssist, () => false);
+    const set = useCallback((v: boolean) => setAiAssist(v), []);
+    return [on, set];
+};

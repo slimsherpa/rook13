@@ -269,6 +269,10 @@ export const validateAction = (g: GameDoc, action: GameAction): string | null =>
             if (g.phase !== 'hand_done') return 'Hand is not finished';
             return null;
         }
+        case 'SET_ASSIST': {
+            if (g.seats[action.seat].kind !== 'human') return 'Only a seated player can use the AI trainer';
+            return null;
+        }
     }
 };
 
@@ -323,6 +327,11 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
         }
         case 'OPEN_SEAT': {
             next.seats[action.seat] = emptySeat();
+            return next;
+        }
+        case 'SET_ASSIST': {
+            // preserve everything about the seat, just flip the trainer flag
+            next.seats[action.seat] = { ...next.seats[action.seat], assist: action.on };
             return next;
         }
         case 'START_GAME': {

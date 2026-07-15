@@ -126,7 +126,7 @@ describe('applyHandStats', () => {
 describe('applyGameFinalStats', () => {
     it('adds the game-level facts exactly once', () => {
         const s = emptyStats();
-        const game = { winner: 'A', redealCount: 2 } as GameDoc;
+        const game = { winner: 'A', redealCount: 2, scores: { A: 500, B: 75 } } as GameDoc;
         applyGameFinalStats(s, game, 'A1');
         expect(s.gamesPlayed).toBe(1);
         expect(s.gamesWon).toBe(1);
@@ -134,5 +134,21 @@ describe('applyGameFinalStats', () => {
         applyGameFinalStats(s, game, 'B1'); // the losing side
         expect(s.gamesPlayed).toBe(2);
         expect(s.gamesWon).toBe(1);
+    });
+
+    it('tracks the widest margin of victory, winners only, keeping the max', () => {
+        const s = emptyStats();
+        // a 425-point blowout win for team A
+        applyGameFinalStats(s, { winner: 'A', redealCount: 0, scores: { A: 500, B: 75 } } as GameDoc, 'A1');
+        expect(s.widestWinMargin).toBe(425);
+        // the losing side of that same game records nothing (negative margin ignored)
+        applyGameFinalStats(s, { winner: 'A', redealCount: 0, scores: { A: 500, B: 75 } } as GameDoc, 'B1');
+        expect(s.widestWinMargin).toBe(425);
+        // a narrower win does not lower the record
+        applyGameFinalStats(s, { winner: 'B', redealCount: 0, scores: { A: 480, B: 510 } } as GameDoc, 'B2');
+        expect(s.widestWinMargin).toBe(425);
+        // a wider win raises it
+        applyGameFinalStats(s, { winner: 'A', redealCount: 0, scores: { A: 505, B: -60 } } as GameDoc, 'A2');
+        expect(s.widestWinMargin).toBe(565);
     });
 });

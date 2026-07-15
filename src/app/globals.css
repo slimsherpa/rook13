@@ -108,6 +108,33 @@ body {
   animation: trophy-shine 1.6s ease-in-out infinite;
 }
 
+/* Team intro: the two sides slide in from their edges, then GO! pops. */
+@keyframes team-in-left {
+  0%   { opacity: 0; transform: translateX(-60px) scale(0.9); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes team-in-right {
+  0%   { opacity: 0; transform: translateX(60px) scale(0.9); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+.animate-team-in-left  { animation: team-in-left 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-team-in-right { animation: team-in-right 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes vs-pop {
+  0%   { opacity: 0; transform: scale(0); }
+  60%  { opacity: 1; transform: scale(1.4) rotate(-8deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-8deg); }
+}
+.animate-vs-pop { animation: vs-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.35s both; }
+
+@keyframes go-pop {
+  0%   { opacity: 0; transform: scale(0.2); }
+  50%  { opacity: 1; transform: scale(1.25); }
+  70%  { transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-go-pop { animation: go-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
 /* Cyberpunk Animation Effects */
 @keyframes glitch {
   0%, 100% { transform: translate(0); }

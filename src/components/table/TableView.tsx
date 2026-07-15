@@ -18,11 +18,13 @@ import ScoreSheetModal from './ScoreSheetModal';
 import RedealOverlay from './RedealOverlay';
 import GameOverOverlay from './GameOverOverlay';
 import LastTrickPanel from './LastTrickPanel';
+import TeamIntro from './TeamIntro';
 import PlayingCard from '@/components/ui/PlayingCard';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
 import { useWatchers } from '@/lib/hooks/useWatchers';
-import { paced, useTablePace } from '@/lib/settings';
+import { paced, useTablePace, useAiAssist } from '@/lib/settings';
 import { armTableHold, releaseTableHold, useTableHold } from '@/lib/tableHold';
+import { useModelAdvice } from '@/lib/hooks/useModelAdvice';
 import SettingsModal from './SettingsModal';
 
 interface TableViewProps {
@@ -49,11 +51,36 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     const watchers = useWatchers(game.id, mySeat === null);
     const theme = themeFor(game.trump);
 
+    // team intro: "Team A vs Team B — Go!", once per game per device. Shown
+    // on the very first hand only; a rejoin mid-game skips it.
+    const [showTeamIntro, setShowTeamIntro] = useState(false);
+    useEffect(() => {
+        if (game.status !== 'active' || game.handNumber !== 1) return;
+        const key = `rook13-intro-${game.id}`;
+        if (typeof window === 'undefined' || window.sessionStorage.getItem(key)) return;
+        window.sessionStorage.setItem(key, '1');
+        setShowTeamIntro(true);
+    }, [game.status, game.handNumber, game.id]);
+
     // reset go-down selection whenever the phase moves on
     useEffect(() => {
         if (game.phase !== 'widow') setSelectedGoDown([]);
         if (game.phase !== 'playing') setGoDownPeek(false);
     }, [game.phase]);
+
+    // ---- AI trainer: device-local dials, plus a table-visible seat flag ----
+    const [aiAssist] = useAiAssist();
+    const advice = useModelAdvice(game, mySeat, aiAssist);
+    // reflect my local toggle into the shared game doc so the rest of the
+    // table can see the trainer is on (or off) — synced whenever they differ
+    useEffect(() => {
+        if (!mySeat) return;
+        const seatAssist = game.seats[mySeat].assist ?? false;
+        if (seatAssist !== aiAssist && game.seats[mySeat].kind === 'human') {
+            act({ type: 'SET_ASSIST', seat: mySeat, on: aiAssist }).catch(() => {});
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [aiAssist, mySeat, game.seats[mySeat ?? 'A1']?.assist]);
 
     // ---- manual table pace: hold the theater while the player counts ----
     const [pace] = useTablePace();
@@ -179,6 +206,13 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     const iAmBidWinner = mySeat !== null && game.bidWinner === mySeat;
     const selectingGoDown = game.phase === 'widow' && iAmBidWinner;
 
+    // the finished trick lingers on the felt whenever no new card has been led
+    // yet; in that window the top-right Last-Trick view steps back to the PRIOR
+    // trick, so you see the current four cards on the table AND the prior four
+    const trickOnFelt = game.trickPlays.length === 0 && game.completedTricks.length > 0;
+    const lastTrickStepBack = trickOnFelt ? 1 : 0;
+    const canReviewTrick = game.completedTricks.length - lastTrickStepBack > 0;
+
     const badge = (seat: Seat, horizontal?: boolean) => (
         <PlayerBadge
             seat={seat}
@@ -251,13 +285,12 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                     binging up on the team that just scooped a counter. Tapping
                     it opens the last-trick recap (once there's a trick to show). */}
                 {game.phase === 'playing' && (() => {
-                    const canReviewTrick = game.completedTricks.length > 0;
                     return (
                         <button
                             type="button"
                             onClick={() => canReviewTrick && setShowLastTrick(true)}
                             disabled={!canReviewTrick}
-                            title={canReviewTrick ? 'Last trick' : undefined}
+                            title={canReviewTrick ? (trickOnFelt ? 'Previous trick' : 'Last trick') : undefined}
                             className={`absolute top-2 right-2 z-10 flex flex-col items-end gap-1 ${canReviewTrick ? 'cursor-pointer' : 'cursor-default'}`}
                         >
                             <span className="flex items-center gap-1 text-white/40 text-[9px] font-orbitron uppercase tracking-widest">
@@ -386,6 +419,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                         mySeat={mySeat}
                         selectedGoDown={selectedGoDown}
                         onAct={act}
+                        advice={aiAssist ? advice : undefined}
                         onConfirmGoDown={() => {
                             if (mySeat && selectedGoDown.length === 4) {
                                 act({ type: 'SELECT_GODOWN', seat: mySeat, cards: selectedGoDown });
@@ -397,6 +431,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                         seat={mySeat}
                         selecting={selectingGoDown}
                         selected={selectedGoDown}
+                        advice={aiAssist ? advice : undefined}
                         onToggleSelect={toggleGoDown}
                         onPlay={(card) => act({ type: 'PLAY_CARD', seat: mySeat, card })}
                     />
@@ -407,7 +442,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
             {showLastTrick && (
                 <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowLastTrick(false)}>
                     <div onClick={(e) => e.stopPropagation()}>
-                        <LastTrickPanel game={game} onClose={() => setShowLastTrick(false)} />
+                        <LastTrickPanel game={game} onClose={() => setShowLastTrick(false)} stepBack={lastTrickStepBack} />
                     </div>
                 </div>
             )}
@@ -425,6 +460,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
             )}
             {showScores && <ScoreSheetModal game={game} onClose={() => setShowScores(false)} />}
             {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+            {showTeamIntro && <TeamIntro game={game} onDone={() => setShowTeamIntro(false)} />}
             {showWatchers && (
                 <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowWatchers(false)}>
                     <div className="bg-navy-950 border border-white/15 rounded-2xl p-5 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>

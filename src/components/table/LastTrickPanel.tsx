@@ -11,12 +11,35 @@ import PlayingCard from '@/components/ui/PlayingCard';
 interface LastTrickPanelProps {
     game: GameDoc;
     onClose?: () => void; // present in the mobile overlay
+    // when the just-finished trick is still sitting on the felt (manual
+    // pace, or the auto linger), step back one so this shows the trick
+    // BEFORE it — you get the current four cards on the table AND the prior
+    // four here, side by side
+    stepBack?: number;
 }
 
-export default function LastTrickPanel({ game, onClose }: LastTrickPanelProps) {
-    const trick = game.completedTricks[game.completedTricks.length - 1];
-    if (!trick) return null;
+export default function LastTrickPanel({ game, onClose, stepBack = 0 }: LastTrickPanelProps) {
+    const idx = game.completedTricks.length - 1 - stepBack;
+    const trick = idx >= 0 ? game.completedTricks[idx] : undefined;
+    if (!trick) {
+        return (
+            <div className="bg-navy-950/95 border border-white/15 rounded-2xl shadow-2xl p-4 w-full max-w-sm">
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-orbitron text-white text-base">Previous Trick</h3>
+                    {onClose && (
+                        <button onClick={onClose} className="text-white/60 hover:text-white">
+                            <span className="material-symbols-outlined">close</span>
+                        </button>
+                    )}
+                </div>
+                <p className="text-white/50 text-sm font-orbitron py-6 text-center">
+                    The trick on the table is the first of the hand — nothing before it yet.
+                </p>
+            </div>
+        );
+    }
 
+    const trickNo = idx + 1;
     const winnerName = game.seats[trick.winner].name.split(' ')[0];
 
     const teamBox = (team: 'A' | 'B') => (
@@ -38,7 +61,10 @@ export default function LastTrickPanel({ game, onClose }: LastTrickPanelProps) {
     return (
         <div className="bg-navy-950/95 border border-white/15 rounded-2xl shadow-2xl p-4 w-full max-w-sm">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="font-orbitron text-white text-base">Last Trick</h3>
+                <h3 className="font-orbitron text-white text-base">
+                    {stepBack > 0 ? 'Previous Trick' : 'Last Trick'}
+                    <span className="text-white/40 text-xs font-normal ml-2">#{trickNo}</span>
+                </h3>
                 {onClose && (
                     <button onClick={onClose} className="text-white/60 hover:text-white">
                         <span className="material-symbols-outlined">close</span>

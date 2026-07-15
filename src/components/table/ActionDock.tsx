@@ -9,6 +9,8 @@ import { Card, GameDoc, Seat, Suit, SUITS, VALID_BIDS } from '@/lib/game/types';
 import { minNextBid, mustBid, isLaydown } from '@/lib/game/engine';
 import { createShuffledDeck } from '@/lib/game/deck';
 import { GameAction } from '@/lib/game/types';
+import { AdviceMap, optionKey } from '@/lib/alpharook/advice';
+import AssistDial from './AssistDial';
 
 interface ActionDockProps {
     game: GameDoc;
@@ -16,6 +18,7 @@ interface ActionDockProps {
     selectedGoDown: Card[];
     onAct: (action: GameAction) => void;
     onConfirmGoDown: () => void;
+    advice?: AdviceMap; // AI trainer: pick-likelihood per option (undefined = off)
 }
 
 const suitButtonColors: Record<Suit, string> = {
@@ -25,7 +28,7 @@ const suitButtonColors: Record<Suit, string> = {
     Green: 'bg-green-600 hover:bg-green-500',
 };
 
-export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConfirmGoDown }: ActionDockProps) {
+export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConfirmGoDown, advice }: ActionDockProps) {
     // Tap-through guard (prod incident, game 8563im…, 2026-07-14): the dock
     // swaps contents the instant a phase changes, so the follow-through of
     // a tap on "Put Down" landed on the trump button that appeared at the
@@ -85,17 +88,19 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
                             <button
                                 onClick={() => onAct({ type: 'BID', seat: mySeat, bid: 'pass' })}
                                 disabled={forced}
-                                className="flex-shrink-0 px-4 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white font-orbitron text-sm"
+                                className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white font-orbitron text-sm"
                             >
                                 Pass
+                                {advice && <AssistDial p={advice.get(optionKey.bid('pass'))} />}
                             </button>
                             {options.map((bid) => (
                                 <button
                                     key={bid}
                                     onClick={() => onAct({ type: 'BID', seat: mySeat, bid })}
-                                    className="flex-shrink-0 px-3.5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-orbitron font-bold text-sm active:scale-95 transition"
+                                    className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-orbitron font-bold text-sm active:scale-95 transition"
                                 >
                                     {bid}
+                                    {advice && <AssistDial p={advice.get(optionKey.bid(bid))} />}
                                 </button>
                             ))}
                         </div>
@@ -133,9 +138,10 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
                             key={suit}
                             disabled={!settled}
                             onClick={() => setTrumpPick(suit)}
-                            className={`px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition disabled:opacity-40 ${suitButtonColors[suit]} ${trumpPick === suit ? 'ring-4 ring-white' : trumpPick ? 'opacity-50' : ''}`}
+                            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition disabled:opacity-40 ${suitButtonColors[suit]} ${trumpPick === suit ? 'ring-4 ring-white' : trumpPick ? 'opacity-50' : ''}`}
                         >
                             {suit}
+                            {advice && <AssistDial p={advice.get(optionKey.trump(suit))} />}
                         </button>
                     ))}
                     <button

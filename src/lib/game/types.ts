@@ -72,6 +72,7 @@ export interface SeatInfo {
     name: string;
     photoURL?: string;
     botStyle?: BotStyle;
+    assist?: boolean; // this human has the AI trainer switched on (table-visible)
 }
 
 export type Phase =
@@ -188,6 +189,7 @@ export type GameAction =
     | { type: 'SELECT_TRUMP'; seat: Seat; suit: Suit }
     | { type: 'PLAY_CARD'; seat: Seat; card: Card }
     | { type: 'LAYDOWN'; seat: Seat }     // every remaining card is a lock — claim the rest
+    | { type: 'SET_ASSIST'; seat: Seat; on: boolean } // toggle the AI trainer (table-visible)
     | { type: 'NEXT_HAND' };              // from hand_done -> dealing
 
 export interface LoggedAction {

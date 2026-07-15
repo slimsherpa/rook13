@@ -27,6 +27,7 @@ export interface UserStats {
     madeByBid: Record<string, number>;     // '100' -> times you bid 100 and made it
     sweeps: number;                        // hands where your team took all 9 tricks
     pointsCaptured: number;                // lifetime card points your team banked
+    widestWinMargin: number;               // biggest final-score gap in a game you won
 }
 
 export const emptyStats = (): UserStats => ({
@@ -47,6 +48,7 @@ export const emptyStats = (): UserStats => ({
     madeByBid: {},
     sweeps: 0,
     pointsCaptured: 0,
+    widestWinMargin: 0,
 });
 
 /**
@@ -109,7 +111,13 @@ export const applyHandStats = (stats: UserStats, h: HandSummary, seat: Seat): Us
 export const applyGameFinalStats = (stats: UserStats, game: GameDoc, seat: Seat): UserStats => {
     const won: boolean = (teamOf(seat) as Team) === game.winner;
     stats.gamesPlayed += 1;
-    if (won) stats.gamesWon += 1;
+    if (won) {
+        stats.gamesWon += 1;
+        const myTeam = teamOf(seat) as Team;
+        const other: Team = myTeam === 'A' ? 'B' : 'A';
+        const margin = game.scores[myTeam] - game.scores[other];
+        stats.widestWinMargin = Math.max(stats.widestWinMargin ?? 0, margin);
+    }
     stats.redealsWitnessed += game.redealCount;
     return stats;
 };

@@ -24,6 +24,8 @@ import { Card, GameDoc, Seat, sameCard, cardKey } from '@/lib/game/types';
 import { legalCards } from '@/lib/game/engine';
 import { sortHand } from '@/lib/game/deck';
 import PlayingCard from '@/components/ui/PlayingCard';
+import { AdviceMap, optionKey } from '@/lib/alpharook/advice';
+import AssistDial from './AssistDial';
 
 interface MyHandProps {
     game: GameDoc;
@@ -32,11 +34,12 @@ interface MyHandProps {
     selected: Card[];
     onToggleSelect: (card: Card) => void;
     onPlay: (card: Card) => void;
+    advice?: AdviceMap; // AI trainer: bury/play likelihood per card (undefined = off)
 }
 
 const DRAG_THRESHOLD_PX = 8;
 
-export default function MyHand({ game, seat, selecting, selected, onToggleSelect, onPlay }: MyHandProps) {
+export default function MyHand({ game, seat, selecting, selected, onToggleSelect, onPlay, advice }: MyHandProps) {
     const hand = game.hands[seat];
 
     // ---- local arrangement ----
@@ -213,11 +216,12 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
                         const isLegal = legal.some((c) => sameCard(c, card));
                         const interactive = !faceUp || selecting || (playable && isLegal);
                         const isDragging = dragKey === key && dragActive;
+                        const cardAdvice = advice && faceUp ? advice.get(optionKey.card(key)) : undefined;
                         return (
                             <div
                                 key={key}
                                 data-cardkey={key}
-                                className={`touch-none ${interactive ? 'cursor-pointer' : 'cursor-default'}`}
+                                className={`relative touch-none ${interactive ? 'cursor-pointer' : 'cursor-default'}`}
                                 style={{
                                     zIndex: isDragging ? 60 : i + 1,
                                     transform: isDragging ? `translateX(${dragDx}px) translateY(-10px) scale(1.06)` : undefined,
@@ -229,6 +233,14 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
                                 onPointerUp={onPointerUp}
                                 onPointerCancel={onPointerUp}
                             >
+                                {/* AI trainer dial: how likely the model is to
+                                    bury (go-down) or play this card. Decorative,
+                                    so it never eats the tap. */}
+                                {cardAdvice !== undefined && (
+                                    <span className="absolute -top-1 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                                        <AssistDial p={cardAdvice} size={22} />
+                                    </span>
+                                )}
                                 {/* two faces on a card that rotates in 3D */}
                                 <div
                                     className="relative transition-transform duration-300 [transform-style:preserve-3d]"

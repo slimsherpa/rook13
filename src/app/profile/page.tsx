@@ -56,6 +56,17 @@ function TrophyCase({ s }: { s: UserStats }) {
                 <StatTile icon="emoji_events" label="Wins" value={s.gamesWon} />
                 <StatTile icon="percent" label="Win Rate" value={pct(s.gamesWon, s.gamesPlayed)} accent />
             </div>
+            {(s.widestWinMargin ?? 0) > 0 && (
+                <div className="mt-3">
+                    <StatTile
+                        icon="swords"
+                        label="Widest Margin of Victory"
+                        value={`${s.widestWinMargin} pts`}
+                        accent
+                        sub="your biggest blowout — final score gap in a win"
+                    />
+                </div>
+            )}
 
             <Section title="At the Auction">
                 <div className="grid grid-cols-3 gap-3">

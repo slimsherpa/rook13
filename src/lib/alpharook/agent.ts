@@ -146,6 +146,25 @@ export const neuralWidow = (
 };
 
 /**
+ * AI-assistant advice for the go-down: how much the net wants each hand card
+ * GONE. With the net's own trump intent fixed, score every hand card as a
+ * first discard and return the raw Q per card — the assistant softmaxes
+ * these into a "bury likelihood" dial. Not the full sequential pick (that's
+ * neuralWidow); a marginal first-discard read, which is what a per-card dial
+ * can honestly show.
+ */
+export const neuralGoDownAdvice = (
+    g: GameDoc, seat: Seat, net: QNetWeights,
+): { cand: number; q: number }[] => {
+    const o = observe(g, seat);
+    const ctx = auctionCtx(g);
+    const intent = argmaxChoice(net, o, [], D_TRUMP, [0, 1, 2, 3], ctx, null);
+    const cands = o.hand.map(cardToInt);
+    const c = argmaxChoice(net, o, [], D_DISCARD, cands, ctx, intent.chosen);
+    return c.cands.map((cand, i) => ({ cand, q: c.q[i] }));
+};
+
+/**
  * Trump-phase intent, re-derived from the same information the widow-time
  * intent used: the 13-card state (current hand + the go-down I just chose,
  * both mine to see). Deterministic net + identical inputs = identical suit,
