@@ -80,7 +80,8 @@ def reflex_playout(g: Game, net, device: str = "cpu") -> float:
 
 @torch.no_grad()
 def audit_game(net, oracle: SearchAgent, seed: int, device: str = "cpu",
-               audit_seats: tuple = (0, 1, 2, 3), dump: list | None = None):
+               audit_seats: tuple = (0, 1, 2, 3), dump: list | None = None,
+               actor: SearchAgent | None = None):
     """Play one self-play game (champion reflex, all seats) and audit every
     multi-choice CARD decision of the audited seats. Returns (blunders,
     stats). With `dump` a list, also collects hindsight training rows:
@@ -97,14 +98,20 @@ def audit_game(net, oracle: SearchAgent, seed: int, device: str = "cpu",
 
     while not env.done:
         seat, dtype, cands = env.decision()
-        # the champion's actual choice (reflex, exactly how it plays live)
+        # the champion's actual choice — reflex by default (exactly how the
+        # bare net plays live), or a full SearchAgent stack when auditing
+        # the search champion itself (gen16: does search cut the declarer's
+        # blunder rate?)
         s = encode_state_for(net, observe(env.g, seat), env.picks, dtype,
                              env.g, env.trump_intent)
         S = torch.from_numpy(np.stack([s] * len(cands))).to(device)
         A = torch.from_numpy(
             np.stack([encode_action(dtype, c) for c in cands])).to(device)
         q = net(S, A).cpu().numpy()
-        played = cands[int(np.argmax(q))]
+        if actor is not None:
+            played = actor.choose(env, seat, dtype, list(cands))
+        else:
+            played = cands[int(np.argmax(q))]
 
         audited = (dtype == D_PLAY and len(cands) > 1 and seat in audit_seats
                    and env.g.phase == PLAYING)
@@ -182,18 +189,32 @@ def audit_game(net, oracle: SearchAgent, seed: int, device: str = "cpu",
 _W: dict = {}
 
 
-def _init(ckpt: str, worlds: int, min_trick: int, dump: bool = False):
+def _init(ckpt: str, worlds: int, min_trick: int, dump: bool = False,
+          actor_worlds: int = 0, actor_min_trick: int = 3,
+          actor_belief: str | None = None, actor_belief_temp: float = 0.5):
     torch.set_num_threads(1)
     _W["net"] = load_qnet(ckpt)
     _W["dump"] = dump
     _W["oracle"] = SearchAgent(_W["net"], worlds=worlds,
                                search_dtypes=frozenset({D_PLAY}),
                                prior_weight=2.0, min_trick=min_trick, seed=17)
+    _W["actor"] = None
+    if actor_worlds > 0:
+        belief = None
+        if actor_belief:
+            from .beliefs import BeliefOracle
+            belief = BeliefOracle(actor_belief, temp=actor_belief_temp)
+        _W["actor"] = SearchAgent(_W["net"], worlds=actor_worlds,
+                                  search_dtypes=frozenset({D_PLAY}),
+                                  prior_weight=2.0,
+                                  min_trick=actor_min_trick,
+                                  belief=belief, seed=23)
 
 
 def _one(seed: int):
     rows: list | None = [] if _W["dump"] else None
-    blunders, stats = audit_game(_W["net"], _W["oracle"], seed, dump=rows)
+    blunders, stats = audit_game(_W["net"], _W["oracle"], seed, dump=rows,
+                                 actor=_W["actor"])
     return blunders, stats, rows
 
 
@@ -207,6 +228,14 @@ def main():
     ap.add_argument("--min-trick", type=int, default=0,
                     help="oracle searches from this trick (0 = every trick)")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--actor-worlds", type=int, default=0,
+                    help="audit the SEARCH stack instead of the reflex: the "
+                         "played move comes from K-world PIMC (0 = reflex)")
+    ap.add_argument("--actor-min-trick", type=int, default=3)
+    ap.add_argument("--actor-belief", default=None,
+                    help="gen15+ checkpoint for the actor's belief-guided "
+                         "imagination (the gen16 champion stack)")
+    ap.add_argument("--actor-belief-temp", type=float, default=0.5)
     ap.add_argument("--out", default=None,
                     help="blunder JSONL path (default runs/audit/<ckpt>.jsonl)")
     ap.add_argument("--dump-dir", default=None,
@@ -257,7 +286,9 @@ def main():
             ctx = mp.get_context("spawn")
             with ctx.Pool(args.workers, initializer=_init,
                           initargs=(args.ckpt, args.worlds, args.min_trick,
-                                    dump_dir is not None)) as pool:
+                                    dump_dir is not None, args.actor_worlds,
+                                    args.actor_min_trick, args.actor_belief,
+                                    args.actor_belief_temp)) as pool:
                 for blunders, st, rows in pool.imap_unordered(_one, seeds):
                     for b in blunders:
                         f.write(json.dumps(b) + "\n")
@@ -275,7 +306,9 @@ def main():
                               flush=True)
         else:
             _init(args.ckpt, args.worlds, args.min_trick,
-                  dump_dir is not None)
+                  dump_dir is not None, args.actor_worlds,
+                  args.actor_min_trick, args.actor_belief,
+                  args.actor_belief_temp)
             for seed in seeds:
                 blunders, st, rows = _one(seed)
                 for b in blunders:

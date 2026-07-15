@@ -210,7 +210,21 @@ class SearchAgent:
         deterministic, so the inner max is exact — no winner's curse at
         fork nodes; the cross-world bias that remains is classic PIMC
         strategy fusion, which the root Q-prior still tempers. Depth 0 is
-        bit-for-bit the old single-line rollout.
+        bit-for-bit the old single-line rollout. VERDICT (2026-07-14):
+        fusion is real and it scales with forking — f2x3 lost 45.7% to
+        flat, f1x2 was exact parity. Kept for the record; use plan_lines.
+    plan_lines: the WORLD-CONSISTENT plan tree — the fusion-free redesign.
+        At a searched play decision, L plan cards are picked ONCE from the
+        root state (top-L of my remaining hand by Q, per root candidate),
+        and each line "play a now, play p at my next turn" is scored as a
+        unit: the same plan in every imagined world, averaged across
+        worlds, max over lines only AFTER aggregation — the exact shape of
+        the root decision itself, one intention deeper. Rollouts share
+        their prefix and split lazily at my first multi-candidate play
+        (where the plan card is illegal, that line falls back to the
+        reflex branch's value: "plan when possible, reflex otherwise").
+        A candidate's score can only gain over the flat search since the
+        reflex line is always among the lines.
     infer_temp: learned inference — the net biases its own imagination.
         Worlds are importance-weighted by how plausibly the net (which IS
         the opponent in champion duels) would have made the plays actually
@@ -226,7 +240,8 @@ class SearchAgent:
                  max_bid_cands: int = 6, prior_weight: float = 4.0,
                  min_trick: int = 0, infer_temp: float = 0.0,
                  bid_infer: float = 0.0, belief=None,
-                 fork_depth: int = 0, fork_width: int = 3, seed: int = 0):
+                 fork_depth: int = 0, fork_width: int = 3,
+                 plan_lines: int = 0, seed: int = 0):
         self.net = net
         self.device = device
         self.worlds = worlds
@@ -239,6 +254,7 @@ class SearchAgent:
         self.belief = belief
         self.fork_depth = fork_depth
         self.fork_width = fork_width
+        self.plan_lines = plan_lines
         self.rng = random.Random(seed)
         net.eval()
 
@@ -431,30 +447,45 @@ class SearchAgent:
         else:
             wts = np.ones(self.worlds)
 
+        # world-consistent plans (plan_lines): pick each candidate's L plan
+        # cards ONCE, from the root state — the same intention will be
+        # evaluated in every world, so no strategy fusion by construction
+        plans: list[list[int]] = [[] for _ in cands]
+        if self.plan_lines > 0 and dtype == D_PLAY and len(o.hand) > 1:
+            hq = self._q_values(root_state, D_PLAY, list(o.hand))
+            ranked = [c for _, c in sorted(zip(-hq, o.hand))]
+            for ci, a in enumerate(cands):
+                plans[ci] = [c for c in ranked if c != a][:self.plan_lines]
+        planning = any(plans)
+
         # spawn K x |cands| rollouts: same world across candidates, so the
         # comparison inside each imagined world is apples to apples. Each
-        # rollout carries its fork budget; leaves back up by MAX within
-        # their (world, candidate) group — with depth 0 every group has
-        # exactly one leaf and this is the old average-of-lines exactly.
-        best: dict[tuple[int, int], float] = {}
-        pending: list[tuple[int, int, _Sim, int]] = []  # (ci, k, sim, forks)
+        # rollout carries its fork budget and its line id (li -1 = not yet
+        # split into plan lines; 0 = reflex line; 1..L = plan lines).
+        # Leaves back up by MAX within their (world, candidate, line) group
+        # — with no forks and no plans every group has exactly one leaf and
+        # this is the old average-of-lines exactly.
+        best: dict[tuple[int, int, int], float] = {}
+        # (ci, k, li, sim, forks)
+        pending: list[tuple[int, int, int, _Sim, int]] = []
+        li0 = -1 if planning else 0
         for k, (hands, go_down) in enumerate(worlds):
             for ci, a in enumerate(cands):
                 g = materialize(o, hands, go_down,
                                 env.g.win_score, env.g.lose_score)
                 sim = _Sim(g, env.picks, env.trump_intent)
                 sim.apply(a)
-                pending.append((ci, k, sim, self.fork_depth))
+                pending.append((ci, k, li0, sim, self.fork_depth))
 
         # lockstep: every step, one batched forward over all live rollouts
         while pending:
             rows_s, rows_a, meta, seg = [], [], [], [0]
-            for ci, k, sim, forks in pending:
+            for ci, k, li, sim, forks in pending:
                 while True:
                     if sim.hand_over:
                         v = rollout_value(sim.g, my_team)
-                        if best.get((k, ci), -9.9) < v:
-                            best[(k, ci)] = v
+                        if best.get((k, ci, li), -9.9) < v:
+                            best[(k, ci, li)] = v
                         break
                     s2, dt, cs = sim.decision()
                     if len(cs) == 1:
@@ -467,7 +498,7 @@ class SearchAgent:
                         rows_s.append(st)
                         rows_a.append(encode_action(dt, a))
                     seg.append(seg[-1] + len(cs))
-                    meta.append((ci, k, sim, forks, s2, dt, cs))
+                    meta.append((ci, k, li, sim, forks, s2, dt, cs))
                     break
             if not meta:
                 break
@@ -475,23 +506,48 @@ class SearchAgent:
             A = torch.from_numpy(np.stack(rows_a)).to(self.device)
             q = self.net(S, A).cpu().numpy()
             pending = []
-            for i, (ci, k, sim, forks, s2, dt, cs) in enumerate(meta):
+            for i, (ci, k, li, sim, forks, s2, dt, cs) in enumerate(meta):
                 qs = q[seg[i]:seg[i + 1]]
-                if forks > 0 and s2 == seat and dt == D_PLAY:
+                if li == -1 and s2 == seat and dt == D_PLAY:
+                    # my first multi-candidate play: split into the reflex
+                    # line + every plan line whose card is legal here
+                    legal_plans = [(pi + 1, c)
+                                   for pi, c in enumerate(plans[ci])
+                                   if c in cs]
+                    branches = [sim.clone() for _ in legal_plans]
+                    sim.apply(cs[int(np.argmax(qs))])
+                    pending.append((ci, k, 0, sim, forks))
+                    for (pli, c), b in zip(legal_plans, branches):
+                        b.apply(c)
+                        pending.append((ci, k, pli, b, forks))
+                elif forks > 0 and s2 == seat and dt == D_PLAY:
                     # my own future play: branch the top lines instead of
-                    # committing — the plan tree (clone before mutating)
+                    # committing — the per-world fork tree (clone before
+                    # mutating). Kept for the record; fusion-prone.
                     top = np.argsort(-qs)[:self.fork_width]
                     branches = [sim] + [sim.clone() for _ in top[1:]]
                     for b, j in zip(branches, top):
                         b.apply(cs[int(j)])
-                        pending.append((ci, k, b, forks - 1))
+                        pending.append((ci, k, li, b, forks - 1))
                 else:
                     sim.apply(cs[int(np.argmax(qs))])
-                    pending.append((ci, k, sim, forks))
+                    pending.append((ci, k, li, sim, forks))
 
         totals = [0.0] * len(cands)
-        for (k, ci), v in best.items():
-            totals[ci] += float(wts[k]) * v
+        for ci in range(len(cands)):
+            def line_total(li: int) -> float:
+                t = 0.0
+                for k in range(self.worlds):
+                    # a world that never split (hand ended first) sits at
+                    # li -1; a plan illegal in this world falls back to the
+                    # world's reflex line — plan when possible
+                    v = best.get((k, ci, li))
+                    if v is None:
+                        v = best.get((k, ci, 0), best.get((k, ci, -1), 0.0))
+                    t += float(wts[k]) * v
+                return t
+            totals[ci] = max(line_total(li)
+                             for li in range(len(plans[ci]) + 1))
 
         w = self.prior_weight
         score = [(totals[i] + w * float(prior[i])) / (self.worlds + w)

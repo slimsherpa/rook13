@@ -77,3 +77,42 @@ def test_tree_agent_plays_full_games():
             steps += 1
             assert steps < 2000
         assert env.g.phase == GAME_OVER
+
+
+def test_plan_lines_are_blind_to_hidden_cards():
+    net = QNet()
+    net.eval()
+    outer = random.Random(53)
+    tested = 0
+    for game_seed in range(12):
+        env = SelfPlayGame(seed=game_seed)
+        if not drive(env, outer, outer.randrange(4, 40)):
+            continue
+        if env.g.phase not in (BIDDING, WIDOW, TRUMP, PLAYING):
+            continue
+        seat, dtype, cands = env.decision()
+        first = SearchAgent(net, worlds=3, seed=99, plan_lines=2).choose(
+            env, seat, dtype, list(cands))
+        scramble_hidden(env.g, seat, random.Random(game_seed))
+        second = SearchAgent(net, worlds=3, seed=99, plan_lines=2).choose(
+            env, seat, dtype, list(cands))
+        assert first == second, "hidden cards influenced plan search"
+        tested += 1
+    assert tested >= 8
+
+
+def test_plan_agent_plays_full_games():
+    """Smoke: plan-line search survives complete short games, planning at
+    every searched play decision."""
+    net = QNet()
+    net.eval()
+    agent = SearchAgent(net, worlds=2, seed=5, plan_lines=2)
+    for game_seed in (3, 4):
+        env = SelfPlayGame(seed=game_seed, win_score=150, lose_score=-75)
+        steps = 0
+        while not env.done:
+            seat, dtype, cands = env.decision()
+            env.apply(agent.choose(env, seat, dtype, cands))
+            steps += 1
+            assert steps < 2000
+        assert env.g.phase == GAME_OVER

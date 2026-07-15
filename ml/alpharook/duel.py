@@ -53,7 +53,8 @@ class Side:
                  prior: float = 4.0, min_trick: int = 0,
                  infer_temp: float = 0.0, bid_infer: float = 0.0,
                  belief_ckpt: str | None = None, belief_temp: float = 1.0,
-                 fork_depth: int = 0, fork_width: int = 3):
+                 fork_depth: int = 0, fork_width: int = 3,
+                 plan_lines: int = 0):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
         self.net = net
@@ -68,6 +69,7 @@ class Side:
         self.belief_temp = belief_temp
         self.fork_depth = fork_depth
         self.fork_width = fork_width
+        self.plan_lines = plan_lines
         if net is not None:
             pass  # live net passed in (e.g. the training learner)
         elif spec in ("random", "basic", "aggressive", "cautious"):
@@ -93,7 +95,8 @@ class Side:
                                      infer_temp=infer_temp,
                                      bid_infer=bid_infer, belief=belief,
                                      fork_depth=fork_depth,
-                                     fork_width=fork_width)
+                                     fork_width=fork_width,
+                                     plan_lines=plan_lines)
 
     def name(self) -> str:
         base = self.spec.split("/")[-1]
@@ -103,9 +106,10 @@ class Side:
                if self.belief_ckpt else "")
         fork = (f",f{self.fork_depth}x{self.fork_width}"
                 if self.fork_depth else "")
+        plan = f",p{self.plan_lines}" if self.plan_lines else ""
         return (f"{base}+search{self.worlds}({self.search},w{self.prior:g}"
                 f",t{self.min_trick},i{self.infer_temp:g},b{self.bid_infer:g}"
-                f"{bel}{fork})")
+                f"{bel}{fork}{plan})")
 
 
 def deck_stream(pair_seed: int):
@@ -302,6 +306,11 @@ def main():
     ap.add_argument("--fork-width-a", type=int, default=3,
                     help="candidates tried per fork (top-N by Q)")
     ap.add_argument("--fork-width-b", type=int, default=3)
+    ap.add_argument("--plan-lines-a", type=int, default=0,
+                    help="gen16 world-consistent plans: score L root-chosen "
+                         "next-play intentions per candidate, same line "
+                         "across all worlds (fusion-free)")
+    ap.add_argument("--plan-lines-b", type=int, default=0)
     ap.add_argument("--workers", type=int, default=1,
                     help="parallel pair-playing processes (search is slow)")
     args = ap.parse_args()
@@ -309,11 +318,11 @@ def main():
     a_args = (args.a, args.script_a, None, args.worlds_a, args.search_a,
               args.prior_a, args.min_trick_a, args.infer_a, args.bid_infer_a,
               args.belief_a, args.belief_temp_a, args.fork_depth_a,
-              args.fork_width_a)
+              args.fork_width_a, args.plan_lines_a)
     b_args = (args.b, args.script_b, None, args.worlds_b, args.search_b,
               args.prior_b, args.min_trick_b, args.infer_b, args.bid_infer_b,
               args.belief_b, args.belief_temp_b, args.fork_depth_b,
-              args.fork_width_b)
+              args.fork_width_b, args.plan_lines_b)
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
          workers=args.workers, side_args=(a_args, b_args))
