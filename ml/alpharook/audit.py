@@ -114,6 +114,12 @@ def audit_game(net, oracle: SearchAgent, seed: int, device: str = "cpu",
                              for i, c in enumerate(cands)], 0.25))
         if audited:
             stats["decisions"] += 1
+            # Riley's four situations, seat-relative like the encoder:
+            # 0 = I took the bid, 1 = the seat to my LEFT took it,
+            # 2 = my partner, 3 = the seat to my RIGHT (defense = 1/3)
+            role = ((env.g.bid_winner - seat) % 4
+                    if env.g.bid_winner is not None else -1)
+            stats[f"dec_r{role}"] = stats.get(f"dec_r{role}", 0) + 1
             # HINDSIGHT: counterfactual value of every candidate in the
             # true world, identical continuation policy
             my_team = team_of(seat)
@@ -147,10 +153,14 @@ def audit_game(net, oracle: SearchAgent, seed: int, device: str = "cpu",
                 if knowable:
                     stats["preventable"] += 1
                     stats["cost_sum"] += cost
+                    stats[f"prev_r{role}"] = stats.get(f"prev_r{role}", 0) + 1
+                    stats[f"cost_r{role}"] = (stats.get(f"cost_r{role}", 0.0)
+                                              + cost)
                 blunders.append({
                     "seed": seed, "hand": env.g.hand_number,
                     "trick": len(env.g.completed_tricks) + 1,
-                    "seat": seat, "played": played, "best": int(best),
+                    "seat": seat, "role": role,
+                    "played": played, "best": int(best),
                     "cost": round(cost, 1),
                     "search_gap": round(float(s_gap), 4),
                     "preventable": knowable,
@@ -253,8 +263,8 @@ def main():
                         f.write(json.dumps(b) + "\n")
                     if rows and dump_dir:
                         absorb(rows)
-                    for k in total:
-                        total[k] += st[k]
+                    for k, v in st.items():
+                        total[k] = total.get(k, 0) + v
                     n_done += 1
                     if n_done % 10 == 0:
                         h = max(1, total["hands"])
@@ -272,8 +282,8 @@ def main():
                     f.write(json.dumps(b) + "\n")
                 if rows and dump_dir:
                     absorb(rows)
-                for k in total:
-                    total[k] += st[k]
+                for k, v in st.items():
+                    total[k] = total.get(k, 0) + v
     if dump_dir:
         flush_shard()
 
@@ -287,6 +297,17 @@ def main():
     print(f"  PREVENTABLE blunders:   {total['preventable']} "
           f"({total['preventable'] / h:.2f} per hand, avg cost "
           f"{total['cost_sum'] / max(1, total['preventable']):.0f} pts)")
+    # Riley's four situations: who took the bid, relative to me
+    roles = {0: "I took it     ", 1: "left took it  ",
+             2: "partner took  ", 3: "right took it "}
+    print("  by role (blunder rate = preventable / decisions in that role):")
+    for r, label in roles.items():
+        dec = total.get(f"dec_r{r}", 0)
+        prev = total.get(f"prev_r{r}", 0)
+        cost = total.get(f"cost_r{r}", 0.0)
+        if dec:
+            print(f"    {label} {prev:>4} / {dec:>6} = {prev / dec:.2%}"
+                  f"  (avg cost {cost / max(1, prev):.0f} pts)")
     print(f"  blunder log: {out}")
 
 
