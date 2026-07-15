@@ -257,6 +257,23 @@ what is provably identical to the arena champion.
   hunting traps), fold their winning lines back into the league, repeat.
   Cure for off-distribution brittleness humans exploit. Gauge: each
   exploiter cycle needs longer to find a hole.
+  CYCLE 1 (2026-07-15, 6h on the Hetzner box): HONEST NEGATIVE, banked.
+  gen13-init exploiter, opponent-mix 1.0 vs frozen gen13, sustained
+  exploration (eps 0.25->0.06), lr 1e-4, ~6.7k iters / ~460k games.
+  In-run 20-pair banks read 45% then 55%; confirmation at 150 pairs:
+  best_duel 39.0%, latest 38.0% (sweeps 17-50 / 15-51) — THE BANKING
+  MIRAGE, THIRD SIGHTING. Failure signature is legible in the auction
+  stats: the exploiter drifted BID-PASSIVE (won 1329 auctions to the
+  champion's 2314) — against a single frozen greedy opponent, ducking
+  contracts locally reduces losses, so pure-exploitation DMC slides
+  toward pacifism instead of traps (gen3/gen12's lesson in a new
+  costume). Positive read: gen13's habits withstood 460k probing games
+  at this budget. Next exploiter shape (not tried yet): keep 25-50%
+  self-play mixing as the anti-pacifism anchor, reward shaped toward
+  SWEEPS/upsets rather than average margin, several short exploiters
+  from different seeds keeping the max hole, and/or a fresh weaker init
+  free to specialize. Logs: history/gen17x1.log.jsonl.gz +
+  gen16-duels/duel10-11.
 - **gen18 — legible partnership.** Hanabi-style: reward plays that make
   PARTNER's belief head more accurate — conventions emerge (its own
   dialect); possibly a sequence model so intentions persist across
