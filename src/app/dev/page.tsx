@@ -23,7 +23,7 @@ const freshGame = (spectate = false): GameDoc => {
     if (spectate) {
         // all-bots game so the table plays itself while we watch (swapped
         // after START_GAME, which insists on one human). START_GAME already
-        // seated the other three with distinct brains incl. gen16 (Stomper);
+        // seated the other three with distinct brains incl. gen16 (Cosmo);
         // give this seat a different one so the demo table is four characters.
         g = { ...g, seats: { ...g.seats, A1: { kind: 'bot', name: 'Cub', botStyle: 'gen10' } } };
     }

@@ -812,15 +812,15 @@ describe('camp personas', () => {
         // the host holds one seat; the other three are distinct brains + names
         expect(new Set(styles).size).toBe(styles.length);
         expect(new Set(names).size).toBe(names.length);
-        expect(names).toContain('Stomper'); // the strongest brain leads the fill
+        expect(names).toContain('Cosmo'); // the grandmaster (gen16) leads the fill
     });
 
     it('SET_BOT names the seat after its chosen camp persona', () => {
         let g = createGameDoc({ id: 'setbot', joinCode: 'SBT', host: { uid: 'h', name: 'Host' }, now: 1 });
-        g = applyAction(g, { type: 'SET_BOT', seat: 'B1', botStyle: 'gen13' });
-        expect(g.seats.B1.name).toBe('Kitten');
+        g = applyAction(g, { type: 'SET_BOT', seat: 'B1', botStyle: 'gen16' });
+        expect(g.seats.B1.name).toBe('Cosmo'); // strongest brain
         g = applyAction(g, { type: 'SET_BOT', seat: 'B1', botStyle: 'gen7' });
-        expect(g.seats.B1.name).toBe('Cosmo');
+        expect(g.seats.B1.name).toBe('Stomper'); // weakest brain
     });
 });
 
