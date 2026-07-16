@@ -274,11 +274,34 @@ what is provably identical to the arena champion.
   from different seeds keeping the max hole, and/or a fresh weaker init
   free to specialize. Logs: history/gen17x1.log.jsonl.gz +
   gen16-duels/duel10-11.
-- **gen18 — legible partnership.** Hanabi-style: reward plays that make
+- **gen18 — the scale rung (Riley's "10M more games" ask, 2026-07-16,
+  branch alpharook09).** LAUNCHED on the Hetzner CCX33. The reflex net is
+  the documented bottleneck (ladder margins 63→57.5→55; gen15's 2.75M was
+  confounded by the belief multitask + drift) — so this rung finally gives
+  a bigger net the full-scale treatment: Net2Wider ×2 of gen13
+  (`surgery --widen 2 --no-belief-head`, 2.15M params, pure Q — gen15's
+  organ keeps belief duty at search time). Function preservation verified
+  the on-manifold way: a 12-pair duel vs the donor scored 50.0% with ALL
+  pairs split and byte-identical auction stats. Recipe = the proven
+  ladder: --script none, opponent-mix 0.5 (self-play anchor; gen17x1's
+  mix-1.0 pacifism is why), frozen gen13 as the mixed opponent, eps
+  0.15→0.03. Day-one lr bake-off (converged-champion fine-tuning is the
+  four-strike failure zone): gen18a = 5e-5 (the only rate that ever
+  climbed from a champion init) vs gen18b = 1e-4 (widened twins may need
+  the push to diverge); pick by ≥100-pair duels, kill the loser, winner
+  resumes with --workers 7. Throughput measured at launch: ~44 games/8s
+  per arm (~450k games/day/arm; ~1M/day at full box) — 10M games ≈ 12
+  days. Promotion gate: beat gen13 reflex head-to-head, then
+  gen18×search(K24,t≥3)×belief(gen15@0.5) must beat the gen16 champion
+  stack — 150 sprint pairs + 70 marathon pairs, fresh seeds. Launch:
+  `ml/scripts/gen18_launch.sh`. NOT tried here (next levers if parity):
+  reanalyze-style search targets inside the on-policy loop, exploiter
+  league v2 with self-play anchoring.
+- **gen19 — legible partnership.** Hanabi-style: reward plays that make
   PARTNER's belief head more accurate — conventions emerge (its own
   dialect); possibly a sequence model so intentions persist across
   tricks. Gauge: pairs that signal beat pairs that don't.
-- **gen19 — the human bridge.** Point the gen14 engine at the family's
+- **gen20 — the human bridge.** Point the gen14 engine at the family's
   real Firestore games continuously; fine-tune against the lines humans
   actually punish; the JAY CUP becomes the official benchmark. Gauge: the
   family stops winning.
