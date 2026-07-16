@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    GameDoc, Card, Seat, Suit, SEATS, BotStyle, getCardPoints, teamOf,
+    GameDoc, Card, Seat, Suit, SEATS, BotStyle, BOT_NAMES, getCardPoints, teamOf,
 } from './types';
 import { createDeck, createShuffledDeck, splitDeal, isRedealHand, isValidDeck, sortHand } from './deck';
 import {
@@ -802,25 +802,41 @@ describe('laydown', () => {
     });
 });
 
-describe('camp personas', () => {
-    it('a quick start fills open seats with four distinct camp characters', () => {
+describe('bot names (the BYU legends roster)', () => {
+    it('a quick start fills open seats with distinct brains AND distinct names', () => {
         let g = createGameDoc({ id: 'personas', joinCode: 'CMP', host: { uid: 'h', name: 'Host' }, now: 1 });
         g = applyAction(g, { type: 'START_GAME' });
         const bots = SEATS.map((s) => g.seats[s]).filter((si) => si.kind === 'bot');
         const styles = bots.map((b) => b.botStyle);
         const names = bots.map((b) => b.name);
+        const firstNames = names.map((n) => n.split(' ')[0]);
         // the host holds one seat; the other three are distinct brains + names
         expect(new Set(styles).size).toBe(styles.length);
-        expect(new Set(names).size).toBe(names.length);
-        expect(names).toContain('Cosmo'); // the grandmaster (gen16) leads the fill
+        expect(new Set(firstNames).size).toBe(firstNames.length);
+        for (const n of names) expect(BOT_NAMES).toContain(n);
     });
 
-    it('SET_BOT names the seat after its chosen camp persona', () => {
+    it('SET_BOT draws a legend for a fresh bot and keeps it across brain swaps', () => {
         let g = createGameDoc({ id: 'setbot', joinCode: 'SBT', host: { uid: 'h', name: 'Host' }, now: 1 });
         g = applyAction(g, { type: 'SET_BOT', seat: 'B1', botStyle: 'gen16' });
-        expect(g.seats.B1.name).toBe('Cosmo'); // strongest brain
+        const name = g.seats.B1.name;
+        expect(BOT_NAMES).toContain(name);
+        // swapping the brain is not a new player — the name sticks
         g = applyAction(g, { type: 'SET_BOT', seat: 'B1', botStyle: 'gen7' });
-        expect(g.seats.B1.name).toBe('Stomper'); // weakest brain
+        expect(g.seats.B1.name).toBe(name);
+        expect(g.seats.B1.botStyle).toBe('gen7');
+        // a second bot never shares a first name with the first
+        g = applyAction(g, { type: 'SET_BOT', seat: 'B2', botStyle: 'gen16' });
+        expect(g.seats.B2.name.split(' ')[0]).not.toBe(name.split(' ')[0]);
+    });
+
+    it('same game id, same names — the draw is deterministic (optimistic replay)', () => {
+        const run = () => {
+            let g = createGameDoc({ id: 'replay', joinCode: 'RPL', host: { uid: 'h', name: 'Host' }, now: 1 });
+            g = applyAction(g, { type: 'START_GAME' });
+            return SEATS.map((s) => g.seats[s].name).join('|');
+        };
+        expect(run()).toBe(run());
     });
 });
 

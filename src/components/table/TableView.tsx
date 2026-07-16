@@ -334,7 +334,11 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                 {announcement && (
                     <>
                         {announcement.tone === 'good' && <ConfettiBurst count={36} spread={280} origin={{ x: 50, y: 30 }} />}
-                        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 max-w-[92%] animate-announce-pop">
+                        {/* flex-centered wrapper: announce-pop animates transform,
+                            so -translate-x-1/2 on the same element would be
+                            overridden mid-pop and the sign would land off-center */}
+                        <div className="absolute top-14 inset-x-0 z-30 flex justify-center pointer-events-none">
+                        <div className="max-w-[92%] animate-announce-pop">
                             <div
                                 className={`flex items-center gap-3 px-5 py-3 rounded-2xl border-2 text-center font-orbitron font-bold shadow-2xl bg-black/80 ${
                                     announcement.tone === 'bad'
@@ -347,6 +351,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                                 <span className="text-3xl leading-none">{announcement.emoji}</span>
                                 <span className="text-base sm:text-lg leading-snug">{announcement.text}</span>
                             </div>
+                        </div>
                         </div>
                     </>
                 )}

@@ -150,9 +150,14 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
                         ))}
                     </div>
                     {trumpPick && settled && (
+                        // centered by a flex wrapper, NOT translate classes: the
+                        // pop animation drives `transform`, which would override
+                        // -translate-x/y mid-animation and make the button mount
+                        // off-center then jump into place when the pop ends
+                        <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
                         <button
                             onClick={() => onAct({ type: 'SELECT_TRUMP', seat: mySeat, suit: trumpPick })}
-                            className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40 px-8 py-5 rounded-3xl text-white font-orbitron shadow-2xl ring-4 ring-white/70 active:scale-95 transition animate-announce-pop ${suitButtonColors[trumpPick]}`}
+                            className={`pointer-events-auto px-8 py-5 rounded-3xl text-white font-orbitron shadow-2xl ring-4 ring-white/70 active:scale-95 transition animate-announce-pop ${suitButtonColors[trumpPick]}`}
                         >
                             <span className="block text-2xl font-black leading-tight">{trumpPick} Trump</span>
                             <span className="block text-sm font-bold mt-1 flex items-center justify-center gap-1">
@@ -160,6 +165,7 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
                                 <span className="material-symbols-outlined text-lg">arrow_forward</span>
                             </span>
                         </button>
+                        </div>
                     )}
                 </>
             );

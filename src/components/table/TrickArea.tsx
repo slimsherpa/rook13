@@ -171,12 +171,16 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
                     className={`absolute inset-0 transition-all duration-700 ease-in-out ${turnPosition ? 'opacity-100' : 'opacity-0'}`}
                     style={{ transform: `rotate(${angle}deg)` }}
                 >
-                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-8 w-0 h-0
-                        border-l-[38px] border-l-transparent
-                        border-r-[38px] border-r-transparent
-                        border-t-[52px]
-                        drop-shadow-[0_3px_4px_rgba(0,0,0,0.35)]"
-                        style={{ borderTopColor: theme.felt, transition: 'border-top-color 0.7s' }} />
+                    {/* an SVG polygon, not a CSS border-triangle: border
+                        diagonals anti-alias fuzzy, SVG edges render crisp
+                        like the felt circle they extend */}
+                    <svg
+                        className="absolute left-1/2 -translate-x-1/2 -bottom-8"
+                        width="76" height="52" viewBox="0 0 76 52" aria-hidden="true"
+                        style={{ filter: 'drop-shadow(0 3px 4px rgba(0,0,0,0.35))' }}
+                    >
+                        <path d="M0 0 H76 L38 52 Z" fill={theme.felt} style={{ transition: 'fill 0.7s' }} />
+                    </svg>
                 </div>
             )}
             {/* felt circle, dyed to match the table — no outline, so the
@@ -185,8 +189,14 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
                 className="absolute inset-0 rounded-full shadow-inner transition-colors duration-700"
                 style={{ backgroundColor: theme.felt }}
             />
-            {/* the rook, embossed into the felt */}
-            <div className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center pointer-events-none">
+            {/* the rook, embossed into the felt. translateZ pins it to its own
+                compositor layer: the drop-shadow filter on this very detailed
+                path otherwise re-rasterizes (and visibly jitters) whenever the
+                animating siblings — pointer sweep, card flips — repaint. */}
+            <div
+                className="absolute inset-0 rounded-full overflow-hidden flex items-center justify-center pointer-events-none"
+                style={{ transform: 'translateZ(0)' }}
+            >
                 <RookBird
                     className={`w-48 h-48 sm:w-60 sm:h-60 ${theme.emboss}`}
                     // a hairline of light below the dark shape sells the emboss

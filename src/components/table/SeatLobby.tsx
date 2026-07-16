@@ -83,9 +83,9 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                                 value={current}
                                 onChange={(e) => {
                                     const style = e.target.value as BotStyle;
-                                    // switching agent renames the seat to the
-                                    // new character (Stomper, Kitten, …)
-                                    act({ type: 'SET_BOT', seat, botStyle: style, name: personaFor(style).name });
+                                    // swap the brain only — the bot keeps its
+                                    // table name (the engine preserves it)
+                                    act({ type: 'SET_BOT', seat, botStyle: style });
                                 }}
                                 className="mt-1.5 w-full max-w-[11rem] rounded-md bg-navy-950 border border-white/15 text-white text-xs px-2 py-1 focus:outline-none focus:border-sky-400"
                             >
