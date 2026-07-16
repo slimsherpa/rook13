@@ -6,7 +6,7 @@
 // Add ?spectate to view the table as a spectator (mySeat = null).
 
 import { useEffect, useState } from 'react';
-import { GameAction, GameDoc } from '@/lib/game/types';
+import { GameAction, GameDoc, pickBotName } from '@/lib/game/types';
 import { createGameDoc, applyAction, InvalidActionError } from '@/lib/game/engine';
 import { nextAgentActionAsync, preloadNets } from '@/lib/alpharook/agent';
 import { paced } from '@/lib/settings';
@@ -23,9 +23,10 @@ const freshGame = (spectate = false): GameDoc => {
     if (spectate) {
         // all-bots game so the table plays itself while we watch (swapped
         // after START_GAME, which insists on one human). START_GAME already
-        // seated the other three with distinct brains incl. gen16 (Cosmo);
-        // give this seat a different one so the demo table is four characters.
-        g = { ...g, seats: { ...g.seats, A1: { kind: 'bot', name: 'Cub', botStyle: 'gen10' } } };
+        // seated the other three with distinct brains and legend names; give
+        // this seat a different brain and its own name from the roster.
+        const taken = (['A1', 'B1', 'A2', 'B2'] as const).map((s) => g.seats[s].name);
+        g = { ...g, seats: { ...g.seats, A1: { kind: 'bot', name: pickBotName(g.id, taken), botStyle: 'gen10' } } };
     }
     return g;
 };

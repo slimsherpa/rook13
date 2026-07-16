@@ -8,7 +8,7 @@
 import {
     GameDoc, GameAction, Card, Seat, Suit, Team, SeatInfo, HandSummary,
     SEATS, SUITS, VALID_BIDS, TRICKS_PER_HAND, WIN_SCORE, LOSE_SCORE, TAKING_TRICKS_BONUS,
-    PLAYABLE_BOT_STYLES, DEFAULT_BOT_STYLE, personaFor, getCardPoints, teamOf, nextSeat, sameCard,
+    PLAYABLE_BOT_STYLES, DEFAULT_BOT_STYLE, pickBotName, getCardPoints, teamOf, nextSeat, sameCard,
 } from './types';
 import { splitDeal, isRedealHand, isValidDeck, sortHand } from './deck';
 
@@ -311,11 +311,13 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
             return next;
         }
         case 'SET_BOT': {
+            const prev = next.seats[action.seat];
             next.seats[action.seat] = {
                 kind: 'bot',
-                // a bot wears its camp persona (Stomper, Kitten, …); the
-                // caller may still override with an explicit name
-                name: action.name || personaFor(action.botStyle).name,
+                // a bot keeps its name across brain swaps; a fresh bot draws
+                // an unused BYU legend (the caller may still override)
+                name: action.name
+                    || (prev.kind === 'bot' ? prev.name : pickBotName(next.id, SEATS.map((s) => next.seats[s].name))),
                 botStyle: action.botStyle,
             };
             return next;
@@ -331,9 +333,9 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
         }
         case 'START_GAME': {
             // fill empty seats with a spread of the top brains so a quick
-            // table is four distinct camp characters (Stomper, Kitten, …),
-            // not four clones — skipping any brain already seated, and the
-            // host can still swap any seat in the lobby
+            // table plays four distinct strengths, not four clones — skipping
+            // any brain already seated, and the host can still swap any seat
+            // in the lobby. Each fill draws its own BYU-legend name.
             const taken = new Set(
                 SEATS.map((s) => next.seats[s].botStyle).filter(Boolean),
             );
@@ -343,7 +345,8 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
                 if (next.seats[s].kind === 'open') {
                     const style = roster[nextBrain] ?? DEFAULT_BOT_STYLE;
                     nextBrain += 1;
-                    next.seats[s] = { kind: 'bot', name: personaFor(style).name, botStyle: style };
+                    const name = pickBotName(next.id, SEATS.map((x) => next.seats[x].name));
+                    next.seats[s] = { kind: 'bot', name, botStyle: style };
                 }
             }
             next.status = 'active';

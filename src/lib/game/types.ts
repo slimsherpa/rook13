@@ -96,6 +96,31 @@ export const personaFor = (style: BotStyle | undefined): BotPersona =>
         emoji: '🤖', img: '', tagline: '',
     };
 
+// Bot table names: BYU legends, the family pantheon. A bot's NAME is who it
+// is at the table; its brain (botStyle) is how it plays — decoupled, so a
+// table of three gen16s isn't three players all called Cosmo. The camp
+// characters above stay on as the brain labels in the lobby picker.
+export const BOT_NAMES: string[] = [
+    'LaVell Edwards', 'Jimmer Fredette', 'Danny Ainge', 'Steve Young',
+    'Ty Detmer', 'Jim McMahon', 'Robbie Bosco', 'Gifford Nielsen',
+];
+
+/**
+ * Deterministic name draw (the engine must stay pure — same trick as the
+ * first-dealer pick): rotate the roster by a game-id hash, take the first
+ * name whose FIRST name is free at the table — badges only show first names,
+ * so "Jim" and "Jimmer" can coexist but two Jims cannot.
+ */
+export const pickBotName = (gameId: string, takenNames: string[]): string => {
+    const taken = new Set(takenNames.map((n) => n.split(' ')[0]));
+    const hash = Array.from(gameId).reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
+    for (let i = 0; i < BOT_NAMES.length; i++) {
+        const name = BOT_NAMES[(hash + i) % BOT_NAMES.length];
+        if (!taken.has(name.split(' ')[0])) return name;
+    }
+    return 'Cosmo'; // 8 legends, 4 seats — unreachable, but never crash a deal
+};
+
 export interface SeatInfo {
     kind: 'human' | 'bot' | 'open';
     uid?: string; // for humans, the Firebase auth uid

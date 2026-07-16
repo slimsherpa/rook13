@@ -2,28 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+/* Every screen paints its own background (navy lobby, trump-colored table),
+   so html/body only ever peek through on mobile overscroll / rubber-banding
+   and behind the collapsing URL bar. Match them to the app's navy — a black
+   void showing past the edge of the table reads as broken. */
+html {
+  background-color: #1e3a8a; /* navy-900 */
+  /* no scroll chaining / pull-to-refresh past the table */
+  overscroll-behavior: none;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  color: #fff;
+  background-color: #1e3a8a;
+  min-height: 100dvh;
+  overscroll-behavior: none;
 }
 
 @layer utilities {
