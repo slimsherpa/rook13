@@ -5,6 +5,13 @@ Round-based and synchronous (send weights -> collect -> train), which keeps
 the DMC on-policy property and stays simple; on an M1 Pro this turns ~1.2
 busy cores into ~8 and multiplies samples/second accordingly. Workers pin
 torch to one thread each so they don't fight over cores.
+
+gen19: the LAST `search_workers` of the pool run SearchSelfPlay instead —
+expert-iteration games where card play goes through the champion search
+stack (see expert.py). They are slower per row, so `search_rows_frac`
+splits each round's sample budget between the two kinds of worker; tune it
+so both finish a round in similar wall time (the round waits for the
+slowest worker).
 """
 
 from __future__ import annotations
@@ -15,22 +22,33 @@ import torch.multiprocessing as mp
 
 from .selfplay import VecSelfPlay
 
-STAT_KEYS = ("games", "hands", "sets", "bids", "mix_games", "mix_wins")
+STAT_KEYS = ("games", "hands", "sets", "bids", "mix_games", "mix_wins",
+             "search_games")
 
 
 def _worker_main(conn, worker_id: int, n_envs: int, seed: int,
                  opponent_mix: float, opponent_style: str, bid_eps: float,
                  script_dtypes_list: list[int], opponent_ckpt: str | None,
-                 opponent_script_list: list[int]):
+                 opponent_script_list: list[int],
+                 search_cfg: dict | None):
     torch.set_num_threads(1)
     from .model import QNet  # construct after spawn, inside the child
     from .encoder import ACTION_DIM
     net = None  # built from the first weight broadcast (dims name the encoder)
-    vec = VecSelfPlay(n_envs, seed=seed, opponent_mix=opponent_mix,
-                      opponent_style=opponent_style, bid_eps=bid_eps,
-                      script_dtypes=frozenset(script_dtypes_list),
-                      opponent_ckpt=opponent_ckpt,
-                      opponent_script=frozenset(opponent_script_list))
+    if search_cfg is not None:
+        from .expert import SearchSelfPlay
+        vec = SearchSelfPlay(seed=seed, opponent_mix=opponent_mix,
+                             opponent_style=opponent_style, bid_eps=bid_eps,
+                             script_dtypes=frozenset(script_dtypes_list),
+                             opponent_ckpt=opponent_ckpt,
+                             opponent_script=frozenset(opponent_script_list),
+                             **search_cfg)
+    else:
+        vec = VecSelfPlay(n_envs, seed=seed, opponent_mix=opponent_mix,
+                          opponent_style=opponent_style, bid_eps=bid_eps,
+                          script_dtypes=frozenset(script_dtypes_list),
+                          opponent_ckpt=opponent_ckpt,
+                          opponent_script=frozenset(opponent_script_list))
     while True:
         msg = conn.recv()
         if msg[0] == "stop":
@@ -61,18 +79,26 @@ class WorkerPool:
     def __init__(self, n_workers: int, n_envs: int, seed: int,
                  opponent_mix: float, opponent_style: str, bid_eps: float,
                  script_dtypes: frozenset, opponent_ckpt: str | None = None,
-                 opponent_script: frozenset = frozenset()):
+                 opponent_script: frozenset = frozenset(),
+                 search_workers: int = 0, search_cfg: dict | None = None,
+                 search_rows_frac: float = 0.25):
+        assert search_workers < n_workers, "need at least one reflex worker"
         ctx = mp.get_context("spawn")
         self.conns = []
         self.procs = []
+        self.n_workers = n_workers
+        self.search_workers = search_workers
+        self.search_rows_frac = search_rows_frac if search_workers else 0.0
         for w in range(n_workers):
+            is_search = w >= n_workers - search_workers
             parent, child = ctx.Pipe()
             p = ctx.Process(
                 target=_worker_main,
                 args=(child, w, n_envs, seed * 7919 + w * 104729 + 1,
                       opponent_mix, opponent_style, bid_eps,
                       sorted(script_dtypes), opponent_ckpt,
-                      sorted(opponent_script)),
+                      sorted(opponent_script),
+                      search_cfg if is_search else None),
                 daemon=True)
             p.start()
             child.close()
@@ -80,14 +106,23 @@ class WorkerPool:
             self.procs.append(p)
         self.games_done = 0
 
+    def _quota(self, worker_idx: int, total_samples: int) -> int:
+        """Per-worker sample budget for one round: search workers share
+        `search_rows_frac` of the batch, reflex workers the rest."""
+        n_search = self.search_workers
+        n_reflex = self.n_workers - n_search
+        if worker_idx >= n_reflex:  # a search worker
+            return max(1, int(total_samples * self.search_rows_frac / n_search))
+        return max(1, int(total_samples * (1 - self.search_rows_frac) / n_reflex))
+
     def request(self, net, epsilon: float, total_samples: int) -> None:
         """Kick off collection without waiting — lets the learner train on
         the previous batch while workers gather the next one (double
         buffering; weights are one iteration stale, which DMC tolerates)."""
         state_dict = {k: v.cpu() for k, v in net.state_dict().items()}
-        per_worker = max(1, total_samples // len(self.conns))
-        for c in self.conns:
-            c.send(("collect", state_dict, epsilon, per_worker))
+        for w, c in enumerate(self.conns):
+            c.send(("collect", state_dict, epsilon,
+                    self._quota(w, total_samples)))
 
     def gather(self):
         """Wait for the in-flight request; returns (S, A, Y, BT, BM, stats)."""
@@ -102,7 +137,7 @@ class WorkerPool:
             BT_l.append(BT)
             BM_l.append(BM)
             for k in STAT_KEYS:
-                stats[k] += st[k]
+                stats[k] += st.get(k, 0)
             games_done += gd
         self.games_done = games_done
         return (np.concatenate(S_l), np.concatenate(A_l),

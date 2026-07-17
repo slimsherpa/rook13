@@ -215,7 +215,7 @@ class VecSelfPlay:
         live win rate in scripted-opponent games — the transfer signal."""
         out: list[tuple[np.ndarray, np.ndarray, float]] = []
         stats = {"games": 0, "hands": 0, "sets": 0, "bids": 0,
-                 "mix_games": 0, "mix_wins": 0}
+                 "mix_games": 0, "mix_wins": 0, "search_games": 0}
         net.eval()
 
         while len(out) < min_samples:

@@ -297,11 +297,45 @@ what is provably identical to the arena champion.
   `ml/scripts/gen18_launch.sh`. NOT tried here (next levers if parity):
   reanalyze-style search targets inside the on-policy loop, exploiter
   league v2 with self-play anchoring.
-- **gen19 — legible partnership.** Hanabi-style: reward plays that make
+  DAY-1 OUTCOME (2026-07-17): bake-off decided — gen18b (1e-4) never
+  recovered (35-42%), killed; gen18a (5e-5) confirmed at 100 pairs:
+  latest 47.0%, best_duel 46.0% (the in-run 61.7% bank = banking
+  mirage, FOURTH sighting; in-run compass now 50 pairs). Twin
+  differentiation real (L1 cos 1.000000→0.9971, 6.6% relative
+  divergence) but no strength slope through 400k games. PAUSED, not
+  scrapped — checkpoints resumable in runs/gen18a/, log archived
+  history/gen18a.log.jsonl.gz — superseded by gen19 (the family's
+  actual complaint is sharpness, and expert iteration attacks it
+  directly; capacity can be re-tested later with the widened student).
+- **gen19 — expert iteration / "deal mastery" (2026-07-18, branch
+  alpharook10). LAUNCHED on the CCX33.** Riley's design, from family
+  playtesting: "play the hand 100x, temp high then low, hone in on the
+  winning line — there likely IS a winning sequence per deal." That is
+  expert iteration (AlphaZero's loop), and it is precisely the
+  "corrections must ride INSIDE the on-policy loop" lever the
+  four-strike law pointed at. Implementation (`alpharook/expert.py`):
+  SearchSelfPlay = self-play games where the learner's card play goes
+  through the champion search stack (PIMC K12, endgame gate t>=3,
+  Q-prior 2, belief-guided worlds from gen15 @ temp 0.5) while bids
+  keep the guided bid-eps floor (never searched — winner's curse).
+  Rows are UNCHANGED vanilla-DMC (state, action, blended outcome):
+  improvement enters through better trajectories, not altered labels,
+  so the calibration-corruption failure mode has no purchase. Pool
+  mixes 2 search workers with 5 reflex workers (--search-rows-frac
+  0.15: the reflex firehose is the calibration anchor, the expert
+  slice the improvement pressure; the round waits for the slowest
+  worker, so the frac is the wall-time tuning knob). Student = fresh
+  gen13; opponent = frozen gen13 at mix 0.5; lr 5e-5. Gauges: 50-pair
+  duel banking vs gen13, gen14 audit (preventable blunders/hand,
+  especially tricks 1-4 where 75% live), and at promotion the full
+  house protocol vs the gen16 stack. Family-visible target: the
+  "sometimes not sharp" complaint — buried go-down winners, chaotic
+  trump-ins.
+- **gen20 — legible partnership.** Hanabi-style: reward plays that make
   PARTNER's belief head more accurate — conventions emerge (its own
   dialect); possibly a sequence model so intentions persist across
   tricks. Gauge: pairs that signal beat pairs that don't.
-- **gen20 — the human bridge.** Point the gen14 engine at the family's
+- **gen21 — the human bridge.** Point the gen14 engine at the family's
   real Firestore games continuously; fine-tune against the lines humans
   actually punish; the JAY CUP becomes the official benchmark. Gauge: the
   family stops winning.
