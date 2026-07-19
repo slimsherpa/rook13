@@ -11,6 +11,7 @@ import { getGame, loadActionLog } from '@/lib/firebase/gameService';
 import { HandReview, reconstructGame } from '@/lib/game/review';
 import LoadingPage from '@/components/LoadingPage';
 import { DealBreakdown, TrickByTrick } from '@/components/table/HandRecapModal';
+import { BlunderProvider, BlunderTrigger } from '@/components/review/BlunderReport';
 
 export default function GameReview({ gameId }: { gameId: string }) {
     const { user, loading: authLoading } = useAuth();
@@ -95,7 +96,11 @@ export default function GameReview({ gameId }: { gameId: string }) {
                 </button>
 
                 {open && (
+                    <BlunderProvider gameId={game.id} seats={game.seats} handNumber={s.handNumber} trump={h.trump}>
                     <div className="px-3.5 pb-4 border-t border-white/10 pt-3 space-y-4">
+                        {/* flag a bad decision for the AI training queue */}
+                        <BlunderTrigger />
+
                         {/* the deal: hands, bids, the full auction, widow, go-down */}
                         <DealBreakdown
                             seats={game.seats}
@@ -117,6 +122,7 @@ export default function GameReview({ gameId }: { gameId: string }) {
                             compact
                         />
                     </div>
+                    </BlunderProvider>
                 )}
             </div>
         );
