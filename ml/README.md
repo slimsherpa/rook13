@@ -331,6 +331,28 @@ what is provably identical to the arena champion.
   house protocol vs the gen16 stack. Family-visible target: the
   "sometimes not sharp" complaint — buried go-down winners, chaotic
   trump-ins.
+  DAY-3 OUTCOME (2026-07-20): HONEST NEGATIVE at this shape. 370k games
+  across 10% then 15% expert dose: mix_win 30.0-31.6% vs the control
+  plateau's 29.5% (a +1.5pt whisper), banks noisy 38-60%, and the
+  100-pair confirm of latest said **45.0%** (sweeps 11-21, bid-passive
+  fingerprint again: 1066 vs 1342 auctions). Log archived
+  history/gen19.log.jsonl.gz. THE PATTERN IS NOW THE FINDING — six
+  attacks on gen13's reflex (gen12 x2, gen14 x2, gen17, gen18, gen19),
+  six non-rungs, all sharing the churn-then-recover-to-parity shape:
+  warm-start DMC degrades the converged function faster than any
+  treatment tried so far improves it.
+  FINAL SHOT — gen19b (2026-07-20): the one untested region is EARLY
+  TRICKS — every attempt ever (incl. gen12's distill corpus) gated
+  search at t>=3, yet 75% of preventable blunders and all the family's
+  "partner led wrong" complaints live in tricks 1-4. gen19b = fresh
+  gen13 student, expert search min-trick 0 (as a player t0 still beats
+  reflex: 54.3%), eps-start 0.05 (near-floor: stop churning what we're
+  polishing; guided bid-eps 0.15 stays as pacifism insurance). KILL
+  CRITERION: 48h, 100-pair confirm >= 52% or the reflex-improvement
+  line CLOSES PERMANENTLY and the box pivots to the stack: browser
+  search gate (t>=5 -> t>=3/4, family-visible sharpness today),
+  bid-conditioned early beliefs (the gen16 notes' named next lever),
+  and gen20 legible partnership (David's requirements doc).
 - **gen20 — legible partnership.** Hanabi-style: reward plays that make
   PARTNER's belief head more accurate — conventions emerge (its own
   dialect); possibly a sequence model so intentions persist across
