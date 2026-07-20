@@ -4,9 +4,10 @@
 // hot pink. Lives inside the hand recap and the game review, wrapped around
 // one hand at a time:
 //
-//   1. Tap the pink Report button → the hand arms: every flaggable action
-//      (each bid, the go-down, the trump call, every card played) lights up
-//      with a pink ring.
+//   1. Tap the quiet pink "Report a blunder" link tucked under the last trick
+//      (an expert's tool, so it doesn't shout) → the hand arms: every
+//      flaggable action (each bid, the go-down, the trump call, every card
+//      played) lights up with a pink ring.
 //   2. Tap the action that was the mistake → a confirm sheet shows exactly
 //      what you picked and asks (optionally) what the better move was.
 //   3. Confirm → the report lands in games/{id}/blunders for the training
@@ -177,6 +178,31 @@ export function BlunderProvider({ gameId, seats, handNumber, trump, children }: 
         <BlunderCtx.Provider value={ctx}>
             {children}
 
+            {/* armed instructions — fixed overlay so they stay visible wherever
+                the trigger sits and however far the hand scrolls */}
+            {armed && !pending && (
+                <div
+                    className="fixed top-3 left-1/2 -translate-x-1/2 z-50 w-[min(92vw,24rem)] rounded-xl px-3.5 py-2.5 flex items-center gap-3 shadow-2xl"
+                    style={{ backgroundColor: ASSIST_PINK }}
+                >
+                    <span className="material-symbols-outlined text-white">touch_app</span>
+                    <div className="flex-1 min-w-0">
+                        <div className="text-white font-orbitron text-xs font-bold uppercase tracking-wide">
+                            Tap the blunder
+                        </div>
+                        <div className="text-white/85 text-[11px] leading-snug">
+                            Any bid, the go-down, the trump call, or a played card.
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setArmed(false)}
+                        className="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-orbitron text-xs flex-shrink-0"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            )}
+
             {/* confirm sheet */}
             {pending && (
                 <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -259,51 +285,31 @@ export function BlunderProvider({ gameId, seats, handNumber, trump, children }: 
     );
 }
 
-/** The pink entry point + the hand's existing reports. Place inside a
- *  BlunderProvider, above the deal breakdown. */
+/** The understated entry point + the hand's existing reports. Place inside a
+ *  BlunderProvider, tucked under the last trick — it's an expert's tool, so a
+ *  faint pink whisper, not a billboard. The armed instructions render as a
+ *  fixed overlay from the provider, so this can live anywhere. */
 export function BlunderTrigger() {
     const ctx = useContext(BlunderCtx);
     if (!ctx) return null;
-    const { armed, arm, disarm, reports, myUid, gameId } = ctx;
+    const { armed, arm, reports, myUid, gameId } = ctx;
 
     return (
-        // armed: the wrapper itself goes sticky (and the reports list hides) so
-        // the instructions stay visible while scrolling the hand for the mistake
-        <div className={armed ? 'sticky top-0 z-20' : 'space-y-2'}>
-            {armed ? (
-                <div
-                    className="rounded-xl px-3.5 py-2.5 flex items-center gap-3 shadow-lg"
-                    style={{ backgroundColor: ASSIST_PINK }}
-                >
-                    <span className="material-symbols-outlined text-white">touch_app</span>
-                    <div className="flex-1 min-w-0">
-                        <div className="text-white font-orbitron text-xs font-bold uppercase tracking-wide">
-                            Tap the blunder
-                        </div>
-                        <div className="text-white/85 text-[11px] leading-snug">
-                            Any bid, the go-down, the trump call, or a played card.
-                        </div>
-                    </div>
+        <div className="space-y-2 pt-1">
+            {!armed && (
+                <div className="flex justify-end">
                     <button
-                        onClick={disarm}
-                        className="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-orbitron text-xs flex-shrink-0"
+                        onClick={arm}
+                        className="flex items-center gap-1 font-orbitron text-[11px] text-[#ff2d95]/50 hover:text-[#ff2d95] transition"
                     >
-                        Cancel
+                        <span className="material-symbols-outlined text-sm">flag</span>
+                        Report a blunder
                     </button>
                 </div>
-            ) : (
-                <button
-                    onClick={arm}
-                    className="w-full py-2.5 rounded-xl border-2 font-orbitron text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 transition hover:shadow-[0_0_14px_rgba(255,45,149,0.4)]"
-                    style={{ borderColor: `${ASSIST_PINK}99`, color: ASSIST_PINK }}
-                >
-                    <span className="material-symbols-outlined text-base">flag</span>
-                    Report an AI Blunder
-                </button>
             )}
 
             {/* what's already been called out this hand */}
-            {!armed && reports.length > 0 && (
+            {reports.length > 0 && (
                 <div
                     className="rounded-xl border px-3 py-2.5 space-y-1.5"
                     style={{ borderColor: `${ASSIST_PINK}55`, backgroundColor: `${ASSIST_PINK}14` }}

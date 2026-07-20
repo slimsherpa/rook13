@@ -413,10 +413,6 @@ export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores 
                         </div>
                     </div>
 
-                    {/* flag a bad AI decision for the training queue — anyone
-                        at (or watching) the table can */}
-                    <BlunderTrigger />
-
                     {/* the deal + auction, one section, with the taker's widow
                         and go-down nested under them */}
                     <DealBreakdown seats={game.seats} h={h} goDown={game.goDown} />
@@ -437,6 +433,10 @@ export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores 
                                 ? { seat: game.laydownSeat, trick: game.laydownTrick }
                                 : null}
                         />
+
+                        {/* the experts' door: flag a bad decision for the AI
+                            training queue — anyone at (or watching) the table */}
+                        <BlunderTrigger />
                     </div>
                 </div>
 
