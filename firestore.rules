@@ -29,6 +29,15 @@ service cloud.firestore {
         allow read: if signedIn();
         allow write: if signedIn() && request.auth.uid == watcherUid;
       }
+
+      // Blunder reports for AI training: anyone who can see the game can
+      // file one; append-only except the reporter retracting their own.
+      match /blunders/{blunderId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.reporter.uid == request.auth.uid;
+        allow update: if false;
+        allow delete: if signedIn() && resource.data.reporter.uid == request.auth.uid;
+      }
     }
 
     // Table invites: created by the sender, retired (accepted/declined) by

@@ -11,8 +11,12 @@ import { Card, GameDoc, Seat, Suit, Team, HandSummary, TrickRecord, teamOf, next
 import { rainbowNumbersFor } from '@/lib/game/stats';
 import { setSealedTrick } from '@/lib/game/setPoint';
 import { sortHand } from '@/lib/game/deck';
+import { BlunderTarget, targetKey } from '@/lib/game/blunders';
 import PlayingCard from '@/components/ui/PlayingCard';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
+import {
+    BlunderFlag, BlunderProvider, BlunderTrigger, blunderArmedClass, blunderFlaggedClass, useBlunderMode,
+} from '@/components/review/BlunderReport';
 
 interface HandRecapModalProps {
     game: GameDoc;
@@ -71,6 +75,10 @@ const seatsFromDealer = (dealer: Seat): Seat[] => {
     return [first, nextSeat(first), nextSeat(nextSeat(first)), nextSeat(nextSeat(nextSeat(first)))];
 };
 
+const trumpChipBg: Record<Suit, string> = {
+    Red: 'bg-red-600', Yellow: 'bg-yellow-500', Black: 'bg-gray-900', Green: 'bg-green-600',
+};
+
 const bidChipClass = (kind: 'win' | 'live' | 'pass') =>
     `px-1.5 py-px rounded-md text-[10px] font-orbitron font-bold flex-shrink-0 ${
         kind === 'win'
@@ -91,6 +99,10 @@ export function DealBreakdown({ seats, h, goDown, auction }: {
     /** every bid in order (overrides h.bidLog when the caller has its own) */
     auction?: { seat: Seat; bid: number | 'pass' }[];
 }) {
+    // blunder-report mode (null when not inside a BlunderProvider): when armed,
+    // every bid chip, the go-down, and the trump call become flaggable
+    const blunder = useBlunderMode();
+
     if (!h.dealtHands) return null;
     const bidLog = auction ?? h.bidLog ?? [];
 
@@ -111,14 +123,30 @@ export function DealBreakdown({ seats, h, goDown, auction }: {
         </div>
     );
 
-    const nested = (label: string, cards: Card[]) => (
-        <div className="flex items-center gap-2 pl-4">
-            <div className="w-14 flex-shrink-0">
-                <span className="text-[9px] font-orbitron text-white/50 uppercase tracking-wide">{label}</span>
+    // `target` makes the row flaggable as a blunder (the go-down row)
+    const nested = (label: string, cards: Card[], target?: BlunderTarget) => {
+        const flagged = target !== undefined && (blunder?.reportedKeys.has(targetKey(target)) ?? false);
+        const clickable = target !== undefined && (blunder?.armed ?? false);
+        return (
+            <div className={`relative flex items-center gap-2 pl-4 rounded-lg ${clickable ? blunderArmedClass : ''} ${flagged ? blunderFlaggedClass : ''}`}>
+                <div className="w-14 flex-shrink-0">
+                    <span className="text-[9px] font-orbitron text-white/50 uppercase tracking-wide">{label}</span>
+                </div>
+                {cardRow(cards, label)}
+                {/* full-row tap target — the cards underneath are inert buttons
+                    that would otherwise swallow the tap */}
+                {clickable && (
+                    <button
+                        type="button"
+                        aria-label={`Report the ${label} as a blunder`}
+                        className="absolute inset-0 z-10 rounded-lg"
+                        onClick={() => blunder!.pick(target!)}
+                    />
+                )}
+                {flagged && <BlunderFlag />}
             </div>
-            {cardRow(cards, label)}
-        </div>
-    );
+        );
+    };
 
     // the nine the taker KEPT: dealt + widow, minus what went down
     const buried = new Set(goDown.map((c) => `${c.suit}-${c.number}`));
@@ -153,13 +181,25 @@ export function DealBreakdown({ seats, h, goDown, auction }: {
                                     {/* the seat's whole auction, under their cards */}
                                     {bids.length > 0 && (
                                         <div className="flex flex-wrap gap-1 mt-1">
-                                            {bids.map((bid, i) => (
-                                                <span key={i} className={bidChipClass(
-                                                    isWinner && bid === h.bid ? 'win' : bid === 'pass' ? 'pass' : 'live',
-                                                )}>
-                                                    {bid === 'pass' ? 'PASS' : bid}
-                                                </span>
-                                            ))}
+                                            {bids.map((bid, i) => {
+                                                const target: BlunderTarget = { kind: 'bid', seat, bid, nth: i };
+                                                const flagged = blunder?.reportedKeys.has(targetKey(target)) ?? false;
+                                                return (
+                                                    <span key={i} className="relative inline-flex">
+                                                        <button
+                                                            type="button"
+                                                            disabled={!blunder?.armed}
+                                                            onClick={() => blunder?.pick(target)}
+                                                            className={`${bidChipClass(
+                                                                isWinner && bid === h.bid ? 'win' : bid === 'pass' ? 'pass' : 'live',
+                                                            )} ${blunder?.armed ? blunderArmedClass : ''} ${flagged ? blunderFlaggedClass : ''}`}
+                                                        >
+                                                            {bid === 'pass' ? 'PASS' : bid}
+                                                        </button>
+                                                        {flagged && <BlunderFlag />}
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
@@ -172,7 +212,31 @@ export function DealBreakdown({ seats, h, goDown, auction }: {
                                     {h.dealtWidow && h.dealtWidow.length > 0 && goDown.length > 0 &&
                                         nested('New Hand', keptHand)}
                                     {goDown.length > 0 &&
-                                        nested('Go-Down', goDown)}
+                                        nested('Go-Down', goDown, { kind: 'godown', seat: h.bidWinner, cards: goDown })}
+                                    {/* the trump call, right where the rest of the
+                                        taker's decisions live */}
+                                    {(() => {
+                                        const target: BlunderTarget = { kind: 'trump', seat: h.bidWinner, suit: h.trump };
+                                        const flagged = blunder?.reportedKeys.has(targetKey(target)) ?? false;
+                                        return (
+                                            <div className="flex items-center gap-2 pl-4">
+                                                <div className="w-14 flex-shrink-0">
+                                                    <span className="text-[9px] font-orbitron text-white/50 uppercase tracking-wide">Trump</span>
+                                                </div>
+                                                <span className="relative inline-flex">
+                                                    <button
+                                                        type="button"
+                                                        disabled={!blunder?.armed}
+                                                        onClick={() => blunder?.pick(target)}
+                                                        className={`px-2 py-0.5 rounded-md text-[10px] font-orbitron font-bold text-white ${trumpChipBg[h.trump]} ${blunder?.armed ? blunderArmedClass : ''} ${flagged ? blunderFlaggedClass : ''}`}
+                                                    >
+                                                        {h.trump.toUpperCase()}
+                                                    </button>
+                                                    {flagged && <BlunderFlag />}
+                                                </span>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
                         </div>
@@ -201,6 +265,8 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
     /** who laid their hand down, and before which trick (0-indexed) */
     laydown?: { seat: Seat; trick: number } | null;
 }) {
+    // blunder-report mode: when armed, every played card becomes flaggable
+    const blunder = useBlunderMode();
     const sealed = setSealedTrick(tricks, h);
     const bidTeam = teamOf(h.bidWinner);
     const myTeam = mySeat ? teamOf(mySeat) : null;
@@ -241,12 +307,24 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
                         <div className="grid grid-cols-4 gap-1.5 flex-1">
                             {trick.plays.map(({ seat, card }) => {
                                 const isWinner = seat === trick.winner;
+                                const target: BlunderTarget = { kind: 'play', seat, card, trick: idx };
+                                const flagged = blunder?.reportedKeys.has(targetKey(target)) ?? false;
                                 return (
                                     <div key={seat} className="flex flex-col items-center gap-1">
                                         <span className={`px-1.5 py-px rounded text-[10px] font-orbitron max-w-full truncate ${isWinner ? 'bg-yellow-500/20 text-yellow-300 font-bold' : 'text-white/60'}`}>
                                             {firstName(seats, seat)}
                                         </span>
-                                        <PlayingCard card={card} trump={trump} size="sm" highlight={isWinner} />
+                                        <span className="relative inline-flex">
+                                            <PlayingCard
+                                                card={card}
+                                                trump={trump}
+                                                size="sm"
+                                                highlight={isWinner && !flagged}
+                                                onClick={blunder?.armed ? () => blunder.pick(target) : undefined}
+                                                className={`${blunder?.armed ? blunderArmedClass : ''} ${flagged ? blunderFlaggedClass : ''}`}
+                                            />
+                                            {flagged && <BlunderFlag />}
+                                        </span>
                                     </div>
                                 );
                             })}
@@ -274,6 +352,7 @@ export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores 
             : `${firstName(game.seats, 'B1')} & ${firstName(game.seats, 'B2')}`;
 
     return (
+        <BlunderProvider gameId={game.id} seats={game.seats} handNumber={h.handNumber} trump={h.trump}>
         <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="relative bg-navy-950 border border-white/15 rounded-2xl shadow-2xl w-full max-w-md max-h-[92dvh] flex flex-col overflow-hidden">
                 {bigMoment && <ConfettiBurst count={34} spread={260} origin={{ x: 50, y: 20 }} />}
@@ -354,6 +433,10 @@ export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores 
                                 ? { seat: game.laydownSeat, trick: game.laydownTrick }
                                 : null}
                         />
+
+                        {/* the experts' door: flag a bad decision for the AI
+                            training queue — anyone at (or watching) the table */}
+                        <BlunderTrigger />
                     </div>
                 </div>
 
@@ -374,5 +457,6 @@ export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores 
                 </div>
             </div>
         </div>
+        </BlunderProvider>
     );
 }
