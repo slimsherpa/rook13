@@ -43,7 +43,7 @@ export interface Card {
 //                (bots.ts PERSONALITIES); 'basic' is also the fallback brain
 //                for gen7/gen8 go-down/trump and for neural seats if weights
 //                fail to load
-export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen11' | 'gen13' | 'gen16';
+export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen11' | 'gen13' | 'gen16' | 'gen19';
 
 export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     random: 'Easy',
@@ -58,10 +58,11 @@ export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     gen11: 'AlphaRook Gen11',
     gen13: 'AlphaRook Gen13',
     gen16: 'AlphaRook Gen16',
+    gen19: 'AlphaRook Gen19',
 };
 
 /** What the lobby's bot picker offers (strongest first); legacy styles live on only in old games. */
-export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen16', 'gen13', 'gen11', 'gen10', 'gen9', 'gen8', 'gen7'];
+export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen19', 'gen16', 'gen13', 'gen11', 'gen10', 'gen9', 'gen8'];
 
 /** Every new bot starts as the hottest brain we've shipped. */
 export const DEFAULT_BOT_STYLE: BotStyle = PLAYABLE_BOT_STYLES[0];
@@ -80,13 +81,16 @@ export interface BotPersona {
     tagline: string;
 }
 export const BOT_PERSONAS: Partial<Record<BotStyle, BotPersona>> = {
-    gen16: { name: 'Cosmo', emoji: '🐾', img: '/bots/07-Cosmo.jpg', tagline: 'the grandmaster' },
-    gen13: { name: 'Cougar', emoji: '🐅', img: '/bots/06-Cougar.jpg', tagline: 'seasoned prowler' },
-    gen11: { name: 'Puma', emoji: '🐈‍⬛', img: '/bots/05-Puma.jpg', tagline: 'silent hunter' },
-    gen10: { name: 'Cub', emoji: '🦁', img: '/bots/04-Cub.jpg', tagline: 'young lion' },
-    gen9: { name: 'Bobcat', emoji: '🐆', img: '/bots/03-Bobcat.jpg', tagline: 'quick and cunning' },
-    gen8: { name: 'Kitten', emoji: '🐱', img: '/bots/02-Kitten.jpg', tagline: 'small but sharp' },
-    gen7: { name: 'Stomper', emoji: '🦖', img: '/bots/01-Stomper.jpg', tagline: 'the rookie' },
+    // 2026-07-22: gen19 (the trick-3 search gate) takes the throne and the
+    // whole camp cascades down one rung; gen7 retires from the roster
+    // (legacy docs still resolve it via personaFor's fallback)
+    gen19: { name: 'Cosmo', emoji: '🐾', img: '/bots/07-Cosmo.jpg', tagline: 'the grandmaster' },
+    gen16: { name: 'Cougar', emoji: '🐅', img: '/bots/06-Cougar.jpg', tagline: 'seasoned prowler' },
+    gen13: { name: 'Puma', emoji: '🐈‍⬛', img: '/bots/05-Puma.jpg', tagline: 'silent hunter' },
+    gen11: { name: 'Cub', emoji: '🦁', img: '/bots/04-Cub.jpg', tagline: 'young lion' },
+    gen10: { name: 'Bobcat', emoji: '🐆', img: '/bots/03-Bobcat.jpg', tagline: 'quick and cunning' },
+    gen9: { name: 'Kitten', emoji: '🐱', img: '/bots/02-Kitten.jpg', tagline: 'small but sharp' },
+    gen8: { name: 'Stomper', emoji: '🦖', img: '/bots/01-Stomper.jpg', tagline: 'the rookie' },
 };
 
 /** The camp persona for a style, or a plain fallback for the heuristic bots. */
