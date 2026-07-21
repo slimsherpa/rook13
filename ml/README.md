@@ -353,6 +353,24 @@ what is provably identical to the arena champion.
   search gate (t>=5 -> t>=3/4, family-visible sharpness today),
   bid-conditioned early beliefs (the gen16 notes' named next lever),
   and gen20 legible partnership (David's requirements doc).
+  VERDICT (2026-07-22): **LINE CLOSED.** 153k games; final banks slid
+  37-44%; candidate.pt (iter 3599) read **52.0%** at 100 pairs (+47.4,
+  sweeps 20-16, with a genuinely new selective-bidding signature: 1127
+  auctions won vs 1368, made 66% vs 61%) — then the house battery
+  ruled: fresh-seed 150-pair sprint **50.0%** (sweeps 28-28, -1.6),
+  marathon 70 pairs **46.4%** (-81.1, sweeps 11-16). The 52% was the
+  BANKING MIRAGE, FIFTH SIGHTING; the marathon stays undefeated as the
+  truth-teller. Eight warm-start attacks on gen13's reflex (gen12 x2,
+  gen14 x2, gen17, gen18, gen19, gen19b), eight non-rungs, one shared
+  shape: DMC outcome-regression churns a converged champion faster
+  than any added signal re-sharpens it — gen19b proved the churn
+  isn't epsilon (near-floor eps still dipped to 42%), it's the
+  regression noise itself. gen13's reflex stands as the final reflex
+  of this era. All logs archived (history/gen19b.log.jsonl.gz).
+  Riley's early-trick thesis stays OPEN — it fails only through this
+  training channel; the pivot carries it forward through denser
+  signal: early beliefs, partner legibility, and the family's
+  blunder-report flywheel (shipped to prod 2026-07-19).
 - **gen20 — legible partnership.** Hanabi-style: reward plays that make
   PARTNER's belief head more accurate — conventions emerge (its own
   dialect); possibly a sequence model so intentions persist across
