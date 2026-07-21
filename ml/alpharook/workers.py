@@ -23,19 +23,22 @@ import torch.multiprocessing as mp
 from .selfplay import VecSelfPlay
 
 STAT_KEYS = ("games", "hands", "sets", "bids", "mix_games", "mix_wins",
-             "search_games")
+             "search_games", "hot_hands", "hot_points")
 
 
 def _worker_main(conn, worker_id: int, n_envs: int, seed: int,
                  opponent_mix: float, opponent_style: str, bid_eps: float,
                  script_dtypes_list: list[int], opponent_ckpt: str | None,
                  opponent_script_list: list[int],
-                 search_cfg: dict | None):
+                 search_cfg: dict | None, hotseat_cfg: dict | None = None):
     torch.set_num_threads(1)
     from .model import QNet  # construct after spawn, inside the child
     from .encoder import ACTION_DIM
     net = None  # built from the first weight broadcast (dims name the encoder)
-    if search_cfg is not None:
+    if hotseat_cfg is not None:
+        from .hotseat import HotSeatSelfPlay
+        vec = HotSeatSelfPlay(seed=seed, **hotseat_cfg)
+    elif search_cfg is not None:
         from .expert import SearchSelfPlay
         vec = SearchSelfPlay(seed=seed, opponent_mix=opponent_mix,
                              opponent_style=opponent_style, bid_eps=bid_eps,
@@ -81,7 +84,8 @@ class WorkerPool:
                  script_dtypes: frozenset, opponent_ckpt: str | None = None,
                  opponent_script: frozenset = frozenset(),
                  search_workers: int = 0, search_cfg: dict | None = None,
-                 search_rows_frac: float = 0.25):
+                 search_rows_frac: float = 0.25,
+                 hotseat_cfg: dict | None = None):
         assert search_workers < n_workers, "need at least one reflex worker"
         ctx = mp.get_context("spawn")
         self.conns = []
@@ -98,7 +102,7 @@ class WorkerPool:
                       opponent_mix, opponent_style, bid_eps,
                       sorted(script_dtypes), opponent_ckpt,
                       sorted(opponent_script),
-                      search_cfg if is_search else None),
+                      search_cfg if is_search else None, hotseat_cfg),
                 daemon=True)
             p.start()
             child.close()

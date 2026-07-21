@@ -241,13 +241,19 @@ class SearchAgent:
                  min_trick: int = 0, infer_temp: float = 0.0,
                  bid_infer: float = 0.0, belief=None,
                  fork_depth: int = 0, fork_width: int = 3,
-                 plan_lines: int = 0, seed: int = 0):
+                 plan_lines: int = 0, seed: int = 0,
+                 prior_schedule: tuple[float, float] | None = None):
         self.net = net
         self.device = device
         self.worlds = worlds
         self.search_dtypes = search_dtypes
         self.max_bid_cands = max_bid_cands
         self.prior_weight = prior_weight
+        # gen20 (Riley's blend): reflex and search both live from trick 0,
+        # with the Q-prior sliding from `start` (reflex-dominant while
+        # worlds are diffuse) to `end` (search-dominant once the hand is
+        # pinned down) linearly across the 9 tricks
+        self.prior_schedule = prior_schedule
         self.min_trick = min_trick
         self.infer_temp = infer_temp
         self.bid_infer = bid_infer
@@ -403,6 +409,10 @@ class SearchAgent:
 
     @torch.no_grad()
     def choose(self, env, seat: int, dtype: int, cands: list):
+        if self.prior_schedule is not None and dtype == D_PLAY:
+            s0, s1 = self.prior_schedule
+            t = min(8, len(env.g.completed_tricks))
+            self.prior_weight = s0 + (s1 - s0) * t / 8.0
         # distillation taps, refreshed per decision: last_search carries the
         # blended per-candidate scores of a searched decision, last_reflex
         # the bare-net Q of an unsearched one (see distill.py)
