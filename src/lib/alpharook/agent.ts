@@ -41,27 +41,33 @@ import {
     D_BID, D_DISCARD, D_TRUMP, D_PLAY, PASS,
 } from './encoder';
 import { QNetWeights, qForward, loadQNet, loadBeliefNet, NeuralGen } from './qnet';
-import { chooseSearchCard, GEN11_SEARCH, GEN16_SEARCH } from './search';
+import { chooseSearchCard, GEN11_SEARCH, GEN16_SEARCH, GEN19_SEARCH } from './search';
 
 export const ALPHAROOK_SAMPLES = 25;
 export const ALPHAROOK_BID_SAMPLES = 20;
 
-/** Styles driven by a QNet (gen11 runs on gen10's weight file; gen16 runs
- * on gen13's, plus gen15's belief organ for its imagination). */
-export type NeuralStyle = NeuralGen | 'gen11' | 'gen16';
+/** Styles driven by a QNet (gen11 runs on gen10's weight file; gen16 and
+ * gen19 run on gen13's, plus gen15's belief organ for their imagination —
+ * gen19 is the same stack with the search gate one trick earlier). */
+export type NeuralStyle = NeuralGen | 'gen11' | 'gen16' | 'gen19';
 
 export const isNeuralStyle = (s: BotStyle | undefined): s is NeuralStyle =>
     s === 'gen7' || s === 'gen8' || s === 'gen9' || s === 'gen10'
-    || s === 'gen11' || s === 'gen13' || s === 'gen16';
+    || s === 'gen11' || s === 'gen13' || s === 'gen16' || s === 'gen19';
 
 /** Which weight file a neural style runs on. */
 export const weightsGenFor = (s: NeuralStyle): NeuralGen =>
-    s === 'gen11' ? 'gen10' : s === 'gen16' ? 'gen13' : s;
+    s === 'gen11' ? 'gen10'
+        : (s === 'gen16' || s === 'gen19') ? 'gen13' : s;
+
+/** Styles whose imagination samples from gen15's belief organ. */
+export const usesBelief = (s: BotStyle | undefined): boolean =>
+    s === 'gen16' || s === 'gen19';
 
 /** Generations whose go-down/trump are ALSO net decisions (gen9+). */
 export const isFullyNeural = (s: BotStyle | undefined): boolean =>
     s === 'gen9' || s === 'gen10' || s === 'gen11' || s === 'gen13'
-    || s === 'gen16';
+    || s === 'gen16' || s === 'gen19';
 
 export interface NeuralChoice {
     dtype: number;
@@ -186,14 +192,15 @@ const neuralAction = (g: GameDoc, seat: Seat, gen: NeuralStyle, net: QNetWeights
     // gen16 = gen13 + the same look-ahead, but its worlds are DRAWN from
     // gen15's belief posterior instead of uniformly (68.6% vs the gen13
     // stack at marathon rules in the Python lab).
-    const searches = gen === 'gen11' || (gen === 'gen16' && !!beliefNet);
+    const searches = gen === 'gen11' || (usesBelief(gen) && !!beliefNet);
+    const opts = gen === 'gen19' ? GEN19_SEARCH
+        : gen === 'gen16' ? GEN16_SEARCH : GEN11_SEARCH;
     if (searches && g.phase === 'playing'
-            && g.completedTricks.length >= GEN11_SEARCH.minTrick) {
-        const opts = gen === 'gen16' ? GEN16_SEARCH : GEN11_SEARCH;
+            && g.completedTricks.length >= opts.minTrick) {
         const d = chooseSearchCard(g, net, opts, Math.random,
-            gen === 'gen16' ? beliefNet : undefined);
+            usesBelief(gen) ? beliefNet : undefined);
         const note = d.overrode ? ', search overrode the reflex' : '';
-        const brain = gen === 'gen16' ? 'belief-guided worlds' : 'worlds';
+        const brain = usesBelief(gen) ? 'belief-guided worlds' : 'worlds';
         console.info(`🔮 ${gen} ${seat} searched ${opts.worlds} ${brain}, `
             + `plays ${d.card.suit} ${d.card.number} `
             + `(score ${Math.max(...d.scores).toFixed(3)}${note})`);
@@ -231,7 +238,7 @@ export const preloadNets = (g: GameDoc): void => {
     for (const seat of Object.values(g.seats)) {
         if (seat.kind === 'bot' && isNeuralStyle(seat.botStyle)) {
             loadQNet(weightsGenFor(seat.botStyle)).catch(() => {});
-            if (seat.botStyle === 'gen16') loadBeliefNet().catch(() => {});
+            if (usesBelief(seat.botStyle)) loadBeliefNet().catch(() => {});
         }
     }
 };
@@ -253,12 +260,12 @@ export const nextAgentActionAsync = async (g: GameDoc): Promise<GameAction | nul
              (isFullyNeural(info.botStyle) && (g.phase === 'widow' || g.phase === 'trump')))) {
             try {
                 const net = await loadQNet(weightsGenFor(info.botStyle));
-                // gen16's imagination is optional at runtime: if the belief
-                // file won't load it degrades to the gen13 reflex, never to
-                // the heuristic
-                const beliefNet = info.botStyle === 'gen16'
+                // gen16/gen19 imagination is optional at runtime: if the
+                // belief file won't load they degrade to the gen13 reflex,
+                // never to the heuristic
+                const beliefNet = usesBelief(info.botStyle)
                     ? await loadBeliefNet().catch((e) => {
-                        console.error('gen16 belief organ unavailable — reflex only', e);
+                        console.error(`${info.botStyle} belief organ unavailable — reflex only`, e);
                         return undefined;
                     })
                     : undefined;

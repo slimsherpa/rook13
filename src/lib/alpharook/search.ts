@@ -47,6 +47,15 @@ export const GEN16_SEARCH: SearchOptions = {
     worlds: 8, prior: 2, minTrick: 4, beliefTemp: 0.5,
 };
 
+/** gen19: the same stack thinking one trick EARLIER — the Python champion's
+ * gate (min_trick 3). Duel-validated at browser budget 2026-07-22:
+ * min_trick 3 beat 5 by 53.0%/150 sprint pairs and 55.0% (+43.6, sweeps
+ * 13-6)/70 marathon pairs; the extra searched trick lands squarely in the
+ * family-reported blunder zone (trump-ins on partners' winners). */
+export const GEN19_SEARCH: SearchOptions = {
+    worlds: 8, prior: 2, minTrick: 3, beliefTemp: 0.5,
+};
+
 /**
  * The belief organ's posterior over who holds every hidden card, averaged
  * over the candidate actions at this decision — port of
