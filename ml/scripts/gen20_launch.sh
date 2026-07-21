@@ -19,8 +19,8 @@ nohup $PY -m alpharook.hotseat --run hot-partner --role partner \
   --init-from models/gen13.pt --frozen models/gen13.pt \
   --belief runs/gen15/best_duel.pt --belief-temp 0.5 \
   --worlds 8 --prior-start 12 --prior-end 2 \
-  --lr 5e-5 --eps 0.03 --samples-per-iter 16384 --workers 7 \
-  --eval-every 250 --eval-hands 240 --iters 100000 --resume \
+  --lr 5e-5 --eps 0.03 --samples-per-iter 8192 --workers 7 \
+  --eval-every 100 --eval-hands 240 --iters 100000 --resume \
   > "$ML/runs/hot-partner_console.log" 2>&1 &
 echo "hot-partner pid $!"
 echo "watch:  tail -f $ML/runs/hot-partner/log.jsonl   (hot_pts = the Riley metric)"
