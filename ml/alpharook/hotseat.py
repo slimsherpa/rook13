@@ -124,6 +124,7 @@ class HotSeatSelfPlay:
 
     def __init__(self, seed: int = 0, role: str = "partner",
                  frozen_ckpt: str = "models/gen13.pt",
+                 frozen_taker_ckpt: str | None = None,
                  hands_per_episode: int = 12, eps_godown: float = 0.05,
                  worlds: int = 8, prior_start: float = 12.0,
                  prior_end: float = 2.0,
@@ -136,6 +137,10 @@ class HotSeatSelfPlay:
         self.prior_start = prior_start
         self.prior_end = prior_end
         self.frozen = load_qnet(frozen_ckpt)
+        # round-robin (lap 2+): the taker's chair can hold a FROZEN
+        # improved specialist while the hot seat learns against it
+        self.frozen_taker = (load_qnet(frozen_taker_ckpt)
+                             if frozen_taker_ckpt else None)
         self.belief = None
         if belief_ckpt:
             from .beliefs import BeliefOracle
@@ -177,7 +182,11 @@ class HotSeatSelfPlay:
                 # during a hand the engine's dealer IS this hand's taker
                 hot = (env.g.dealer + self.role_offset) % 4
                 if seat != hot:
-                    env.apply(cands[reflex_pick(self.frozen, env, seat,
+                    which = (self.frozen_taker
+                             if (self.frozen_taker is not None
+                                 and seat == env.g.dealer)
+                             else self.frozen)
+                    env.apply(cands[reflex_pick(which, env, seat,
                                                 dtype, cands)])
                     continue
                 # ---- the hot seat ----
@@ -223,7 +232,7 @@ class HotSeatSelfPlay:
 # --------------------------------------------------------------------------
 
 def eval_battery(net, role: str, frozen, hands: int = 240,
-                 seed: int = 424242) -> float:
+                 seed: int = 424242, frozen_taker=None) -> float:
     offset = ROLE_OFFSET[role]
     total, n, episode = 0.0, 0, 0
     while n < hands:
@@ -242,7 +251,10 @@ def eval_battery(net, role: str, frozen, hands: int = 240,
                 env.apply(scripted_bid(env, cands))
                 continue
             hot = (env.g.dealer + offset) % 4
-            which = net if seat == hot else frozen
+            which = (net if seat == hot
+                     else frozen_taker if (frozen_taker is not None
+                                           and seat == env.g.dealer)
+                     else frozen)
             env.apply(cands[reflex_pick(which, env, seat, dtype, cands)])
         for dealer, p0, p1 in env.hand_points:
             total += (p0, p1)[team_of((dealer + offset) % 4)]
@@ -257,6 +269,11 @@ def main():
     ap.add_argument("--role", default="partner", choices=list(ROLE_OFFSET))
     ap.add_argument("--init-from", default="models/gen13.pt")
     ap.add_argument("--frozen", default="models/gen13.pt")
+    ap.add_argument("--frozen-taker", default=None,
+                    help="round-robin: a frozen improved specialist in "
+                         "the taker's chair (training AND a second, "
+                         "matched battery; the ruler battery stays "
+                         "all-gen13 forever)")
     ap.add_argument("--belief", default=None)
     ap.add_argument("--belief-temp", type=float, default=0.5)
     ap.add_argument("--worlds", type=int, default=8)
@@ -296,6 +313,7 @@ def main():
 
     frozen = load_qnet(args.frozen)
     hot_cfg = dict(role=args.role, frozen_ckpt=args.frozen,
+                   frozen_taker_ckpt=args.frozen_taker,
                    hands_per_episode=args.hands_per_episode,
                    worlds=args.worlds, prior_start=args.prior_start,
                    prior_end=args.prior_end, belief_ckpt=args.belief,
@@ -352,8 +370,16 @@ def main():
 
         if it % args.eval_every == 0 or it == args.iters - 1:
             r = eval_battery(net, args.role, frozen, hands=args.eval_hands)
-            log({"kind": "battery", "iter": it, "reflex_pts": round(r, 2)})
-            print(f"  BATTERY (fixed decks, pure reflex): {r:.2f} pts/hand")
+            rec2 = {"kind": "battery", "iter": it, "reflex_pts": round(r, 2)}
+            if args.frozen_taker:
+                ft = load_qnet(args.frozen_taker)
+                m = eval_battery(net, args.role, frozen,
+                                 hands=args.eval_hands, frozen_taker=ft)
+                rec2["matched_pts"] = round(m, 2)
+            log(rec2)
+            print(f"  BATTERY (ruler): {r:.2f} pts/hand"
+                  + (f"  (matched: {rec2['matched_pts']:.2f})"
+                     if args.frozen_taker else ""))
             torch.save({"model": net.state_dict(), "opt": opt.state_dict(),
                         "iter": it, "best_pts": best_pts}, latest)
             if r > best_pts:
