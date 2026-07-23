@@ -31,7 +31,7 @@
 // 'alpharook' — the phase-1/2 PIMC search bot, kept so game docs created
 // before the neural bots keep playing (~4ms per card, ~15ms per bid).
 
-import { GameDoc, GameAction, Seat, SUITS, VALID_BIDS, BotStyle } from '../game/types';
+import { GameDoc, GameAction, Seat, SUITS, VALID_BIDS, BotStyle, WIN_SCORE, teamOf } from '../game/types';
 import { nextBotAction } from '../game/bots';
 import { legalCards, minNextBid, mustBid, isLaydown } from '../game/engine';
 import { Observation, observe } from './observation';
@@ -233,6 +233,31 @@ const neuralAction = (g: GameDoc, seat: Seat, gen: NeuralStyle, net: QNetWeights
     return { type: 'PLAY_CARD', seat, card };
 };
 
+/** How close to victory the endgame bid guard arms (need <= 15 points). */
+export const GUARD_MY_SCORE = WIN_SCORE - 15;
+/** Opponents at most this score cannot cross 500 in one hand (pool = 120). */
+export const GUARD_OPP_SCORE = WIN_SCORE - 120;
+
+/**
+ * Endgame bid guard: when this seat's team is within 15 of victory and the
+ * opponents cannot finish this hand, the provably-safe auction is to pass
+ * (any captured counter wins; a set could squander the lead). If the
+ * engine's must-bid rule forces us, take the minimum. Returns null when the
+ * guard does not apply — normal bidding judgment resumes.
+ */
+export const endgameGuardBid = (g: GameDoc, seat: Seat): GameAction | null => {
+    if (g.phase !== 'bidding') return null;
+    const team = teamOf(seat);
+    const my = g.scores[team];
+    const opp = g.scores[team === 'A' ? 'B' : 'A'];
+    if (my < GUARD_MY_SCORE || opp > GUARD_OPP_SCORE) return null;
+    if (mustBid(g)) {
+        const floor = minNextBid(g);
+        return floor === null ? null : { type: 'BID', seat, bid: floor };
+    }
+    return { type: 'BID', seat, bid: 'pass' };
+};
+
 /** Warm the weight cache for any neural bots seated in this game. */
 export const preloadNets = (g: GameDoc): void => {
     for (const seat of Object.values(g.seats)) {
@@ -254,6 +279,20 @@ export const nextAgentActionAsync = async (g: GameDoc): Promise<GameAction | nul
         if (info.kind === 'bot' && isLaydown(g, g.turn)) {
             console.info(`🙌 ${info.botStyle ?? 'bot'} ${g.turn} lays them down — all winners`);
             return { type: 'LAYDOWN', seat: g.turn };
+        }
+        // Endgame bid guard (cousins' report, 2026-07-23: bots bidding 105
+        // at 495). Driver-level like the laydown — provably-correct rare
+        // situations get proofs, not gradients. Within 15 of victory, when
+        // the opponents cannot cross 500 this hand (max pool 120), passing
+        // risks nothing — any captured counter wins — while a bid stakes
+        // the lead on a set. Simulation (ml guardsim, 1500 games/state):
+        // +2.0 to +4.5 win-rate in every fire state, never negative.
+        {
+            const guarded = endgameGuardBid(g, g.turn);
+            if (info.kind === 'bot' && guarded) {
+                console.info(`🛡️ ${info.botStyle ?? 'bot'} ${g.turn} plays it safe — victory is in reach`);
+                return guarded;
+            }
         }
         if (info.kind === 'bot' && isNeuralStyle(info.botStyle) &&
             (g.phase === 'bidding' || g.phase === 'playing' ||
