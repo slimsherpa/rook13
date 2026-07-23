@@ -129,7 +129,8 @@ export default function HomeScreen() {
 
     return (
         <div className="min-h-dvh bg-navy-900">
-            <div className="max-w-md mx-auto px-4 py-5">
+            {/* the big bottom pad lets the last card scroll up to mid-screen */}
+            <div className="max-w-md mx-auto px-4 pt-5 pb-[40dvh]">
                 {/* header */}
                 <div className="flex items-center justify-between mb-8">
                     <h1 className="font-orbitron text-3xl font-black text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)] flex items-center gap-2.5">
@@ -315,6 +316,18 @@ export default function HomeScreen() {
                     <div className="text-left">
                         <div className="font-orbitron text-white font-bold">THE JAY CUP</div>
                         <div className="text-white/60 text-xs">Hall of Champions · 2008–2026</div>
+                    </div>
+                </button>
+
+                {/* THE SHOP */}
+                <button
+                    onClick={() => router.push('/shop')}
+                    className="mt-3 w-full rounded-2xl border border-sky-500/40 bg-gradient-to-r from-sky-500/10 to-transparent p-4 flex items-center gap-4"
+                >
+                    <span className="material-symbols-outlined text-sky-400 text-4xl">shopping_bag</span>
+                    <div className="text-left">
+                        <div className="font-orbitron text-white font-bold">THE ROOK TEE</div>
+                        <div className="text-white/60 text-xs">Wear the bird · from $36</div>
                     </div>
                 </button>
             </div>
