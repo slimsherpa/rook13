@@ -1,0 +1,28 @@
+  [10/150 pairs] 9-11 (45.0%), sweeps 0-1, 0.1s/game
+  [20/150 pairs] 16-24 (40.0%), sweeps 1-5, 0.1s/game
+  [30/150 pairs] 25-35 (41.7%), sweeps 1-6, 0.1s/game
+  [40/150 pairs] 34-46 (42.5%), sweeps 2-8, 0.1s/game
+  [50/150 pairs] 39-61 (39.0%), sweeps 2-13, 0.1s/game
+  [60/150 pairs] 48-72 (40.0%), sweeps 3-15, 0.1s/game
+  [70/150 pairs] 54-86 (38.6%), sweeps 4-20, 0.1s/game
+  [80/150 pairs] 61-99 (38.1%), sweeps 5-24, 0.1s/game
+  [90/150 pairs] 69-111 (38.3%), sweeps 5-26, 0.1s/game
+  [100/150 pairs] 75-125 (37.5%), sweeps 6-31, 0.1s/game
+  [110/150 pairs] 82-138 (37.3%), sweeps 6-34, 0.1s/game
+  [120/150 pairs] 87-153 (36.2%), sweeps 6-39, 0.1s/game
+  [130/150 pairs] 96-164 (36.9%), sweeps 6-40, 0.1s/game
+  [140/150 pairs] 104-176 (37.1%), sweeps 7-43, 0.1s/game
+  [150/150 pairs] 112-188 (37.3%), sweeps 9-47, 0.1s/game
+COMPOSITE vs models/gen13.pt — 150 pairs (300 games, duplicate decks, seats swapped, win-score 500):
+  composite: 37.3% wins (avg diff -126.6)
+  pairs swept: composite 9, opponent 47, split 94
+  [10/70 pairs] 3-17 (15.0%), sweeps 0-7, 0.4s/game
+  [20/70 pairs] 9-31 (22.5%), sweeps 0-11, 0.3s/game
+  [30/70 pairs] 15-45 (25.0%), sweeps 2-17, 0.3s/game
+  [40/70 pairs] 21-59 (26.2%), sweeps 2-21, 0.3s/game
+  [50/70 pairs] 26-74 (26.0%), sweeps 2-26, 0.3s/game
+  [60/70 pairs] 31-89 (25.8%), sweeps 3-32, 0.3s/game
+  [70/70 pairs] 37-103 (26.4%), sweeps 3-36, 0.3s/game
+COMPOSITE vs models/gen13.pt — 70 pairs (140 games, duplicate decks, seats swapped, win-score 2000):
+  composite: 26.4% wins (avg diff -565.4)
+  pairs swept: composite 3, opponent 36, split 31
