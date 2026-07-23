@@ -165,6 +165,12 @@ export default function HomeScreen() {
                                         <span className="material-symbols-outlined text-base">groups</span> Players
                                     </button>
                                     <button
+                                        onClick={() => router.push('/shop')}
+                                        className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-white/10 flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-base">shopping_bag</span> Shop
+                                    </button>
+                                    <button
                                         onClick={signOut}
                                         className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-white/10 flex items-center gap-2"
                                     >

@@ -159,6 +159,15 @@ export default function LandingPage() {
                     )}
                 </div>
                 
+                {/* merch — small on purpose; the game is the headliner */}
+                <a
+                    href="/shop"
+                    className="mt-6 text-blue-300/70 hover:text-blue-200 font-orbitron text-xs tracking-widest uppercase flex items-center gap-2 transition"
+                >
+                    <span className="material-symbols-outlined text-base">shopping_bag</span>
+                    Get the Rook tee
+                </a>
+
                 {/* Cyberpunk decorative elements */}
                 <div className="absolute bottom-10 left-10 w-32 h-32 border-l-2 border-b-2 border-blue-500/30 rounded-bl-lg"></div>
                 <div className="absolute top-10 right-10 w-32 h-32 border-t-2 border-r-2 border-blue-500/30 rounded-tr-lg"></div>
