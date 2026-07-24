@@ -132,11 +132,26 @@ def _winit():
     torch.set_num_threads(1)
 
 
-def _wmatch(args):
-    sd_a, sd_b, seeds, eps, sugar, arch = args
+def _rebuild(sd):
+    """Every fighter carries its own era: infer architecture from the
+    weights (v1 gen7-10 = 479-dim states, v2 gen13+ = 508; the encoder
+    dispatches per net, so mixed-generation matches just work)."""
     from .model import QNet
-    na = QNet(hidden=arch[0], state_dim=arch[1]); na.load_state_dict(sd_a); na.eval()
-    nb = QNet(hidden=arch[0], state_dim=arch[1]); nb.load_state_dict(sd_b); nb.eval()
+    lin = sorted((k for k in sd if k.startswith("net.")
+                  and k.endswith(".weight")),
+                 key=lambda k: int(k.split(".")[1]))
+    net = QNet(hidden=tuple(int(sd[k].shape[0]) for k in lin[:-1]),
+               state_dim=sd[lin[0]].shape[1] - 50,
+               belief=any(k.startswith("belief_head") for k in sd))
+    net.load_state_dict(sd)
+    net.eval()
+    return net
+
+
+def _wmatch(args):
+    sd_a, sd_b, seeds, eps, sugar = args
+    na = _rebuild(sd_a)
+    nb = _rebuild(sd_b)
     rows_a, rows_b = [], []
     wins_a = 0
     for ps in seeds:
@@ -187,9 +202,6 @@ def main():
 
     names = [Path(p).stem for p in args.agents]
     nets = [load_qnet(p) for p in args.agents]
-    arch = (tuple(m.out_features for m in nets[0].net
-                  if hasattr(m, "out_features"))[:-1],
-            nets[0].net[0].in_features - 50)
     opts = [torch.optim.Adam(n.parameters(), lr=args.lr) for n in nets]
     elo = {n: 1000.0 for n in names}
     ruler = load_qnet(args.ruler)
@@ -221,7 +233,7 @@ def main():
             sd_j = {k2: v.cpu() for k2, v in nets[j].state_dict().items()}
             for _ in range(chunks):
                 seeds = [rng.randrange(1 << 30) for _ in range(per)]
-                jobs.append((sd_i, sd_j, seeds, args.eps, sugar, arch))
+                jobs.append((sd_i, sd_j, seeds, args.eps, sugar))
                 meta.append(pi)
         results = pool.map(_wmatch, jobs)
         agg = {pi: [[], [], 0, 0] for pi in range(len(pairs))}
