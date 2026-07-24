@@ -218,6 +218,11 @@ def main():
     ap.add_argument("--replay-losses", type=int, default=2,
                     help="retries of a lost deal per side per match "
                          "chunk (0 = off); rows keep real outcomes")
+    ap.add_argument("--freeze-trunk", action="store_true",
+                    help="train ONLY the v3 dealer columns (the gen13 "
+                         "two-stage law: zero-init senses can be added "
+                         "safely; converged trunks churn under DMC — "
+                         "12 experiments deep, the only safe learning)")
     ap.add_argument("--max-hours", type=float, default=12.0,
                     help="clean exit after this long (Riley's 2x-daily "
                          "review cadence); resume with --resume")
@@ -316,6 +321,10 @@ def main():
                 A = torch.from_numpy(np.concatenate([p2[1] for p2 in packs]))
                 Y = torch.from_numpy(np.concatenate([p2[2] for p2 in packs]))
                 net, opt = nets[idx], opts[idx]
+                from .encoder import STATE_DIM_V2 as _V2, STATE_DIM_V3 as _V3
+                v3 = (net.net[0].in_features - 50) == _V3
+                if args.freeze_trunk and not v3:
+                    continue  # nothing new to learn safely (gen10, etc.)
                 net.train()
                 for _ in range(args.epochs):
                     p = torch.randperm(len(Y))
@@ -324,6 +333,16 @@ def main():
                         loss = torch.nn.functional.mse_loss(
                             net(S[bi], A[bi]), Y[bi])
                         opt.zero_grad(); loss.backward()
+                        if args.freeze_trunk:
+                            for name2, prm in net.named_parameters():
+                                if prm.grad is None:
+                                    continue
+                                if name2 == "net.0.weight":
+                                    keep = prm.grad[:, _V2:_V3].clone()
+                                    prm.grad.zero_()
+                                    prm.grad[:, _V2:_V3] = keep
+                                else:
+                                    prm.grad.zero_()
                         torch.nn.utils.clip_grad_norm_(net.parameters(), 5.0)
                         opt.step()
                 net.eval()
