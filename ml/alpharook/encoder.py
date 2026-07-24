@@ -211,6 +211,12 @@ def encode_state(o: Observation, picks: list[int], decision_type: int,
 #   my buried go-down points /20 ....... 1   (declarer only)
 BELIEF_DIM = 29
 STATE_DIM_V2 = STATE_DIM + BELIEF_DIM
+# v3 (2026-07-24, Riley's urgent gap): + DEALER-RELATIVE position — at
+# bid time the seat left of the dealer will lead trick one; knowing who
+# holds the opening initiative is a key input to pricing a bid, and no
+# play net before v3 could see it.
+DEALER_DIM = 4
+STATE_DIM_V3 = STATE_DIM_V2 + DEALER_DIM
 
 
 def belief_features(o: Observation) -> np.ndarray:
@@ -257,6 +263,20 @@ def state_dim_of(net) -> int:
     return net.net[0].in_features - ACTION_DIM
 
 
+def encode_state_v3(o: Observation, picks: list[int], decision_type: int,
+                    g: Game, trump_intent: int | None = None) -> np.ndarray:
+    """v2 plus the dealer block: onehot of (dealer - me) % 4. rel 0 = I am
+    the dealer (I bid last, must-bid falls on me, my left neighbor leads
+    trick one); rel 1 = the trick-one leader sits at my seat + ... — the
+    net learns the geometry; we just stop hiding it."""
+    x2 = encode_state_v2(o, picks, decision_type, g, trump_intent)
+    x = np.zeros(STATE_DIM_V3, dtype=np.float32)
+    x[:STATE_DIM_V2] = x2
+    if o.dealer is not None:
+        x[STATE_DIM_V2 + (o.dealer - o.seat) % 4] = 1.0
+    return x
+
+
 def encode_state_for(net, o: Observation, picks: list[int], decision_type: int,
                      g: Game, trump_intent: int | None = None) -> np.ndarray:
     """Version-dispatching encode: v1 nets (gen7-gen10) and v2 nets (gen13+)
@@ -264,8 +284,10 @@ def encode_state_for(net, o: Observation, picks: list[int], decision_type: int,
     d = state_dim_of(net)
     if d == STATE_DIM:
         return encode_state(o, picks, decision_type, g, trump_intent)
-    assert d == STATE_DIM_V2, f"unknown state dim {d}"
-    return encode_state_v2(o, picks, decision_type, g, trump_intent)
+    if d == STATE_DIM_V2:
+        return encode_state_v2(o, picks, decision_type, g, trump_intent)
+    assert d == STATE_DIM_V3, f"unknown state dim {d}"
+    return encode_state_v3(o, picks, decision_type, g, trump_intent)
 
 
 def encode_action(decision_type: int, action) -> np.ndarray:

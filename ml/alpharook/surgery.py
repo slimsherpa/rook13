@@ -39,6 +39,33 @@ def graft(donor_path: str) -> QNet:
     return net
 
 
+def graft_dealer(donor_path: str) -> "QNet":
+    """v2 -> v3: append DEALER_DIM zero-init input columns (before the
+    action block), exactly the gen13 belief-graft trick — the enlarged net
+    computes the donor's function until training decides the new sense is
+    worth using."""
+    import torch as _t
+    from .encoder import STATE_DIM_V2, STATE_DIM_V3, DEALER_DIM, ACTION_DIM
+    from .model import QNet
+    ck = _t.load(donor_path, map_location="cpu", weights_only=True)
+    sd = dict(ck["model"] if "model" in ck else ck)
+    w0 = sd["net.0.weight"]
+    assert w0.shape[1] == STATE_DIM_V2 + ACTION_DIM, \
+        f"donor is not a v2 net (input {w0.shape[1]})"
+    out_dim = w0.shape[0]
+    new_w0 = _t.zeros(out_dim, STATE_DIM_V3 + ACTION_DIM)
+    new_w0[:, :STATE_DIM_V2] = w0[:, :STATE_DIM_V2]
+    new_w0[:, STATE_DIM_V2 + DEALER_DIM:] = w0[:, STATE_DIM_V2:]
+    sd["net.0.weight"] = new_w0
+    net = QNet(hidden=tuple(sd[k].shape[0] for k in
+                            ("net.0.weight", "net.2.weight", "net.4.weight")),
+               state_dim=STATE_DIM_V3,
+               belief=any(k.startswith("belief_head") for k in sd))
+    net.load_state_dict(sd)
+    net.eval()
+    return net
+
+
 def widen(donor_path: str, factor: int = 2, noise: float = 1e-4,
           belief: bool = True) -> "QNet":
     """Net2WiderNet (gen15): grow every hidden layer by `factor` while
@@ -80,12 +107,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--donor", default="models/gen10.pt")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--dealer", action="store_true",
+                    help="v2 -> v3 dealer-position graft (zero-init)")
     ap.add_argument("--widen", type=int, default=0,
                     help="Net2Wider factor (gen15); 0 = the gen13-style "
                          "belief-input graft instead")
     ap.add_argument("--no-belief-head", action="store_true")
     args = ap.parse_args()
-    if args.widen:
+    if args.dealer:
+        net = graft_dealer(args.donor)
+        what = "dealer graft v2 -> v3"
+    elif args.widen:
         net = widen(args.donor, factor=args.widen,
                     belief=not args.no_belief_head)
         what = f"widened x{args.widen}" + (

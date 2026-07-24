@@ -153,15 +153,33 @@ def _rebuild(sd):
 
 
 def _wmatch(args):
-    sd_a, sd_b, seeds, eps, sugar = args
+    sd_a, sd_b, seeds, eps, sugar, replays = args
     na = _rebuild(sd_a)
     nb = _rebuild(sd_b)
     rows_a, rows_b = [], []
     wins_a = 0
+    losses = []  # (winner_side, pair_seed, flip)
     for ps in seeds:
         for flip in (False, True):
             w = play_match_game(na, nb, ps, flip, eps, rows_a, rows_b, sugar)
             wins_a += 1 if w == 0 else 0
+            losses.append((w, ps, flip))
+    # Riley's replay-the-loss: each side re-plays one game it lost, up to
+    # `replays` retries with widened exploration — a chance to LEARN the
+    # deal rather than be punished for it; every retry row carries a real
+    # outcome, so calibration stays honest
+    if replays:
+        rng0 = random.Random(seeds[0] ^ 0x5EED)
+        for side in (0, 1):
+            lost = [(ps, fl) for w, ps, fl in losses if w != side]
+            if not lost:
+                continue
+            ps, fl = rng0.choice(lost)
+            for _ in range(replays):
+                w = play_match_game(na, nb, ps, fl, 0.15,
+                                    rows_a, rows_b, sugar)
+                if w == side:
+                    break
     def pack(rows):
         if not rows:
             return None
@@ -197,8 +215,13 @@ def main():
     ap.add_argument("--select-every", type=int, default=150,
                     help="rounds between selection events: all fighters take the ruler exam, bottom two are replaced by clones of the two best banked")
     ap.add_argument("--select-pairs", type=int, default=30)
-    ap.add_argument("--replay-losses", type=int, default=0,
-                    help="v1.1 hook: post-mortem replays per round (off)")
+    ap.add_argument("--replay-losses", type=int, default=2,
+                    help="retries of a lost deal per side per match "
+                         "chunk (0 = off); rows keep real outcomes")
+    ap.add_argument("--max-hours", type=float, default=12.0,
+                    help="clean exit after this long (Riley's 2x-daily "
+                         "review cadence); resume with --resume")
+    ap.add_argument("--resume", action="store_true")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
@@ -230,8 +253,26 @@ def main():
         with open(run_dir / "log.jsonl", "a") as f:
             f.write(json.dumps(rec) + "\n")
 
+    start_round = 0
+    state_path = run_dir / "league_state.pt"
+    if args.resume and state_path.exists():
+        st = torch.load(state_path, map_location="cpu", weights_only=False)
+        for i, nm in enumerate(names):
+            if nm in st["nets"]:
+                nets[i].load_state_dict(st["nets"][nm])
+                if trainable[i] and nm in st["opts"]:
+                    opts[i].load_state_dict(st["opts"][nm])
+        elo.update(st["elo"])
+        banked.update(st["banked"])
+        start_round = st["round"] + 1
+        print(f"resumed {args.run} at round {start_round}")
+
+    t_start = time.time()
     print(f"LEAGUE {args.run}: {len(nets)} fighters {names}, sugar {sugar}")
-    for rd in range(args.rounds):
+    for rd in range(start_round, args.rounds):
+        if (time.time() - t_start) > args.max_hours * 3600:
+            print(f"max-hours reached at round {rd} — clean exit")
+            break
         t0 = time.time()
         # matchmaking: shuffle into pairs, closest-Elo adjacent
         order = sorted(range(len(nets)),
@@ -248,7 +289,8 @@ def main():
             sd_j = {k2: v.cpu() for k2, v in nets[j].state_dict().items()}
             for _ in range(chunks):
                 seeds = [rng.randrange(1 << 30) for _ in range(per)]
-                jobs.append((sd_i, sd_j, seeds, args.eps, sugar))
+                jobs.append((sd_i, sd_j, seeds, args.eps, sugar,
+                             args.replay_losses))
                 meta.append(pi)
         results = pool.map(_wmatch, jobs)
         agg = {pi: [[], [], 0, 0] for pi in range(len(pairs))}
@@ -292,7 +334,8 @@ def main():
         print(f"[{args.run} rd {rd}] {games} games {rec['sec']}s | "
               + "  ".join(f"{k}:{v:.0f}" for k, v in board[:3]), flush=True)
         if rd % args.ruler_every == 0 or rd == args.rounds - 1:
-            leader = max(range(len(nets)), key=lambda i: elo[names[i]])
+            leader = max((i for i in range(len(nets)) if trainable[i]),
+                         key=lambda i: elo[names[i]])
             from .duel import Side, duel as run_duel
             wr = run_duel(Side("leader", "none", net=nets[leader]),
                           Side(args.ruler, "none"),
@@ -303,6 +346,13 @@ def main():
             for nm, nt in zip(names, nets):
                 torch.save({"model": nt.state_dict(), "round": rd,
                             "elo": elo[nm]}, run_dir / f"{nm}.pt")
+            torch.save({"nets": {nm: nt.state_dict()
+                                 for nm, nt in zip(names, nets)},
+                        "opts": {nm: op.state_dict()
+                                 for nm, op, tr in zip(names, opts, trainable)
+                                 if tr},
+                        "elo": elo, "banked": banked, "round": rd},
+                       state_path)
 
         if (args.select_every and rd > 0 and rd % args.select_every == 0):
             # NATURAL SELECTION: everyone takes the external exam; the two
