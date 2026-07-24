@@ -109,7 +109,11 @@ def _label_hand(g, h_idx, buf, labeled, sugar):
             if hn != hand_no:
                 keep.append((s, a, bt, bm, hn))
                 continue
-            bid_t = 1.0 if team_of(bid_winner) == team else 0.0
+            # sugar for GOOD behavior: an auction only counts if you
+            # won it AND delivered — raw auction-winning sugar bred a
+            # feral overbidding meta in season 1 (league-bid, ruler 18%)
+            bid_t = 1.0 if (team_of(bid_winner) == team
+                            and hs[team] > 0) else 0.0
             pts_t = max(0.0, hs[team]) / 120.0
             hand_t = max(-1.0, min(1.0, (hs[team] - hs[1 - team]) / 200.0))
             partial = (sugar["bid"] * bid_t + sugar["pts"] * pts_t
@@ -188,6 +192,11 @@ def main():
     ap.add_argument("--ruler-every", type=int, default=40,
                     help="rounds between external exams of the Elo leader")
     ap.add_argument("--ruler-pairs", type=int, default=50)
+    ap.add_argument("--anchor", default="models/gen13.pt",
+                    help="frozen non-training league member (gravity; NONE to disable)")
+    ap.add_argument("--select-every", type=int, default=150,
+                    help="rounds between selection events: all fighters take the ruler exam, bottom two are replaced by clones of the two best banked")
+    ap.add_argument("--select-pairs", type=int, default=30)
     ap.add_argument("--replay-losses", type=int, default=0,
                     help="v1.1 hook: post-mortem replays per round (off)")
     ap.add_argument("--seed", type=int, default=0)
@@ -202,6 +211,12 @@ def main():
 
     names = [Path(p).stem for p in args.agents]
     nets = [load_qnet(p) for p in args.agents]
+    trainable = [True] * len(nets)
+    if args.anchor and args.anchor != 'NONE':
+        names.append('anchor')
+        nets.append(load_qnet(args.anchor))
+        trainable.append(False)
+    banked = {}  # name -> (ruler_wr, state_dict) best ever
     opts = [torch.optim.Adam(n.parameters(), lr=args.lr) for n in nets]
     elo = {n: 1000.0 for n in names}
     ruler = load_qnet(args.ruler)
@@ -253,7 +268,7 @@ def main():
             elo[names[i]], elo[names[j]] = _elo_update(
                 elo[names[i]], elo[names[j]], wins_a / n)
             for idx, packs in ((i, packs_a), (j, packs_b)):
-                if not packs:
+                if not packs or not trainable[idx]:
                     continue
                 S = torch.from_numpy(np.concatenate([p2[0] for p2 in packs]))
                 A = torch.from_numpy(np.concatenate([p2[1] for p2 in packs]))
@@ -288,6 +303,44 @@ def main():
             for nm, nt in zip(names, nets):
                 torch.save({"model": nt.state_dict(), "round": rd,
                             "elo": elo[nm]}, run_dir / f"{nm}.pt")
+
+        if (args.select_every and rd > 0 and rd % args.select_every == 0):
+            # NATURAL SELECTION: everyone takes the external exam; the two
+            # worst are replaced by clones of the two best banked fighters
+            # (fresh optimizers). The anchor neither sits nor dies.
+            from .duel import Side, duel as run_duel
+            fitness = {}
+            for idx in range(len(nets)):
+                if not trainable[idx]:
+                    continue
+                wr = run_duel(Side(names[idx], "none", net=nets[idx]),
+                              Side(args.ruler, "none"), args.select_pairs,
+                              seed=rd * 31337 + idx, verbose=False)
+                fitness[idx] = wr
+                prev = banked.get(names[idx], (-1.0, None))[0]
+                if wr > prev:
+                    banked[names[idx]] = (
+                        wr, {k2: v.clone() for k2, v in
+                             nets[idx].state_dict().items()})
+            ranked = sorted(fitness, key=lambda i: fitness[i])
+            best_pool = sorted(banked.items(), key=lambda kv: -kv[1][0])[:2]
+            swaps = []
+            for slot, (src_name, (src_wr, src_sd)) in zip(ranked[:2],
+                                                          best_pool):
+                if src_sd is None or fitness[slot] >= src_wr:
+                    continue
+                nets[slot].load_state_dict(src_sd)
+                opts[slot] = torch.optim.Adam(nets[slot].parameters(),
+                                              lr=args.lr)
+                elo[names[slot]] = float(np.mean(list(elo.values())))
+                swaps.append(f"{names[slot]}<-{src_name}@{src_wr:.0%}")
+            rec["selection"] = {"fitness": {names[i]: round(w, 3)
+                                            for i, w in fitness.items()},
+                                "swaps": swaps}
+            print(f"  SELECTION: " + "  ".join(
+                f"{names[i]}={fitness[i]:.0%}" for i in ranked)
+                + ("  | swaps: " + ", ".join(swaps) if swaps else
+                   "  | no swaps"), flush=True)
         log(rec)
     pool.close()
 
