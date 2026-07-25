@@ -196,10 +196,44 @@ cloning of the champion stack.**
   guardsim endgame-bid battery, role-split audit, TS ship (engine.ts
   bid_history + encoder v4 + parity fixtures), formal minting.
 
-### The loop forward (gen22+)
-Wrap search+belief around the crowned gen21 → that stack becomes the new
-teacher (it starts from a Cosmo-parity reflex, so it should exceed the
-62.6% teacher) → regenerate raw corpus on the fleet → warm-start clone →
-examine. Riley's "world cup": league-style selection across cities can
-ride on top, seeded by mimic generations — with S5's exam fixes (seed
-salting, pooled verdicts, 1000-game promotion bars).
+### gen22 — THE DARWIN GYM (2026-07-25, branch alpharook12) — IN PROGRESS
+**Riley's design: evolution on top of gen21, fed a contested-deal
+curriculum.** The goal: a fighter that beats frozen gen21 60%+, then
+production. Three genuinely new ingredients vs the eight failed reflex
+attacks: (1) marathon training games (−1000..2000, luck compressed 4x);
+(2) the contested-deal curriculum — `contested.py` dithers gen21 (softmax
+temp 0.2, ~11% deviation) K=8 times per deal and scores contestability by
+swing spread + winner-flip rate; a third of deals are dither-proof
+(the true slam dunks) and get downweighted, attacking law 3's root cause
+(outcome noise from rows no decision could change) at the DATA level;
+(3) selection hygiene from S5 done right — banked-best cloning, salted
+held-out exams, so gradient churn gets culled instead of compounding.
+- **`evo.py`**: per city, 6 learners (born = gen21 byte-copies) + 2 frozen
+  gen21 anchor seats (Riley's rule; law 5/8 gravity). Elo matchmaking,
+  shaped sugar rows (S1's delivered-contracts rule), selection every 2h:
+  everyone sits the same salted exam (24 mirrored marathon pairs vs frozen
+  gen21 on held-out contested decks), bank bests, clone top-2 over
+  bottom-2, pedigree names (`B.c450.c1231`). Exams log Riley's skill-share
+  per contest tier (of skill-decided hands, the fighter's take — gen21's
+  own edge was 53-54%).
+- **Four cultures**: provo = Riley mix (15/35/50 calm/mid/contested),
+  orem = hard-contest (2/18/80), logan = hot (lr 1e-4, eps 0.12,
+  hand-heavy sugar), moab = **CONTROL on random decks** — if curation is
+  the active ingredient, moab must fall behind; that isolates the
+  variable law 3 says matters.
+- **`worldcup.py`** (hub, daily 14:30 UTC): round-robin of city champions
+  + frozen gen21 on salted held-out contested decks; ≥55% vs gen21
+  auto-triggers the random-deck promotion battery (150 sprint + 70
+  marathon pairs — curated skill must transfer to the true deal
+  distribution before anyone is crowned).
+- **Dashboard**: `scripts/evo_status.py` → http://5.78.115.122:8080/ —
+  goal bar, per-city sparklines, pedigrees, skill-shares, cup history.
+- Fleet: 4 boxes self-assemble via `scripts/evo_keeper.sh` (library build
+  ~1h → gym; nightly +12k-deal refill to 120k). mimic1-c stopped and
+  archived at its 50k-step checkpoint (graduated, parity with gen21 —
+  its verdict was already banked).
+
+### The other loop forward (gen23+, parked)
+Wrap search+belief around gen21 → new teacher (starts from Cosmo-parity,
+should exceed the 62.6% teacher) → regenerate raw corpus → warm-start
+clone → examine. If the Darwin gym plateaus, this is the proven channel.
