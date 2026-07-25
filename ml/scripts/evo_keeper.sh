@@ -11,7 +11,7 @@ cd /root/rook13/ml || exit 1
 mkdir -p runs/decks
 
 LIB=runs/decks/lib.jsonl
-LINES=$(wc -l < "$LIB" 2>/dev/null || echo 0)
+LINES=$({ wc -l < "$LIB"; } 2>/dev/null || echo 0)
 if [ "$LINES" -lt 24000 ]; then
   pgrep -f "alpharook.contested" > /dev/null && exit 0
   nohup $PY -m alpharook.contested --net models/gen21-cand1.pt \

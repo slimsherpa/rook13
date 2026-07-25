@@ -8,7 +8,7 @@ B=__BOX__
 PY=/root/torch-env/bin/python
 cd /root/rook13/ml || exit 1
 LIB=runs/decks/lib.jsonl
-LINES=$(wc -l < "$LIB" 2>/dev/null || echo 0)
+LINES=$({ wc -l < "$LIB"; } 2>/dev/null || echo 0)
 [ "$LINES" -lt 24000 ] && exit 0          # initial build still owns it
 [ "$LINES" -ge 120000 ] && exit 0
 pgrep -f "alpharook.contested" > /dev/null && exit 0
