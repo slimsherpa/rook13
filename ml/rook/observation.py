@@ -25,6 +25,7 @@ class Observation:
 
     # auction (fully public)
     bids: list[int | None]          # per seat: None silent, PASS, or value
+    bid_history: list[tuple[int, int]]  # transcript in table order: (seat, bid|PASS)
     high_bid: int | None
     bid_winner: int | None
     trump: int | None
@@ -50,6 +51,7 @@ def observe(g: Game, seat: int) -> Observation:
         hand_number=g.hand_number,
         dealer=g.dealer,
         bids=list(g.bids),
+        bid_history=list(g.bid_history),
         high_bid=g.high_bid,
         bid_winner=g.bid_winner,
         trump=g.trump,
