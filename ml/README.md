@@ -5,6 +5,9 @@ on **full games** (−250 → 500), making *every* decision — bids, all four
 go-down discards, trump, and card play. The browser app never runs this code;
 a finished brain ships later via ONNX. Nothing here touches Firebase.
 
+**The full generation-by-generation ledger — recipes, results, failures,
+and the laws they earned — lives in [GENERATIONS.md](GENERATIONS.md).**
+
 ## Layout
 
 ```
