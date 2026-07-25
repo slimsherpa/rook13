@@ -13,7 +13,7 @@ mkdir -p runs/decks
 LIB=runs/decks/lib.jsonl
 LINES=$({ wc -l < "$LIB"; } 2>/dev/null || echo 0)
 if [ "$LINES" -lt 24000 ]; then
-  pgrep -f "alpharook.contested" > /dev/null && exit 0
+  pgrep -f "alpharook.[c]ontested" > /dev/null && exit 0
   nohup $PY -m alpharook.contested --net models/gen21-cand1.pt \
     --out "$LIB" --deals 24000 --k 8 --temp 0.2 \
     --seed-base $(( B * 10000000 )) --workers 7 \
@@ -21,7 +21,7 @@ if [ "$LINES" -lt 24000 ]; then
   exit 0
 fi
 
-pgrep -f "alpharook.evo" > /dev/null && exit 0
+pgrep -f "alpharook.[e]vo " > /dev/null && exit 0
 case $B in
   1) ARGS="--run evo-provo --city provo --tier-weights 0.15,0.35,0.50" ;;
   2) ARGS="--run evo-orem  --city orem  --tier-weights 0.02,0.18,0.80" ;;
