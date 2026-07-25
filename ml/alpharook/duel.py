@@ -169,7 +169,16 @@ def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
         stats[side_idx]["made"] += 0 if h[6] else 1
         stats[side_idx]["bid_sum"] += h[2]
     game = dict(a=int(s[team_of_side0]), b=int(s[1 - team_of_side0]),
-                hands=len(env.g.hand_history))
+                hands=len(env.g.hand_history),
+                # per-hand: [bidder_side (0=A), bid, made, score diff for A].
+                # Hand k in both games of a pair = the SAME deal (redeals
+                # consume deck indices identically), so pairing consecutive
+                # dump lines aligns hands card-for-card.
+                hh=[[0 if team_of(h[1]) == team_of_side0 else 1, h[2],
+                     0 if h[6] else 1,
+                     int(h[4] - h[5]) if team_of_side0 == 0
+                     else int(h[5] - h[4])]
+                    for h in env.g.hand_history])
     return winner_side, diff0, stats, game
 
 
