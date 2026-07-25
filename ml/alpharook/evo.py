@@ -413,15 +413,20 @@ def main():
             break
         t0 = time.time()
 
-        # matchmaking: Elo-adjacent pairs, never anchor-vs-anchor
-        while True:
-            order = sorted(range(len(nets)),
-                           key=lambda i: elo[names[i]] + rng.gauss(0, 60))
-            pairs = [(order[k], order[k + 1])
-                     for k in range(0, len(order) - 1, 2)]
-            if not any(not trainable[i] and not trainable[j]
-                       for i, j in pairs):
-                break
+        # matchmaking: Elo-adjacent pairs, never anchor-vs-anchor.
+        # Separation must be DETERMINISTIC: once the two frozen anchors'
+        # Elo runs a few hundred points clear of the field (they never
+        # explore, so they farm the eps-noised learners), no amount of
+        # shuffle noise puts a learner between them — a retry-until loop
+        # here spun forever and froze all four cities at round ~100.
+        order = sorted(range(len(nets)),
+                       key=lambda i: elo[names[i]] + rng.gauss(0, 60))
+        for k in range(0, len(order) - 1, 2):
+            if not trainable[order[k]] and not trainable[order[k + 1]]:
+                m = k + 2 if k + 2 < len(order) else k - 1
+                order[k + 1], order[m] = order[m], order[k + 1]
+        pairs = [(order[k], order[k + 1])
+                 for k in range(0, len(order) - 1, 2)]
 
         chunks = max(1, (args.workers + len(pairs) - 1) // len(pairs))
         per = max(1, args.match_pairs // chunks + (args.match_pairs % chunks > 0))
@@ -586,8 +591,8 @@ def main():
         log(rec)
         if rd % 25 == 0:
             write_status(rd, sec)
-        if rd % 200 == 0 and rd > start_round:
-            save_state(rd)
+        if rd % 100 == 0 and rd > start_round:
+            save_state(rd)  # the hang cost 100 unsaved rounds; save oftener
     pool.close()
 
 
