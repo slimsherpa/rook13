@@ -168,7 +168,18 @@ def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
         stats[side_idx]["contracts"] += 1
         stats[side_idx]["made"] += 0 if h[6] else 1
         stats[side_idx]["bid_sum"] += h[2]
-    return winner_side, diff0, stats
+    game = dict(a=int(s[team_of_side0]), b=int(s[1 - team_of_side0]),
+                hands=len(env.g.hand_history),
+                # per-hand: [bidder_side (0=A), bid, made, score diff for A].
+                # Hand k in both games of a pair = the SAME deal (redeals
+                # consume deck indices identically), so pairing consecutive
+                # dump lines aligns hands card-for-card.
+                hh=[[0 if team_of(h[1]) == team_of_side0 else 1, h[2],
+                     0 if h[6] else 1,
+                     int(h[4] - h[5]) if team_of_side0 == 0
+                     else int(h[5] - h[4])]
+                    for h in env.g.hand_history])
+    return winner_side, diff0, stats, game
 
 
 def _play_pair(side_a: Side, side_b: Side, pair_seed: int,
@@ -196,7 +207,8 @@ def _worker_pair(pair_seed: int):
 
 def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
          verbose: bool = True, win_score: int = 500, lose_score: int = -250,
-         workers: int = 1, side_args: tuple | None = None):
+         workers: int = 1, side_args: tuple | None = None,
+         dump_path: str | None = None):
     """side_args = (a_ctor_args, b_ctor_args) enables workers > 1: live-net
     Sides can't cross process boundaries, so workers rebuild them from specs."""
     a_wins = b_wins = sweeps_a = sweeps_b = 0
@@ -219,11 +231,21 @@ def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
             for ps in pair_seeds:
                 yield _play_pair(side_a, side_b, ps, win_score, lose_score)
 
+    dump_f = open(dump_path, "a") if dump_path else None
     for p, pair in enumerate(pair_stream()):
         results = []
-        for w, d, st in pair:
+        for w, d, st, gm in pair:
             results.append(w)
             diffs.append(d)
+            if dump_f is not None:
+                import json as _json
+                rec = dict(gm, w=int(w),
+                           a_contracts=st[0]["contracts"],
+                           a_made=st[0]["made"], a_bids=st[0]["bid_sum"],
+                           b_contracts=st[1]["contracts"],
+                           b_made=st[1]["made"], b_bids=st[1]["bid_sum"])
+                dump_f.write(_json.dumps(rec) + "\n")
+                dump_f.flush()
             for i in (0, 1):
                 for k in auct[i]:
                     auct[i][k] += st[i][k]
@@ -313,6 +335,10 @@ def main():
     ap.add_argument("--plan-lines-b", type=int, default=0)
     ap.add_argument("--workers", type=int, default=1,
                     help="parallel pair-playing processes (search is slow)")
+    ap.add_argument("--dump", default=None,
+                    help="JSONL path: one line per game (final scores, "
+                         "hands, per-side contracts/made/bids) for "
+                         "gauntlet-style stat tables")
     args = ap.parse_args()
     lose = args.lose_score if args.lose_score is not None else -args.win_score // 2
     a_args = (args.a, args.script_a, None, args.worlds_a, args.search_a,
@@ -325,7 +351,8 @@ def main():
               args.fork_width_b, args.plan_lines_b)
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
-         workers=args.workers, side_args=(a_args, b_args))
+         workers=args.workers, side_args=(a_args, b_args),
+         dump_path=args.dump)
 
 
 if __name__ == "__main__":

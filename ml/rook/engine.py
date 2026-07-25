@@ -58,7 +58,7 @@ class Game:
     __slots__ = (
         "phase", "hand_number", "dealer", "turn",
         "hands", "widow", "go_down",
-        "bids", "high_bid", "bid_winner", "trump",
+        "bids", "bid_history", "high_bid", "bid_winner", "trump",
         "trick_plays", "trick_leader", "completed_tricks",
         "tricks_won", "points_taken", "scores",
         "hand_history", "redeal_seat", "redeal_count", "winner",
@@ -79,6 +79,10 @@ class Game:
         self.widow: list[int] = []
         self.go_down: list[int] = []
         self.bids: list[int | None] = [None, None, None, None]  # None=silent, PASS, or value
+        # full auction transcript for THIS hand, in table order: (seat, bid
+        # value or PASS). What a human at the table remembers — standing
+        # bids alone lose raise sequences ("partner opened 75 then jumped").
+        self.bid_history: list[tuple[int, int]] = []
         self.high_bid: int | None = None
         self.bid_winner: int | None = None
         self.trump: int | None = None
@@ -139,6 +143,7 @@ class Game:
 
     def _reset_hand_state(self) -> None:
         self.bids = [None, None, None, None]
+        self.bid_history = []
         self.high_bid = None
         self.bid_winner = None
         self.trump = None
@@ -173,6 +178,7 @@ class Game:
         else:
             assert not self.must_bid()
         self.bids[seat] = bid
+        self.bid_history.append((seat, bid))
         if bid != PASS:
             self.high_bid = bid
 

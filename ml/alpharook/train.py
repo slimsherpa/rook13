@@ -72,6 +72,20 @@ def main():
                          "net opponent")
     ap.add_argument("--bid-eps", type=float, default=0.15,
                     help="exploration floor for bid decisions (see selfplay.py)")
+    # ---- gen19 expert iteration (see expert.py) ----
+    ap.add_argument("--search-workers", type=int, default=0,
+                    help="how many of --workers run expert-iteration games "
+                         "(card play through the champion search stack)")
+    ap.add_argument("--search-rows-frac", type=float, default=0.25,
+                    help="fraction of each batch drawn from search workers; "
+                         "the reflex majority is the calibration anchor")
+    ap.add_argument("--search-worlds", type=int, default=12)
+    ap.add_argument("--search-min-trick", type=int, default=3)
+    ap.add_argument("--search-prior", type=float, default=2.0)
+    ap.add_argument("--search-belief", default=None,
+                    help="gen15+ checkpoint whose belief head guides the "
+                         "expert's imagined worlds (the champion-stack organ)")
+    ap.add_argument("--search-belief-temp", type=float, default=0.5)
     ap.add_argument("--script", default="openings",
                     choices=["openings", "godown", "bid", "none"],
                     help="curriculum stage: which decisions the family "
@@ -140,6 +154,16 @@ def main():
 
     script_dtypes = SCRIPT_MODES[args.script]
     opp_script = SCRIPT_MODES[args.opponent_script]
+    if args.search_workers:
+        assert args.workers > args.search_workers, \
+            "expert iteration needs the worker pool (--workers > --search-workers)"
+    search_cfg = None
+    if args.search_workers:
+        search_cfg = dict(worlds=args.search_worlds,
+                          min_trick=args.search_min_trick,
+                          prior=args.search_prior,
+                          belief_ckpt=args.search_belief,
+                          belief_temp=args.search_belief_temp)
     pool = None
     if args.workers > 0:
         pool = WorkerPool(args.workers, args.envs,
@@ -148,10 +172,17 @@ def main():
                           opponent_style=args.opponent_style,
                           bid_eps=args.bid_eps, script_dtypes=script_dtypes,
                           opponent_ckpt=args.opponent_ckpt,
-                          opponent_script=opp_script)
+                          opponent_script=opp_script,
+                          search_workers=args.search_workers,
+                          search_cfg=search_cfg,
+                          search_rows_frac=args.search_rows_frac)
         print(f"self-play across {args.workers} worker processes"
               + (f", champion opponent {args.opponent_ckpt}"
-                 if args.opponent_ckpt else ""))
+                 if args.opponent_ckpt else "")
+              + (f", {args.search_workers} expert-search workers "
+                 f"(K{args.search_worlds} t>={args.search_min_trick}, "
+                 f"belief {args.search_belief}@{args.search_belief_temp:g})"
+                 if args.search_workers else ""))
     else:
         vec = VecSelfPlay(args.envs, seed=args.seed * 7919 + start_iter,
                           opponent_mix=args.opponent_mix,
@@ -280,6 +311,8 @@ def main():
             "sec_collect": round(t_collect, 1), "sec_total": round(t_total, 1),
             "games_total": games_done,
         }
+        if stats.get("search_games"):
+            rec["search_games"] = stats["search_games"]
         if has_belief:
             with torch.no_grad():
                 net.eval()

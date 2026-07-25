@@ -5,6 +5,9 @@ on **full games** (−250 → 500), making *every* decision — bids, all four
 go-down discards, trump, and card play. The browser app never runs this code;
 a finished brain ships later via ONNX. Nothing here touches Firebase.
 
+**The full generation-by-generation ledger — recipes, results, failures,
+and the laws they earned — lives in [GENERATIONS.md](GENERATIONS.md).**
+
 ## Layout
 
 ```
@@ -274,11 +277,108 @@ what is provably identical to the arena champion.
   from different seeds keeping the max hole, and/or a fresh weaker init
   free to specialize. Logs: history/gen17x1.log.jsonl.gz +
   gen16-duels/duel10-11.
-- **gen18 — legible partnership.** Hanabi-style: reward plays that make
+- **gen18 — the scale rung (Riley's "10M more games" ask, 2026-07-16,
+  branch alpharook09).** LAUNCHED on the Hetzner CCX33. The reflex net is
+  the documented bottleneck (ladder margins 63→57.5→55; gen15's 2.75M was
+  confounded by the belief multitask + drift) — so this rung finally gives
+  a bigger net the full-scale treatment: Net2Wider ×2 of gen13
+  (`surgery --widen 2 --no-belief-head`, 2.15M params, pure Q — gen15's
+  organ keeps belief duty at search time). Function preservation verified
+  the on-manifold way: a 12-pair duel vs the donor scored 50.0% with ALL
+  pairs split and byte-identical auction stats. Recipe = the proven
+  ladder: --script none, opponent-mix 0.5 (self-play anchor; gen17x1's
+  mix-1.0 pacifism is why), frozen gen13 as the mixed opponent, eps
+  0.15→0.03. Day-one lr bake-off (converged-champion fine-tuning is the
+  four-strike failure zone): gen18a = 5e-5 (the only rate that ever
+  climbed from a champion init) vs gen18b = 1e-4 (widened twins may need
+  the push to diverge); pick by ≥100-pair duels, kill the loser, winner
+  resumes with --workers 7. Throughput measured at launch: ~44 games/8s
+  per arm (~450k games/day/arm; ~1M/day at full box) — 10M games ≈ 12
+  days. Promotion gate: beat gen13 reflex head-to-head, then
+  gen18×search(K24,t≥3)×belief(gen15@0.5) must beat the gen16 champion
+  stack — 150 sprint pairs + 70 marathon pairs, fresh seeds. Launch:
+  `ml/scripts/gen18_launch.sh`. NOT tried here (next levers if parity):
+  reanalyze-style search targets inside the on-policy loop, exploiter
+  league v2 with self-play anchoring.
+  DAY-1 OUTCOME (2026-07-17): bake-off decided — gen18b (1e-4) never
+  recovered (35-42%), killed; gen18a (5e-5) confirmed at 100 pairs:
+  latest 47.0%, best_duel 46.0% (the in-run 61.7% bank = banking
+  mirage, FOURTH sighting; in-run compass now 50 pairs). Twin
+  differentiation real (L1 cos 1.000000→0.9971, 6.6% relative
+  divergence) but no strength slope through 400k games. PAUSED, not
+  scrapped — checkpoints resumable in runs/gen18a/, log archived
+  history/gen18a.log.jsonl.gz — superseded by gen19 (the family's
+  actual complaint is sharpness, and expert iteration attacks it
+  directly; capacity can be re-tested later with the widened student).
+- **gen19 — expert iteration / "deal mastery" (2026-07-18, branch
+  alpharook10). LAUNCHED on the CCX33.** Riley's design, from family
+  playtesting: "play the hand 100x, temp high then low, hone in on the
+  winning line — there likely IS a winning sequence per deal." That is
+  expert iteration (AlphaZero's loop), and it is precisely the
+  "corrections must ride INSIDE the on-policy loop" lever the
+  four-strike law pointed at. Implementation (`alpharook/expert.py`):
+  SearchSelfPlay = self-play games where the learner's card play goes
+  through the champion search stack (PIMC K12, endgame gate t>=3,
+  Q-prior 2, belief-guided worlds from gen15 @ temp 0.5) while bids
+  keep the guided bid-eps floor (never searched — winner's curse).
+  Rows are UNCHANGED vanilla-DMC (state, action, blended outcome):
+  improvement enters through better trajectories, not altered labels,
+  so the calibration-corruption failure mode has no purchase. Pool
+  mixes 2 search workers with 5 reflex workers (--search-rows-frac
+  0.15: the reflex firehose is the calibration anchor, the expert
+  slice the improvement pressure; the round waits for the slowest
+  worker, so the frac is the wall-time tuning knob). Student = fresh
+  gen13; opponent = frozen gen13 at mix 0.5; lr 5e-5. Gauges: 50-pair
+  duel banking vs gen13, gen14 audit (preventable blunders/hand,
+  especially tricks 1-4 where 75% live), and at promotion the full
+  house protocol vs the gen16 stack. Family-visible target: the
+  "sometimes not sharp" complaint — buried go-down winners, chaotic
+  trump-ins.
+  DAY-3 OUTCOME (2026-07-20): HONEST NEGATIVE at this shape. 370k games
+  across 10% then 15% expert dose: mix_win 30.0-31.6% vs the control
+  plateau's 29.5% (a +1.5pt whisper), banks noisy 38-60%, and the
+  100-pair confirm of latest said **45.0%** (sweeps 11-21, bid-passive
+  fingerprint again: 1066 vs 1342 auctions). Log archived
+  history/gen19.log.jsonl.gz. THE PATTERN IS NOW THE FINDING — six
+  attacks on gen13's reflex (gen12 x2, gen14 x2, gen17, gen18, gen19),
+  six non-rungs, all sharing the churn-then-recover-to-parity shape:
+  warm-start DMC degrades the converged function faster than any
+  treatment tried so far improves it.
+  FINAL SHOT — gen19b (2026-07-20): the one untested region is EARLY
+  TRICKS — every attempt ever (incl. gen12's distill corpus) gated
+  search at t>=3, yet 75% of preventable blunders and all the family's
+  "partner led wrong" complaints live in tricks 1-4. gen19b = fresh
+  gen13 student, expert search min-trick 0 (as a player t0 still beats
+  reflex: 54.3%), eps-start 0.05 (near-floor: stop churning what we're
+  polishing; guided bid-eps 0.15 stays as pacifism insurance). KILL
+  CRITERION: 48h, 100-pair confirm >= 52% or the reflex-improvement
+  line CLOSES PERMANENTLY and the box pivots to the stack: browser
+  search gate (t>=5 -> t>=3/4, family-visible sharpness today),
+  bid-conditioned early beliefs (the gen16 notes' named next lever),
+  and gen20 legible partnership (David's requirements doc).
+  VERDICT (2026-07-22): **LINE CLOSED.** 153k games; final banks slid
+  37-44%; candidate.pt (iter 3599) read **52.0%** at 100 pairs (+47.4,
+  sweeps 20-16, with a genuinely new selective-bidding signature: 1127
+  auctions won vs 1368, made 66% vs 61%) — then the house battery
+  ruled: fresh-seed 150-pair sprint **50.0%** (sweeps 28-28, -1.6),
+  marathon 70 pairs **46.4%** (-81.1, sweeps 11-16). The 52% was the
+  BANKING MIRAGE, FIFTH SIGHTING; the marathon stays undefeated as the
+  truth-teller. Eight warm-start attacks on gen13's reflex (gen12 x2,
+  gen14 x2, gen17, gen18, gen19, gen19b), eight non-rungs, one shared
+  shape: DMC outcome-regression churns a converged champion faster
+  than any added signal re-sharpens it — gen19b proved the churn
+  isn't epsilon (near-floor eps still dipped to 42%), it's the
+  regression noise itself. gen13's reflex stands as the final reflex
+  of this era. All logs archived (history/gen19b.log.jsonl.gz).
+  Riley's early-trick thesis stays OPEN — it fails only through this
+  training channel; the pivot carries it forward through denser
+  signal: early beliefs, partner legibility, and the family's
+  blunder-report flywheel (shipped to prod 2026-07-19).
+- **gen20 — legible partnership.** Hanabi-style: reward plays that make
   PARTNER's belief head more accurate — conventions emerge (its own
   dialect); possibly a sequence model so intentions persist across
   tricks. Gauge: pairs that signal beat pairs that don't.
-- **gen19 — the human bridge.** Point the gen14 engine at the family's
+- **gen21 — the human bridge.** Point the gen14 engine at the family's
   real Firestore games continuously; fine-tune against the lines humans
   actually punish; the JAY CUP becomes the official benchmark. Gauge: the
   family stops winning.
