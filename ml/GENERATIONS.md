@@ -179,14 +179,16 @@ cloning of the champion stack.**
   after 8 failed attempts and ~24M games. Gauntlet at 2500 games/matchup:
   54.7% sprint / **68.9% marathon (−2500..5000)** vs Puma; **parity with
   the PRODUCTION search stacks in sprints** (49.1% Cougar, 48.8% Cosmo)
-  — a reflex as strong as the K8 searchers; search-marathons pending
-  (trending 44–46%: the stacks' true edge compounds in the grind, so the
-  stack line stays ahead until gen21×search is examined).
+  — a reflex as strong as the K8 searchers; search-marathons FINAL:
+  44.5%±2.4 Cougar / 46.5%±3.0 Cosmo — the stacks' true edge compounds
+  in the grind, so the stack line stays ahead until gen21×search is
+  examined. Full table + raw dumps: history/gen21-gauntlet/.
 - **Hand-pair decomposition** (Riley's luck-vs-skill question, sprint vs
   Puma, 12,465 aligned mirrored hands): 73.7% cards-decided, 26.3%
   skill-decided, gen21 takes 53.4%±1.7% of the skill hands at +114 pts
-  avg swing — the small per-hand edge that compounds into 55% sprints
-  and 69% marathons.
+  avg swing; marathon replication over 206,103 hand-pairs: 74.3% cards,
+  54.3%±0.4% of skill hands, +116 — the small per-hand edge that
+  compounds into 55% sprints and 69% marathons, measured to ±0.4%.
 - **mimic1-c** (widen×2-then-graft, 2.17M): same recipe, better quiz
   (92.7% bid / 28.3% ovr at 50k), same strength (54.9%/1000) — the
   graduation replicates across architectures. Still training.
