@@ -79,14 +79,26 @@ def play_one_hand(net, deal_seed: int, temp: float, rng):
     """Play a single hand (all four seats = net, dithered). Returns
     (team0_swing, n_decisions, n_deviations) or None on engine redeal."""
     from .env import SelfPlayGame
-    deck = deal_deck(deal_seed)
+    deck0 = deal_deck(deal_seed)
+
+    def deck_fn(i: int):
+        if i == 0:
+            return deck0
+        # escape hatch: is_redeal_hand fires AT DEAL TIME, and re-serving
+        # the identical deck would spin _advance forever (froze the first
+        # fleet build at deal ~1-in-6k). Any different deck frees the
+        # engine; deal_count > 1 below then flags the deal as a skip.
+        d = list(deck0)
+        random.Random(deal_seed ^ (i * 0x9E3779B1)).shuffle(d)
+        return d
+
     env = SelfPlayGame(seed=deal_seed, dealer=deal_seed % 4,
-                       deck_fn=lambda i: deck,
+                       deck_fn=deck_fn,
                        win_score=10 ** 9, lose_score=-10 ** 9)
     dec = dev = 0
     while not env.done and not env.g.hand_history:
         if env.deal_count > 1:
-            return None  # engine redeal: same deck would loop; skip the deal
+            return None  # engine redeal fired: not a scorable library deal
         seat, dtype, cands = env.decision()
         j, d = dither_pick(net, env, seat, dtype, cands, temp, rng)
         dec += 1
