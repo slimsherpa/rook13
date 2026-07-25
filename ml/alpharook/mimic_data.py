@@ -26,7 +26,8 @@ import torch
 
 from rook.observation import observe
 from .duel import deck_stream
-from .encoder import STATE_DIM_V4, ACTION_DIM, encode_state_v4, encode_action
+from .encoder import (STATE_DIM_V4, ACTION_DIM, D_PLAY,
+                      encode_state_v4, encode_action)
 from .env import SelfPlayGame
 
 VAL_MOD = 50           # 2% of games held out, by seed
@@ -61,7 +62,11 @@ def rows_from_record(rec: dict, reflex_keep: float, rng: random.Random,
         assert s2 == seat and d2 == dtype, f"replay divergence in seed {seed}"
         if len(cands) > 1:
             kind = 2 if (srch and action != reflex) else (1 if srch else 0)
-            if kind > 0 or rng.random() < reflex_keep:
+            # reflex subsampling applies ONLY to card plays: auction/widow/
+            # trump rows are few, never searched, and load-bearing — the
+            # mimic1-a probe duel showed under-trained bidding compounds
+            # into a feral auction meta (2290 contracts vs gen13's 1461)
+            if kind > 0 or dtype != D_PLAY or rng.random() < reflex_keep:
                 state = encode_state_v4(observe(env.g, seat), env.picks,
                                         dtype, env.g, env.trump_intent)
                 yield (state, dtype, list(cands), cands.index(action),
@@ -71,7 +76,7 @@ def rows_from_record(rec: dict, reflex_keep: float, rng: random.Random,
 
 def pack_batch(rows):
     """rows -> padded tensors: S (B,530), A (B,C,50), mask (B,C), target (B),
-    weight (B), kind (B)."""
+    weight (B), kind (B), dtype (B)."""
     B = len(rows)
     S = np.zeros((B, STATE_DIM_V4), dtype=np.float32)
     A = np.zeros((B, MAX_CANDS, ACTION_DIM), dtype=np.float32)
@@ -79,15 +84,17 @@ def pack_batch(rows):
     tgt = np.zeros(B, dtype=np.int64)
     wgt = np.zeros(B, dtype=np.float32)
     kind = np.zeros(B, dtype=np.int64)
+    dts = np.zeros(B, dtype=np.int64)
     for i, (state, dtype, cands, chosen, w, k) in enumerate(rows):
         S[i] = state
         for j, a in enumerate(cands):
             A[i, j] = encode_action(dtype, a)
             mask[i, j] = True
-        tgt[i], wgt[i], kind[i] = chosen, w, k
+        tgt[i], wgt[i], kind[i], dts[i] = chosen, w, k, dtype
     return (torch.from_numpy(S), torch.from_numpy(A),
             torch.from_numpy(mask), torch.from_numpy(tgt),
-            torch.from_numpy(wgt), torch.from_numpy(kind))
+            torch.from_numpy(wgt), torch.from_numpy(kind),
+            torch.from_numpy(dts))
 
 
 class MimicStream(torch.utils.data.IterableDataset):

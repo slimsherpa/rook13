@@ -66,6 +66,37 @@ def graft_dealer(donor_path: str) -> "QNet":
     return net
 
 
+def graft_v4(donor_path: str) -> "QNet":
+    """v2 or v3 -> v4 (the mimic student's warm start): append zero-init
+    input columns up to STATE_DIM_V4 (dealer + auction-transcript senses),
+    action block shifted to the end. Function-preserving: the grafted net
+    computes the donor's exact Q until training uses the new senses —
+    gen13's birth maneuver, applied so the student starts with the
+    champion's entire game instead of learning Rook from scratch."""
+    import torch as _t
+    from .encoder import (STATE_DIM_V2, STATE_DIM_V3, STATE_DIM_V4,
+                          ACTION_DIM)
+    from .model import QNet
+    ck = _t.load(donor_path, map_location="cpu", weights_only=True)
+    sd = dict(ck["model"] if "model" in ck else ck)
+    sd = {k: v for k, v in sd.items() if not k.startswith("belief_head")}
+    w0 = sd["net.0.weight"]
+    d = w0.shape[1] - ACTION_DIM
+    assert d in (STATE_DIM_V2, STATE_DIM_V3), \
+        f"donor is not a v2/v3 net (state dim {d})"
+    out_dim = w0.shape[0]
+    new_w0 = _t.zeros(out_dim, STATE_DIM_V4 + ACTION_DIM)
+    new_w0[:, :d] = w0[:, :d]
+    new_w0[:, STATE_DIM_V4:] = w0[:, d:]
+    sd["net.0.weight"] = new_w0
+    net = QNet(hidden=tuple(sd[k].shape[0] for k in
+                            ("net.0.weight", "net.2.weight", "net.4.weight")),
+               state_dim=STATE_DIM_V4)
+    net.load_state_dict(sd)
+    net.eval()
+    return net
+
+
 def widen(donor_path: str, factor: int = 2, noise: float = 1e-4,
           belief: bool = True) -> "QNet":
     """Net2WiderNet (gen15): grow every hidden layer by `factor` while
@@ -109,12 +140,18 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--dealer", action="store_true",
                     help="v2 -> v3 dealer-position graft (zero-init)")
+    ap.add_argument("--v4", action="store_true",
+                    help="v2/v3 -> v4 graft (dealer + auction transcript, "
+                         "zero-init): the mimic student's warm start")
     ap.add_argument("--widen", type=int, default=0,
                     help="Net2Wider factor (gen15); 0 = the gen13-style "
                          "belief-input graft instead")
     ap.add_argument("--no-belief-head", action="store_true")
     args = ap.parse_args()
-    if args.dealer:
+    if args.v4:
+        net = graft_v4(args.donor)
+        what = "v4 graft (dealer + auction senses, zero-init)"
+    elif args.dealer:
         net = graft_dealer(args.donor)
         what = "dealer graft v2 -> v3"
     elif args.widen:

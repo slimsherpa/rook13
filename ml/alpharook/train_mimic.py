@@ -38,10 +38,13 @@ def masked_logits(net, S, A, mask):
 
 @torch.no_grad()
 def evaluate(net, val, batch: int = 2048):
-    S, A, mask, tgt, _w, kind = val
+    from .encoder import D_BID, D_DISCARD, D_TRUMP, D_PLAY
+    S, A, mask, tgt, _w, kind, dts = val
     net.eval()
     hits = torch.zeros(3)
     counts = torch.zeros(3)
+    dt_hits = {d: 0 for d in (D_BID, D_DISCARD, D_TRUMP, D_PLAY)}
+    dt_counts = {d: 0 for d in (D_BID, D_DISCARD, D_TRUMP, D_PLAY)}
     loss_sum, n = 0.0, 0
     for i in range(0, len(S), batch):
         sl = slice(i, i + batch)
@@ -54,10 +57,18 @@ def evaluate(net, val, batch: int = 2048):
             m = kind[sl] == k
             counts[k] += m.sum()
             hits[k] += (pred[m] == tgt[sl][m]).sum()
+        for d in dt_hits:
+            m = dts[sl] == d
+            dt_counts[d] += int(m.sum())
+            dt_hits[d] += int((pred[m] == tgt[sl][m]).sum())
     net.train()
     match = {f"match_{nm}": round((hits[k] / counts[k]).item(), 4)
              for k, nm in ((0, "reflex"), (1, "srch_agree"), (2, "ovr"))
              if counts[k] > 0}
+    dt_names = {D_BID: "bid", D_DISCARD: "discard", D_TRUMP: "trump",
+                D_PLAY: "play"}
+    match.update({f"match_{dt_names[d]}": round(dt_hits[d] / dt_counts[d], 4)
+                  for d in dt_hits if dt_counts[d]})
     all_hit = hits.sum() / counts.sum()
     return dict(val_loss=round(loss_sum / n, 4),
                 match_all=round(all_hit.item(), 4), **match,
@@ -118,7 +129,7 @@ def main() -> None:
 
     best_ovr, t0, seen = -1.0, time.time(), 0
     log = open(run_dir / "log.jsonl", "a")
-    for step, (S, A, mask, tgt, wgt, _kind) in enumerate(loader):
+    for step, (S, A, mask, tgt, wgt, _kind, _dts) in enumerate(loader):
         if step >= args.steps:
             break
         logits = masked_logits(net, S, A, mask)
@@ -140,7 +151,9 @@ def main() -> None:
             log.flush()
             print(f"[{args.run} step {step}] loss {m['train_loss']} "
                   f"val {m['val_loss']} | match all {m['match_all']:.1%} "
-                  f"ovr {m.get('match_ovr', 0):.1%} | "
+                  f"ovr {m.get('match_ovr', 0):.1%} "
+                  f"bid {m.get('match_bid', 0):.1%} "
+                  f"play {m.get('match_play', 0):.1%} | "
                   f"{m['rows_per_sec']:.0f} rows/s", flush=True)
             torch.save({"model": net.state_dict(), "step": step,
                         "metrics": m}, run_dir / "latest.pt")

@@ -89,6 +89,36 @@ def test_encoder_v4_blind_to_hidden_cards():
     assert checked > 250
 
 
+def test_graft_v4_function_preserving():
+    """gen13 grafted into the v4 shell must compute the identical Q on real
+    decisions — the new sense columns are zero, so v4's extra features
+    cannot contribute until training turns them on."""
+    import torch
+    from alpharook.surgery import graft_v4
+    from alpharook.model import load_qnet
+    from alpharook.encoder import encode_state_v2, encode_action
+
+    donor = load_qnet("models/gen13.pt")
+    grafted = graft_v4("models/gen13.pt")
+    env = SelfPlayGame(seed=99)
+    rng = random.Random(3)
+    checked = 0
+    with torch.no_grad():
+        while not env.done and checked < 60:
+            seat, dtype, cands = env.decision()
+            o = observe(env.g, seat)
+            s2 = encode_state_v2(o, env.picks, dtype, env.g, env.trump_intent)
+            s4 = encode_state_v4(o, env.picks, dtype, env.g, env.trump_intent)
+            A = torch.from_numpy(
+                np.stack([encode_action(dtype, a) for a in cands]))
+            q2 = donor(torch.from_numpy(np.stack([s2] * len(cands))), A)
+            q4 = grafted(torch.from_numpy(np.stack([s4] * len(cands))), A)
+            assert torch.allclose(q2, q4, atol=1e-6), "graft changed the function"
+            env.apply(rng.choice(cands))
+            checked += 1
+    assert checked >= 60
+
+
 def test_raw_record_replay_contract():
     """gen_mimic's storage contract: (seed, start, actions) reproduces the
     game bit-identically — including the bid_history the miller relies on."""
