@@ -273,10 +273,10 @@ def main():
     ap.add_argument("--epochs", type=int, default=2)
     ap.add_argument("--workers", type=int, default=7)
     ap.add_argument("--select-every-min", type=float, default=120.0)
-    ap.add_argument("--select-pairs", type=int, default=24,
-                    help="exam pairs per learner per selection (marathon + "
-                         "contested decks ≈ several hundred random sprint "
-                         "games of signal)")
+    ap.add_argument("--select-pairs", type=int, default=50,
+                    help="exam pairs per learner per selection — 100 marathon "
+                         "games (~5700 hands) on contested decks; SE ~5pp, "
+                         "and exams cost ~seconds (0.4s/game measured)")
     ap.add_argument("--max-hours", type=float, default=12.0)
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--seed", type=int, default=0)
