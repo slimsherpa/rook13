@@ -262,11 +262,19 @@ def main():
     state_path = run_dir / "league_state.pt"
     if args.resume and state_path.exists():
         st = torch.load(state_path, map_location="cpu", weights_only=False)
+        if "names" in st and len(st["names"]) == len(names):
+            names = list(st["names"])
         for i, nm in enumerate(names):
             if nm in st["nets"]:
-                nets[i].load_state_dict(st["nets"][nm])
-                if trainable[i] and nm in st["opts"]:
-                    opts[i].load_state_dict(st["opts"][nm])
+                nets[i] = _rebuild(st["nets"][nm])
+                if trainable[i]:
+                    opts[i] = torch.optim.Adam(nets[i].parameters(),
+                                               lr=args.lr)
+                    if nm in st["opts"]:
+                        try:
+                            opts[i].load_state_dict(st["opts"][nm])
+                        except Exception:
+                            pass
         elo.update(st["elo"])
         banked.update(st["banked"])
         start_round = st["round"] + 1
@@ -370,7 +378,8 @@ def main():
                         "opts": {nm: op.state_dict()
                                  for nm, op, tr in zip(names, opts, trainable)
                                  if tr},
-                        "elo": elo, "banked": banked, "round": rd},
+                        "elo": elo, "banked": banked, "round": rd,
+                        "names": names},
                        state_path)
 
         if (args.select_every and rd > 0 and rd % args.select_every == 0):
@@ -392,17 +401,39 @@ def main():
                         wr, {k2: v.clone() for k2, v in
                              nets[idx].state_dict().items()})
             ranked = sorted(fitness, key=lambda i: fitness[i])
-            best_pool = sorted(banked.items(), key=lambda kv: -kv[1][0])[:2]
+            from .encoder import STATE_DIM_V3 as _V3s
+
+            def _learns(sd):
+                return (sd["net.0.weight"].shape[1] - 50) == _V3s
+
+            pool_items = [(nm, v) for nm, v in banked.items()
+                          if v[1] is not None
+                          and (not args.freeze_trunk or _learns(v[1]))]
+            best_pool = sorted(pool_items, key=lambda kv: -kv[1][0])[:2]
             swaps = []
             for slot, (src_name, (src_wr, src_sd)) in zip(ranked[:2],
                                                           best_pool):
-                if src_sd is None or fitness[slot] >= src_wr:
+                if fitness[slot] >= src_wr:
                     continue
-                nets[slot].load_state_dict(src_sd)
+                # rebuild the slot at the SOURCE's architecture — loading
+                # v1 weights into a v3 shell crashed season 5 at rd 150
+                nets[slot] = _rebuild({k2: v.clone()
+                                       for k2, v in src_sd.items()})
                 opts[slot] = torch.optim.Adam(nets[slot].parameters(),
                                               lr=args.lr)
-                elo[names[slot]] = float(np.mean(list(elo.values())))
-                swaps.append(f"{names[slot]}<-{src_name}@{src_wr:.0%}")
+                # LINEAGE NAMING (Riley, 2026-07-24): the reborn slot takes
+                # its parent's name + birth round — "v3-gen13.c450" — so
+                # the dashboard shows genesis, not a dead fighter's jersey.
+                old_name = names[slot]
+                new_name = f"{src_name}.c{rd}"
+                names[slot] = new_name
+                elo.pop(old_name, None)
+                elo[new_name] = float(np.mean(list(elo.values()))) \
+                    if elo else 1000.0
+                banked[new_name] = (src_wr,
+                                    {k2: v.clone() for k2, v in
+                                     src_sd.items()})
+                swaps.append(f"{old_name}=>{new_name}@{src_wr:.0%}")
             rec["selection"] = {"fitness": {names[i]: round(w, 3)
                                             for i, w in fitness.items()},
                                 "swaps": swaps}
