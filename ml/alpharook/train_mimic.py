@@ -157,10 +157,18 @@ def main() -> None:
                   f"{m['rows_per_sec']:.0f} rows/s", flush=True)
             torch.save({"model": net.state_dict(), "step": step,
                         "metrics": m}, run_dir / "latest.pt")
-            if m.get("match_ovr", 0) > best_ovr:
+            # bank by override-match, GATED on auction sanity: the mimic1-a
+            # probe showed bid infidelity compounds into feral auctions, so
+            # a checkpoint that buys overrides by wrecking its bidding is
+            # not "best" no matter what the override number says
+            if (m.get("match_ovr", 0) > best_ovr
+                    and m.get("match_bid", 1.0) >= 0.95):
                 best_ovr = m["match_ovr"]
                 torch.save({"model": net.state_dict(), "step": step,
                             "metrics": m}, run_dir / "best.pt")
+            if step and step % 25000 == 0:
+                torch.save({"model": net.state_dict(), "step": step,
+                            "metrics": m}, run_dir / f"step{step}.pt")
 
 
 if __name__ == "__main__":
