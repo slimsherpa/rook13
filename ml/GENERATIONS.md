@@ -293,7 +293,9 @@ held-out exams, so gradient churn gets culled instead of compounding.
   pooled, reverted); then the double-gate's first two survivors (orem
   54.7% confirmed; moab 58.7% confirmed with ALL SIX fighters 53-59%)
   both died on 1,300-game replication batteries (orem 49.0/50.6/51.7;
-  moab 48.6/48.4/51.7) — mirages #8 and #9. NEW LESSON for law 8:
+  moab 48.6/48.4/51.7) — mirages #8 and #9 — and provo's sel-3 57.3%
+  confirmed bank followed (50.6/49.0/46.3): #10. All three cities'
+  gate-survivors replication-killed; verdict triple-sealed. NEW LESSON for law 8:
   six near-identical fighters sharing one exam paper are ONE correlated
   draw, not six confirmations (S5's deal-correlation trap, within-city
   edition) — population-wide "agreement" on shared papers proves
