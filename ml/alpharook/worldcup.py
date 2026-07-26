@@ -101,7 +101,7 @@ def main():
     ap.add_argument("--champion", default="models/gen21-cand1.pt")
     ap.add_argument("--deck-lib", default="runs/decks/lib.jsonl")
     ap.add_argument("--exam-weights", default="0.10,0.30,0.60")
-    ap.add_argument("--pairs", type=int, default=50)
+    ap.add_argument("--pairs", type=int, default=150)
     ap.add_argument("--win-score", type=int, default=2000)
     ap.add_argument("--lose-score", type=int, default=-1000)
     ap.add_argument("--workers", type=int, default=7)
@@ -109,7 +109,7 @@ def main():
                     help="cup wr vs gen21 that triggers the random-deck "
                          "promotion battery")
     ap.add_argument("--battery-sprint-pairs", type=int, default=150)
-    ap.add_argument("--battery-marathon-pairs", type=int, default=70)
+    ap.add_argument("--battery-marathon-pairs", type=int, default=150)
     args = ap.parse_args()
 
     stamp = time.strftime("%Y-%m-%d_%H%M")

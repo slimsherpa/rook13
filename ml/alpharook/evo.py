@@ -355,9 +355,9 @@ def main():
     ap.add_argument("--epochs", type=int, default=2)
     ap.add_argument("--workers", type=int, default=7)
     ap.add_argument("--select-every-min", type=float, default=120.0)
-    ap.add_argument("--select-pairs", type=int, default=50,
-                    help="exam pairs per learner per selection — 100 "
-                         "marathon games (~5700 hands) on contested decks")
+    ap.add_argument("--select-pairs", type=int, default=75,
+                    help="exam pairs per learner per selection — 150 "
+                         "marathon games (SE ~4pp) on contested decks")
     ap.add_argument("--max-hours", type=float, default=12.0)
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--seed", type=int, default=0)
@@ -602,7 +602,11 @@ def main():
                 if wr <= prev:
                     continue
                 val = confirms.get(idx, wr)
-                if val > prev:
+                # banks only move on DISTINGUISHABLE evidence (+2pp over
+                # the incumbent): keeps pristine-gen21 seeds as clone
+                # sources until a fighter is genuinely better, and stops
+                # noise-creep ratcheting the floor downward
+                if val > prev + 0.02:
                     banked[names[idx]] = (
                         val, {k: v.clone()
                               for k, v in nets[idx].state_dict().items()})
