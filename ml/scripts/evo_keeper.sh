@@ -26,7 +26,7 @@ case $B in
   1) ARGS="--run evo-provo --city provo --tier-weights 0.15,0.35,0.50" ;;
   2) ARGS="--run evo-orem  --city orem  --tier-weights 0.02,0.18,0.80" ;;
   3) ARGS="--run evo-logan --city logan --tier-weights 0.15,0.35,0.50 \
-     --lr 1e-4 --eps 0.12 --sugar-hand 0.40 --sugar-game 0.35" ;;
+     --lr 5e-5 --eps 0.12" ;;
   4) ARGS="--run evo-moab  --city moab  --random-decks" ;;
 esac
 nohup $PY -m alpharook.evo $ARGS --deck-lib "$LIB" \

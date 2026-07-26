@@ -12,7 +12,7 @@ from pathlib import Path
 CITIES = [
     ("provo", None, "evo-provo", "Riley mix 15/35/50"),
     ("orem", "5.78.130.139", "evo-orem", "hard-contest 2/18/80"),
-    ("logan", "5.78.128.203", "evo-logan", "hot culture: lr 1e-4, eps .12"),
+    ("logan", "5.78.128.203", "evo-logan", "hot culture: lr 5e-5, eps .12"),
     ("moab", "5.78.135.83", "evo-moab", "CONTROL: random decks"),
 ]
 CUP_HISTORY = "/root/rook13/ml/runs/worldcup/history.jsonl"

@@ -259,10 +259,10 @@ def main():
                          "(exams stay curated)")
     ap.add_argument("--win-score", type=int, default=2000)
     ap.add_argument("--lose-score", type=int, default=-1000)
-    ap.add_argument("--sugar-bid", type=float, default=0.10)
-    ap.add_argument("--sugar-pts", type=float, default=0.15)
-    ap.add_argument("--sugar-hand", type=float, default=0.25)
-    ap.add_argument("--sugar-game", type=float, default=0.50)
+    ap.add_argument("--sugar-bid", type=float, default=0.0)
+    ap.add_argument("--sugar-pts", type=float, default=0.0)
+    ap.add_argument("--sugar-hand", type=float, default=0.5)
+    ap.add_argument("--sugar-game", type=float, default=0.5)
     ap.add_argument("--match-pairs", type=int, default=3,
                     help="duplicate pairs per match per round (marathon "
                          "games are long — keep rounds flowing)")
@@ -346,6 +346,17 @@ def main():
         start_round = st["round"] + 1
         print(f"resumed {args.run} at round {start_round} "
               f"(selection {sel_idx})", flush=True)
+
+    # RATCHET FLOOR (added after the first live selection read 0-7%
+    # across all cities): every founder's bank starts as a pristine
+    # champion copy at its mirror-true 50%. If training wrecks the field
+    # (S3 target-redefinition collapse, or plain law-3 churn), the cull
+    # pulls wrecked fighters BACK to fresh champion clones instead of
+    # cloning the least-wrecked wreck — the population can never do
+    # worse than restart from gen21.
+    for nm, tr in zip(names, trainable):
+        if tr and nm not in banked:
+            banked[nm] = (0.50, {k: v.clone() for k, v in champ_sd.items()})
 
     import multiprocessing as mp
     ctx = mp.get_context("spawn")

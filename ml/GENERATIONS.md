@@ -229,9 +229,26 @@ held-out exams, so gradient churn gets culled instead of compounding.
 - **Dashboard**: `scripts/evo_status.py` → http://5.78.115.122:8080/ —
   goal bar, per-city sparklines, pedigrees, skill-shares, cup history.
 - Fleet: 4 boxes self-assemble via `scripts/evo_keeper.sh` (library build
-  ~1h → gym; nightly +12k-deal refill to 120k). mimic1-c stopped and
+  ~9 min → gym; nightly +12k-deal refill to 120k). mimic1-c stopped and
   archived at its 50k-step checkpoint (graduated, parity with gen21 —
   its verdict was already banked).
+- **Launch-night findings (2026-07-25/26), all fixed same night:**
+  (1) engine redeals fire AT DEAL TIME — a single-deck deck_fn spun
+  _advance forever (~1/6k deals), froze all four library builds;
+  (2) "reshuffle until anchors apart" matchmaking = infinite loop once
+  the never-exploring anchors' Elo ran ~450 clear of the eps-noised
+  field — all four cities froze at rd ~100 simultaneously; separation
+  must be deterministic; (3) **S3's law re-confirmed on gen21**: launch
+  sugar (bid .10/pts .15/hand .25/game .50) redefined Q's currency and
+  collapsed all learners to 0-7% vs gen21 in ONE 2h cycle — fingerprint
+  was make-rate 41% vs 75% at IDENTICAL auction behavior (mispriced
+  hands, not mis-bid counts). Fix: native proven target only
+  (hand .5 / game .5, zero bid/pts sugar) + **the ratchet floor** —
+  every founder's bank is seeded with pristine champion weights at
+  its mirror-true 50%, so the cull pulls wrecked fighters back to
+  fresh gen21 clones; the population can never do worse than restart
+  from the champion. logan's lr also 1e-4 → 5e-5 (1e-4 is twice-proven
+  fatal to champion inits).
 
 ### The other loop forward (gen23+, parked)
 Wrap search+belief around gen21 → new teacher (starts from Cosmo-parity,
