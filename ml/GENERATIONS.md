@@ -280,7 +280,15 @@ held-out exams, so gradient churn gets culled instead of compounding.
   4x (the mimic override lesson: the deviations carry the signal); (b)
   confirm-before-banking — bank overwrites must repeat on a second
   salted paper and record the confirm value (smoke: a raw 62.5% was
-  confirmed at 50% and refused). Open question the next days answer:
+  confirmed at 50% and refused). RILEY'S RECHECK (his skepticism,
+  validated): the cup's drama did not replicate — orem's champ on the
+  CUP'S OWN contested decks at 5x scale = 52.4%/500g (skill-share
+  48-49% in every tier), plus 50.0%/500g on random decks ⇒ parity
+  everywhere; "gen21 finished last" was three compounding illusions
+  (100-game pairings ±5pp, someone-must-finish-last in a round-robin
+  of equals, winner's-curse entrants). Mirage sighting #7 — at CUP
+  level; confirm-before-banking now guards every surface. Open
+  question the next days answer:
   does concentrated needle signal + honest selection produce a real
   climb, and does moab (control) lag? If flat by ~48h, the proven
   fallback is the mimic loop (gen21×search teacher → gen23).
