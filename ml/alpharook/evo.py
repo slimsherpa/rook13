@@ -339,10 +339,13 @@ def main():
                     help="farm hands use sprint geometry — the score "
                          "distribution gen21 was trained on")
     ap.add_argument("--farm-lose", type=int, default=-250)
-    ap.add_argument("--needle-weight", type=float, default=4.0,
+    ap.add_argument("--needle-weight", type=float, default=1.0,
                     help="CE weight multiplier for verified-win rows where "
-                         "the learner DISAGREED with the champion (the "
-                         "mimic override lesson)")
+                         "the learner DISAGREED with the champion. 4.0 "
+                         "MEASURED HARMFUL (2026-07-26: all four cities "
+                         "sagged to 44.6% pooled mean in one cycle — a won "
+                         "hand carries its bad deviations too, and 4x "
+                         "amplifies the collateral): keep 1.0")
     ap.add_argument("--curriculum", type=float, default=0.4,
                     help="fraction of farm hands from random score starts "
                          "(gen_mimic's own curriculum)")
@@ -408,6 +411,7 @@ def main():
         exams = st.get("exams", [])
         totals = st.get("totals", totals)
         sel_idx = st.get("sel_idx", 0)
+        resume_last_sel = st.get("last_sel")
         start_round = st["round"] + 1
         print(f"resumed {args.run} at round {start_round} "
               f"(selection {sel_idx})", flush=True)
@@ -441,6 +445,7 @@ def main():
                              for nm, op in zip(names, opts)},
                     "banked": banked, "curve": curve, "exams": exams,
                     "totals": totals, "sel_idx": sel_idx,
+                    "last_sel": last_sel,
                     "round": rd, "names": names}, state_path)
 
     def write_status(rd, sec_per_round, last_pos_rate):
@@ -474,6 +479,11 @@ def main():
 
     t_start = time.time()
     last_sel = time.time()
+    try:
+        if resume_last_sel:
+            last_sel = resume_last_sel  # keep the 2h exam cadence across restarts
+    except NameError:
+        pass
     status_pairs_last = 0
     pos_rate = None
     print(f"DARWIN GYM v2 {args.city} ({args.run}): {args.learners} "
