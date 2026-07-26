@@ -265,6 +265,25 @@ held-out exams, so gradient churn gets culled instead of compounding.
   pull). Marathon contested exams unchanged. First smoke selection:
   fitness centered ~60% (75/67/58/42 at 6-pair noise) vs the value
   build's 0-3% — channel validated, fleet redeployed on it.
+- **Day-1 verdict of the farm channel (2026-07-26 am): SAFE, at PARITY,
+  not yet a rung.** Overnight: populations 48-54%, pos_rate (beats-champ
+  hand rate) climbed 22→38%, 3-generation pedigrees formed. First world
+  cup: gen21 finished LAST of 5 (orem 58%, moab 55%, logan 54%, provo
+  50% vs gen21 on fresh contested marathons; pooled 54.2%/400g) and
+  orem's 55% auto-triggered the random-deck battery: sprint 50.3%/300g,
+  marathon 55.7%/140g — but the independent 500-game marathon confirm
+  said **exactly 50.0%** (49 sweeps each): banking-mirage sighting #6;
+  the 57-62% banked highs were max-over-noisy-exams froth on an honest
+  50% population. SHARPENERS deployed, fleet restarted fresh: (a)
+  needle-weighted CE — every learner decision is checked against frozen
+  gen21's choice in that state; verified-win rows that DISAGREE train at
+  4x (the mimic override lesson: the deviations carry the signal); (b)
+  confirm-before-banking — bank overwrites must repeat on a second
+  salted paper and record the confirm value (smoke: a raw 62.5% was
+  confirmed at 50% and refused). Open question the next days answer:
+  does concentrated needle signal + honest selection produce a real
+  climb, and does moab (control) lag? If flat by ~48h, the proven
+  fallback is the mimic loop (gen21×search teacher → gen23).
 
 ### The other loop forward (gen23+, parked)
 Wrap search+belief around gen21 → new teacher (starts from Cosmo-parity,
