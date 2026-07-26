@@ -288,7 +288,21 @@ held-out exams, so gradient churn gets culled instead of compounding.
   (100-game pairings ±5pp, someone-must-finish-last in a round-robin
   of equals, winner's-curse entrants). Mirage sighting #7 — at CUP
   level; confirm-before-banking now guards every surface. Open
-  question the next days answer:
+  question the next days answer: ANSWERED 2026-07-26 pm — FLAT. The
+  48h verdict at full guardrails: needle-4x measurably harmful (44.6%
+  pooled, reverted); then the double-gate's first two survivors (orem
+  54.7% confirmed; moab 58.7% confirmed with ALL SIX fighters 53-59%)
+  both died on 1,300-game replication batteries (orem 49.0/50.6/51.7;
+  moab 48.6/48.4/51.7) — mirages #8 and #9. NEW LESSON for law 8:
+  six near-identical fighters sharing one exam paper are ONE correlated
+  draw, not six confirmations (S5's deal-correlation trap, within-city
+  edition) — population-wide "agreement" on shared papers proves
+  nothing. VERDICT: the mirrored-hand farm preserves perfectly and
+  discovers nothing at this budget — eps-scale deviations that beat the
+  champion's line are too rare/shallow to compound. Gym archived
+  resumable; pivot per the pre-agreed rule to the mimic loop (gen23:
+  teacher = gen21 x search x belief, ceiling measurement launched).
+  Old open question, retired:
   does concentrated needle signal + honest selection produce a real
   climb, and does moab (control) lag? If flat by ~48h, the proven
   fallback is the mimic loop (gen21×search teacher → gen23).
