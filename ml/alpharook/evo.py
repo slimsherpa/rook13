@@ -105,7 +105,17 @@ def play_mirror_hand(net_l, net_c, deal_seed: int, start, flip: bool,
         if len(cands) > 1:
             s = encode_state_for(net, observe(env.g, seat), env.picks,
                                  dtype, env.g, env.trump_intent)
-            (rows_l if is_l else rows_c).append((s, dtype, tuple(cands), j))
+            if is_l:
+                # the NEEDLE flag: does this choice differ from what the
+                # frozen champion would play here? (mimic-era override
+                # lesson: the disagreements carry the signal)
+                S = torch.from_numpy(np.stack([s] * len(cands)))
+                A = torch.from_numpy(np.stack(
+                    [encode_action(dtype, a) for a in cands]))
+                jc = int(net_c(S, A).argmax().item())
+                rows_l.append((s, dtype, tuple(cands), j, j != jc))
+            else:
+                rows_c.append((s, dtype, tuple(cands), j, False))
         env.apply(cands[j])
     if not env.g.hand_history:
         return None, None, None  # game ended before the hand completed
@@ -114,7 +124,7 @@ def play_mirror_hand(net_l, net_c, deal_seed: int, start, flip: bool,
 
 
 def farm_pair(net_l, net_c, deal_seed: int, start, eps: float, rng,
-              win: int, lose: int):
+              win: int, lose: int, needle_w: float = 4.0):
     """One mirrored hand-pair. Returns (adv, rows, weight): rows are the
     CE targets — the learner's lines if adv>0, the champion's if adv<0;
     None if the deal redealt."""
@@ -129,8 +139,11 @@ def farm_pair(net_l, net_c, deal_seed: int, start, eps: float, rng,
     adv = d1 - d2
     if adv == 0:
         return 0, [], 0.0
+    base = min(1.0, abs(adv) / 200.0)
     rows = (l1 + l2) if adv > 0 else (c1 + c2)
-    return adv, rows, min(1.0, abs(adv) / 200.0)
+    return adv, [(s, dt, cands, j,
+                  base * (needle_w if needle else 1.0))
+                 for s, dt, cands, j, needle in rows], base
 
 
 # --- workers ----------------------------------------------------------------
@@ -139,7 +152,8 @@ _W: dict = {}
 
 
 def _winit(lib_path, train_weights, exam_weights, random_decks,
-           champ_sd, win, lose, farm_win, farm_lose, curriculum):
+           champ_sd, win, lose, farm_win, farm_lose, curriculum,
+           needle_w):
     torch.set_num_threads(1)
     train, exam, _ = load_library(lib_path)
     _W["train"] = None if random_decks else train
@@ -149,6 +163,7 @@ def _winit(lib_path, train_weights, exam_weights, random_decks,
     _W["win"], _W["lose"] = win, lose
     _W["fwin"], _W["flose"] = farm_win, farm_lose
     _W["curriculum"] = curriculum
+    _W["needle_w"] = needle_w
 
 
 def _sample_deal(rng):
@@ -171,10 +186,10 @@ def _wfarm(args):
         deal = _sample_deal(rng)
         start = sample_start(rng, _W["curriculum"])
         r = farm_pair(nl, _W["champ"], deal, start, eps, rng,
-                      _W["fwin"], _W["flose"])
+                      _W["fwin"], _W["flose"], _W["needle_w"])
         if r is None:
             continue
-        adv, rows, w = r
+        adv, rows, _w = r
         hands += 2
         if adv > 0:
             pos += 1
@@ -184,8 +199,7 @@ def _wfarm(args):
             adv_sum += adv
         else:
             tied += 1
-        for s, dtype, cands, j in rows:
-            rows_out.append((s, dtype, cands, j, w))
+        rows_out.extend(rows)
 
     def pack(rows):
         if not rows:
@@ -325,6 +339,10 @@ def main():
                     help="farm hands use sprint geometry — the score "
                          "distribution gen21 was trained on")
     ap.add_argument("--farm-lose", type=int, default=-250)
+    ap.add_argument("--needle-weight", type=float, default=4.0,
+                    help="CE weight multiplier for verified-win rows where "
+                         "the learner DISAGREED with the champion (the "
+                         "mimic override lesson)")
     ap.add_argument("--curriculum", type=float, default=0.4,
                     help="fraction of farm hands from random score starts "
                          "(gen_mimic's own curriculum)")
@@ -409,7 +427,7 @@ def main():
                               args.random_decks, champ_sd,
                               args.win_score, args.lose_score,
                               args.farm_win, args.farm_lose,
-                              args.curriculum))
+                              args.curriculum, args.needle_weight))
 
     def log(rec):
         rec["ts"] = time.time()
@@ -551,12 +569,43 @@ def main():
                 totals["hands"] += hands
             fitness = {i: w / max(1, g) for i, (w, g) in fitness.items()}
             exam_names = dict(enumerate(names))
+            # CONFIRM-BEFORE-BANKING (law 2): a prospective bank overwrite
+            # must repeat on a second, differently-salted paper; the bank
+            # records the CONFIRM value (unbiased — kills the max-over-
+            # noisy-exams froth that read 62% and dueled 50%).
+            cand_idxs = [i for i, wr in fitness.items()
+                         if wr > banked.get(names[i], (-1.0, None))[0]]
+            confirms: dict = {}
+            if cand_idxs:
+                cbase = salt(args.city, sel_idx, "confirm",
+                             time.strftime("%Y%m%d"))
+                cseeds = [cbase + p * 104729 + 1
+                          for p in range(args.select_pairs)]
+                jobs3, meta3 = [], []
+                for idx in cand_idxs:
+                    sd = {k: v.cpu()
+                          for k, v in nets[idx].state_dict().items()}
+                    for c in range(0, len(cseeds), per_w):
+                        jobs3.append((sd, cseeds[c:c + per_w]))
+                        meta3.append(idx)
+                cres = pool.map(_wexam, jobs3)
+                cagg: dict = {}
+                for idx, (wins, games, hands, _t) in zip(meta3, cres):
+                    c0 = cagg.setdefault(idx, [0, 0])
+                    c0[0] += wins
+                    c0[1] += games
+                    totals["games"] += games
+                    totals["hands"] += hands
+                confirms = {i: w / max(1, g) for i, (w, g) in cagg.items()}
             for idx, wr in fitness.items():
                 prev = banked.get(names[idx], (-1.0, None))[0]
-                if wr > prev:
+                if wr <= prev:
+                    continue
+                val = confirms.get(idx, wr)
+                if val > prev:
                     banked[names[idx]] = (
-                        wr, {k: v.clone()
-                             for k, v in nets[idx].state_dict().items()})
+                        val, {k: v.clone()
+                              for k, v in nets[idx].state_dict().items()})
             ranked = sorted(fitness, key=lambda i: fitness[i])
             best_pool = sorted(((nm, v) for nm, v in banked.items()
                                 if v[1] is not None),
@@ -595,6 +644,8 @@ def main():
                        "tiers": {exam_names[i]: tier_view(t)
                                  for i, t in tiers.items()},
                        "swaps": swaps,
+                       "confirms": {exam_names[i]: round(w, 3)
+                                    for i, w in confirms.items()},
                        "pairs": args.select_pairs}
             exams.append(sel_rec)
             wrs = list(fitness.values())
