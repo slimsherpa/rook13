@@ -343,7 +343,7 @@ def main():
                     help="CE weight multiplier for verified-win rows where "
                          "the learner DISAGREED with the champion. 4.0 "
                          "MEASURED HARMFUL (2026-07-26: all four cities "
-                         "sagged to 44.6% pooled mean in one cycle — a won "
+                         "sagged to 44.6%% pooled mean in one cycle — a won "
                          "hand carries its bad deviations too, and 4x "
                          "amplifies the collateral): keep 1.0")
     ap.add_argument("--curriculum", type=float, default=0.4,
