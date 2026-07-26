@@ -249,6 +249,22 @@ held-out exams, so gradient churn gets culled instead of compounding.
   fresh gen21 clones; the population can never do worse than restart
   from the champion. logan's lr also 1e-4 → 5e-5 (1e-4 is twice-proven
   fatal to champion inits).
+- **(4) THE REAL DISEASE, then the cure (v2, same night): gen21 is a
+  BEHAVIOR CLONE — its outputs are CE logits (measured −111..+52), not
+  values (gen13: ±1). NO value-regression channel can touch it: even the
+  native proven target re-scaled the function to 0-3% within one cycle
+  (gen6's "MSE rescales BC logits", at gym speed). And plain CE
+  self-imitation on marathon mirrors ALSO decayed — by mid-game the two
+  mirror games sit at different scores, so "you outscored the mirror"
+  credits context, not play.** v2 = THE MIRRORED-HAND FARM: training
+  unit is a single-hand duplicate pair vs frozen gen21 (learner
+  eps-dithered, champion argmax, same curated deal + same gen_mimic
+  score-start both chairs); adv = d1−d2 is zero-sum-clean; adv>0 →
+  CE-clone the learner's lines (weight |adv|/200 cap 1), adv<0 →
+  CE-clone the CHAMPION's lines back into the learner (self-stabilizing
+  pull). Marathon contested exams unchanged. First smoke selection:
+  fitness centered ~60% (75/67/58/42 at 6-pair noise) vs the value
+  build's 0-3% — channel validated, fleet redeployed on it.
 
 ### The other loop forward (gen23+, parked)
 Wrap search+belief around gen21 → new teacher (starts from Cosmo-parity,
