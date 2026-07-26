@@ -1,27 +1,46 @@
-"""THE DARWIN GYM (Riley's design, 2026-07-25, gen22 era): evolution on
-top of gen21, fed a contested-deal curriculum.
+"""THE DARWIN GYM v2 (Riley's design + launch-night lessons, gen22 era):
+evolution on top of gen21, fed a contested-deal curriculum.
 
-One gym = one city of 8 seats: 6 learners (all born as byte-copies of the
-frozen champion) + 2 anchor seats played by the frozen champion itself
-(Riley: "the frozen gen21 gets 2 players always" — the anti-pacifism
-gravity of law 5/8). Every round, Elo-matched pairs fight REAL full games
-at Riley's marathon rules (default −1000..2000: ~4x the hands, card luck
-compressed) on decks drawn from the contested-deal library (contested.py)
-— the curriculum that finally attacks law 3 at its root: fewer rows whose
-outcome no decision could change.
+One gym = one city of 6 learners, every one born a byte-copy of the frozen
+champion gen21, with the champion itself as the permanent sparring partner
+(Riley's "frozen gen21 always at the table").
 
-Selection (Riley's clone-and-cull): on a wall-clock cadence every learner
-sits the same salted exam — mirrored duplicate pairs vs the frozen champion
-on HELD-OUT contested decks (never trained on). Best-ever checkpoints are
-banked per lineage; the two worst fitters are replaced by clones of the two
-best banked (fresh optimizers), taking the pedigree name parent.c<round>.
-Exams also log Riley's skill-share metric per contest tier: of the hands
-that were skill-decided (same side won them from both chairs), what share
-did the learner take?
+THE LEARNING RULE — verified self-imitation on mirrored hands. gen21 is a
+behavior clone: its outputs are CE logits (measured -111..+52), NOT values,
+so any outcome-regression (every sugar recipe, even the proven native
+target) re-scales the whole function and wrecked learners to 0-3% within
+one selection cycle. Value targets are therefore BANNED in this gym.
+Instead, the only currency is the one gen21 was raised in — cross-entropy
+over actions (law 6, spotless record) — and the only teacher is VERIFIED
+advantage:
 
-Cities differ by culture (tier weights, lr, eps, sugar) — and city 4 runs
---random-decks as the CONTROL: if curation is the active ingredient,
-the curated cities must outpace it.
+  * a training unit is a MIRRORED HAND-PAIR: one curated deal, played
+    twice with chairs swapped — learner (eps-dithered) vs frozen gen21
+    (pure argmax) — from the same sampled score-start (gen_mimic's
+    curriculum, the distribution gen21 was trained on). Single hands, not
+    full games: marathon mirrors diverge in score context by mid-game,
+    which poisoned the credit (v2's first smoke);
+  * adv = d1 - d2 (team0-cards swing, game1 minus game2) — zero-sum
+    mirror, so adv > 0 means the learner out-scored gen21's own line
+    from BOTH holdings of the same cards, luck fully cancelled (Riley's
+    hand-pair decomposition, used as the reward);
+  * adv > 0: the learner's decisions that hand (both games) become CE
+    targets at weight min(1, adv/200) — clone your verified wins;
+  * adv < 0: gen21's decisions that hand become the CE targets — pulled
+    back toward the champion exactly where you played worse. The rule is
+    self-stabilizing: a learner can drift only by accumulating lines
+    that measurably beat the champion's.
+
+Selection (Riley's clone-and-cull, unchanged): every 2h all learners sit
+the same salted exam — mirrored duplicate MARATHON games vs frozen gen21
+on HELD-OUT contested decks. Best-ever weights bank per lineage (seeded
+with a pristine champion copy at its mirror-true 50% — the ratchet floor:
+the population can never do worse than restart from gen21). Bottom two are
+replaced by clones of the two best banks, pedigree names parent.c<round>.
+
+Cities differ by culture (tier weights, lr, eps); city 4 runs
+--random-decks as the CONTROL: if curation is the active ingredient, it
+must fall behind.
 
     python -m alpharook.evo --run evo-provo --city provo \
         --deck-lib runs/decks/lib.jsonl --tier-weights 0.15,0.35,0.50 \
@@ -45,92 +64,184 @@ from rook.observation import observe
 from .encoder import encode_state_for, encode_action
 from .env import SelfPlayGame
 from .model import load_qnet
-from .duel import deck_stream
-from .league import pick, _rebuild, _elo_update
-from .contested import load_library, CuratedDecks
+from .league import pick, _rebuild
+from .contested import load_library, CuratedDecks, deal_deck
+from .gen_mimic import sample_start
 
 RUNS_DIR = Path(__file__).resolve().parents[1] / "runs"
 FOUNDERS = "ABCDEF"
+MAX_CANDS = 16
 
 
-# --- one full game, both sides collecting shaped rows ----------------------
+# --- the farm: mirrored single hands vs the frozen champion ----------------
 
 @torch.no_grad()
-def play_evo_game(net_a, net_b, pair_seed: int, flip: bool,
-                  eps_a: float, eps_b: float, rows_a, rows_b,
-                  sugar: dict, win: int, lose: int, deck_fn):
-    """rows_a/rows_b may be None (frozen side — no training rows)."""
-    rng = random.Random(pair_seed ^ (0xBEEF if flip else 0xFACE))
-    env = SelfPlayGame(seed=pair_seed, deck_fn=deck_fn,
-                       dealer=pair_seed % 4, win_score=win, lose_score=lose)
-    team_of_a = 1 if flip else 0
-    scale = (win - lose) / 2.0
-    buf = {0: [], 1: []}
-    labeled = {0: [], 1: []}
-    hands_seen = 0
-    while not env.done:
-        g = env.g
-        if len(g.hand_history) > hands_seen:
-            _label_hands(g, hands_seen, buf, labeled, sugar)
-            hands_seen = len(g.hand_history)
+def play_mirror_hand(net_l, net_c, deal_seed: int, start, flip: bool,
+                     eps: float, rng, win: int, lose: int):
+    """One single hand: learner vs champion on a fixed deal from a fixed
+    score-start; learner is team0 unless flip. Returns (d, rows_l, rows_c)
+    where d = team0-cards swing and rows = (state, dtype, cands, chosen)."""
+    deck0 = deal_deck(deal_seed)
+
+    def deck_fn(i: int):
+        if i == 0:
+            return deck0
+        d = list(deck0)  # redeal escape (engine redeals fire at deal time)
+        random.Random(deal_seed ^ (i * 0x9E3779B1)).shuffle(d)
+        return d
+
+    env = SelfPlayGame(seed=deal_seed, dealer=deal_seed % 4,
+                       deck_fn=deck_fn, win_score=win, lose_score=lose)
+    env.g.scores = list(start)
+    team_l = 1 if flip else 0
+    rows_l, rows_c = [], []
+    while not env.done and not env.g.hand_history:
+        if env.deal_count > 1:
+            return None, None, None  # engine redeal: skip the deal
         seat, dtype, cands = env.decision()
-        team = team_of(seat)
-        a_side = team == team_of_a
-        net = net_a if a_side else net_b
-        rows = rows_a if a_side else rows_b
-        eps = eps_a if a_side else eps_b
-        j = pick(net, env, seat, dtype, cands, eps, rng)
-        if rows is not None:
-            s = encode_state_for(net, observe(g, seat), env.picks, dtype, g,
-                                 env.trump_intent)
-            buf[team].append((s, encode_action(dtype, cands[j]),
-                              g.hand_number))
+        is_l = team_of(seat) == team_l
+        net = net_l if is_l else net_c
+        j = pick(net, env, seat, dtype, cands, eps if is_l else 0.0, rng)
+        if len(cands) > 1:
+            s = encode_state_for(net, observe(env.g, seat), env.picks,
+                                 dtype, env.g, env.trump_intent)
+            (rows_l if is_l else rows_c).append((s, dtype, tuple(cands), j))
         env.apply(cands[j])
-    g = env.g
-    while hands_seen < len(g.hand_history):
-        _label_hands(g, hands_seen, buf, labeled, sugar)
-        hands_seen += 1
-    for team in (0, 1):
-        wl = 1.0 if g.winner == team else -1.0
-        diff = max(-1.0, min(1.0,
-                             (g.scores[team] - g.scores[1 - team]) / scale))
-        game_t = 0.7 * wl + 0.3 * diff
-        out = rows_a if team == team_of_a else rows_b
-        if out is None:
+    if not env.g.hand_history:
+        return None, None, None  # game ended before the hand completed
+    h = env.g.hand_history[0]
+    return int(h[4] - h[5]), rows_l, rows_c
+
+
+def farm_pair(net_l, net_c, deal_seed: int, start, eps: float, rng,
+              win: int, lose: int):
+    """One mirrored hand-pair. Returns (adv, rows, weight): rows are the
+    CE targets — the learner's lines if adv>0, the champion's if adv<0;
+    None if the deal redealt."""
+    d1, l1, c1 = play_mirror_hand(net_l, net_c, deal_seed, start, False,
+                                  eps, rng, win, lose)
+    if d1 is None:
+        return None
+    d2, l2, c2 = play_mirror_hand(net_l, net_c, deal_seed, start, True,
+                                  eps, rng, win, lose)
+    if d2 is None:
+        return None
+    adv = d1 - d2
+    if adv == 0:
+        return 0, [], 0.0
+    rows = (l1 + l2) if adv > 0 else (c1 + c2)
+    return adv, rows, min(1.0, abs(adv) / 200.0)
+
+
+# --- workers ----------------------------------------------------------------
+
+_W: dict = {}
+
+
+def _winit(lib_path, train_weights, exam_weights, random_decks,
+           champ_sd, win, lose, farm_win, farm_lose, curriculum):
+    torch.set_num_threads(1)
+    train, exam, _ = load_library(lib_path)
+    _W["train"] = None if random_decks else train
+    _W["train_w"] = train_weights
+    _W["exam"] = CuratedDecks(exam, exam_weights)
+    _W["champ"] = _rebuild(champ_sd)
+    _W["win"], _W["lose"] = win, lose
+    _W["fwin"], _W["flose"] = farm_win, farm_lose
+    _W["curriculum"] = curriculum
+
+
+def _sample_deal(rng):
+    if _W["train"] is None:
+        return rng.randrange(1, 1 << 30)  # control city: any deal
+    t = rng.choices((0, 1, 2), weights=_W["train_w"])[0]
+    tier = _W["train"][t] or _W["train"][2] or _W["train"][1]
+    return rng.choice(tier)
+
+
+def _wfarm(args):
+    """One chunk of mirrored hand-pairs for one learner."""
+    sd_l, seed_base, n_pairs, eps = args
+    nl = _rebuild(sd_l)
+    rng = random.Random(seed_base)
+    rows_out = []
+    pos = neg = tied = hands = 0
+    adv_sum = 0
+    for _ in range(n_pairs):
+        deal = _sample_deal(rng)
+        start = sample_start(rng, _W["curriculum"])
+        r = farm_pair(nl, _W["champ"], deal, start, eps, rng,
+                      _W["fwin"], _W["flose"])
+        if r is None:
             continue
-        for s, a, partial in labeled[team]:
-            out.append((s, a, partial + sugar["game"] * game_t))
-    return (0 if g.winner == team_of_a else 1), len(g.hand_history)
+        adv, rows, w = r
+        hands += 2
+        if adv > 0:
+            pos += 1
+            adv_sum += adv
+        elif adv < 0:
+            neg += 1
+            adv_sum += adv
+        else:
+            tied += 1
+        for s, dtype, cands, j in rows:
+            rows_out.append((s, dtype, cands, j, w))
+
+    def pack(rows):
+        if not rows:
+            return None
+        return (np.stack([r[0] for r in rows]),
+                [(r[1], r[2], r[3], r[4]) for r in rows])
+
+    return pack(rows_out), pos, neg, tied, hands, adv_sum
 
 
-def _label_hands(g, h_idx, buf, labeled, sugar):
-    """Season-1's lesson baked in: auction sugar only for contracts DELIVERED."""
-    h = g.hand_history[h_idx]
-    hand_no, bid_winner = h[0], h[1]
-    hs = (h[4], h[5])
-    for team in (0, 1):
-        keep = []
-        for s, a, hn in buf[team]:
-            if hn != hand_no:
-                keep.append((s, a, hn))
-                continue
-            bid_t = 1.0 if (team_of(bid_winner) == team
-                            and hs[team] > 0) else 0.0
-            pts_t = max(0.0, hs[team]) / 120.0
-            hand_t = max(-1.0, min(1.0, (hs[team] - hs[1 - team]) / 200.0))
-            partial = (sugar["bid"] * bid_t + sugar["pts"] * pts_t
-                       + sugar["hand"] * hand_t)
-            labeled[team].append((s, a, partial))
-        buf[team] = keep
+def ce_step(net, opt, packs, batch_size: int, epochs: int):
+    """Masked-candidate cross-entropy — the mimic trainer's shape; the
+    teacher is the mirror-verified line (own win or champion pull-back).
+    Returns (rows, mean_loss)."""
+    S = torch.from_numpy(np.concatenate([p[0] for p in packs]))
+    meta = [m for p in packs for m in p[1]]
+    B = len(meta)
+    A = torch.zeros(B, MAX_CANDS, 50)
+    mask = torch.full((B, MAX_CANDS), False)
+    tgt = torch.zeros(B, dtype=torch.long)
+    wgt = torch.zeros(B)
+    for i, (dtype, cands, j, w) in enumerate(meta):
+        for c, a in enumerate(cands[:MAX_CANDS]):
+            A[i, c] = torch.from_numpy(encode_action(dtype, a))
+            mask[i, c] = True
+        tgt[i] = min(j, MAX_CANDS - 1)
+        wgt[i] = w
+    net.train()
+    losses = []
+    for _ in range(epochs):
+        perm = torch.randperm(B)
+        for b in range(0, B, batch_size):
+            bi = perm[b:b + batch_size]
+            nb_ = len(bi)
+            Se = S[bi].unsqueeze(1).expand(-1, MAX_CANDS, -1).reshape(
+                nb_ * MAX_CANDS, -1)
+            Ae = A[bi].reshape(nb_ * MAX_CANDS, -1)
+            logits = net(Se, Ae).view(nb_, MAX_CANDS)
+            logits = logits.masked_fill(~mask[bi], -1e9)
+            ce = torch.nn.functional.cross_entropy(logits, tgt[bi],
+                                                   reduction="none")
+            loss = (ce * wgt[bi]).sum() / wgt[bi].sum().clamp_min(1e-6)
+            opt.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(net.parameters(), 5.0)
+            opt.step()
+            losses.append(float(loss.detach()))
+    net.eval()
+    return B, (sum(losses) / len(losses) if losses else 0.0)
 
 
-# --- exam: mirrored pairs vs the frozen champion on held-out decks ---------
+# --- exam: mirrored duplicate MARATHON games vs the champion ---------------
 
 @torch.no_grad()
 def _exam_game(net_l, net_c, pair_seed: int, flip: bool,
                win: int, lose: int, deck_fn):
-    """Learner (side 0) vs champion, both pure argmax. Returns
-    (learner_won, [per-hand diff for learner], hands)."""
     env = SelfPlayGame(seed=pair_seed, deck_fn=deck_fn,
                        dealer=pair_seed % 4, win_score=win, lose_score=lose)
     rng = random.Random(pair_seed ^ 0xE7A3)
@@ -148,13 +259,15 @@ def _exam_game(net_l, net_c, pair_seed: int, flip: bool,
 
 def exam_pair(net_l, net_c, decks: CuratedDecks, pair_seed: int,
               win: int, lose: int):
-    """One mirrored pair on identical curated decks. Returns
-    (wins, hands, tier_tally[3][3]) — tally rows per tier:
+    """One mirrored marathon pair on identical curated decks. Returns
+    (wins, hands, tier_tally[3][3]) — per tier:
     [learner_both, champ_both, cards_decided]."""
     deck_fn1, tier_of = decks.deck_fn_for(pair_seed)
     deck_fn2, _ = decks.deck_fn_for(pair_seed)
-    w1, d1, h1 = _exam_game(net_l, net_c, pair_seed, False, win, lose, deck_fn1)
-    w2, d2, h2 = _exam_game(net_l, net_c, pair_seed, True, win, lose, deck_fn2)
+    w1, d1, h1 = _exam_game(net_l, net_c, pair_seed, False, win, lose,
+                            deck_fn1)
+    w2, d2, h2 = _exam_game(net_l, net_c, pair_seed, True, win, lose,
+                            deck_fn2)
     tally = [[0, 0, 0] for _ in range(3)]
     for k in range(min(len(d1), len(d2))):
         t = tier_of(k)
@@ -165,58 +278,6 @@ def exam_pair(net_l, net_c, decks: CuratedDecks, pair_seed: int,
         else:
             tally[t][2] += 1
     return (1 if w1 else 0) + (1 if w2 else 0), h1 + h2, tally
-
-
-# --- workers ----------------------------------------------------------------
-
-_W: dict = {}
-
-
-def _winit(lib_path, train_weights, exam_weights, random_decks,
-           champ_sd, win, lose):
-    torch.set_num_threads(1)
-    _W["random"] = random_decks
-    if lib_path:
-        train, exam, _ = load_library(lib_path)
-        _W["train"] = None if random_decks else CuratedDecks(train, train_weights)
-        _W["exam"] = CuratedDecks(exam, exam_weights)
-    _W["champ"] = _rebuild(champ_sd)
-    _W["win"], _W["lose"] = win, lose
-
-
-def _train_deck_fn(pair_seed):
-    if _W.get("train") is None:
-        return deck_stream(pair_seed)
-    fn, _ = _W["train"].deck_fn_for(pair_seed)
-    return fn
-
-
-def _wmatch(args):
-    """One chunk of duplicate pairs between two fighters."""
-    sd_a, sd_b, train_a, train_b, eps_a, eps_b, seeds, sugar = args
-    na = _rebuild(sd_a) if sd_a is not None else _W["champ"]
-    nb = _rebuild(sd_b) if sd_b is not None else _W["champ"]
-    rows_a = [] if train_a else None
-    rows_b = [] if train_b else None
-    wins_a = games = hands = 0
-    for ps in seeds:
-        deck_fn = _train_deck_fn(ps)
-        for flip in (False, True):
-            w, nh = play_evo_game(na, nb, ps, flip, eps_a, eps_b,
-                                  rows_a, rows_b, sugar,
-                                  _W["win"], _W["lose"], deck_fn)
-            wins_a += 1 if w == 0 else 0
-            games += 1
-            hands += nh
-
-    def pack(rows):
-        if not rows:
-            return None
-        return (np.stack([r[0] for r in rows]),
-                np.stack([r[1] for r in rows]),
-                np.array([r[2] for r in rows], dtype=np.float32))
-
-    return pack(rows_a), pack(rows_b), wins_a, games, hands
 
 
 def _wexam(args):
@@ -255,28 +316,30 @@ def main():
     ap.add_argument("--exam-weights", default="0.10,0.30,0.60",
                     help="FIXED across cities so exams are comparable")
     ap.add_argument("--random-decks", action="store_true",
-                    help="control culture: uncurated training decks "
+                    help="control culture: uncurated training deals "
                          "(exams stay curated)")
-    ap.add_argument("--win-score", type=int, default=2000)
+    ap.add_argument("--win-score", type=int, default=2000,
+                    help="EXAM rules (marathon; Riley's -1000..2000)")
     ap.add_argument("--lose-score", type=int, default=-1000)
-    ap.add_argument("--sugar-bid", type=float, default=0.0)
-    ap.add_argument("--sugar-pts", type=float, default=0.0)
-    ap.add_argument("--sugar-hand", type=float, default=0.5)
-    ap.add_argument("--sugar-game", type=float, default=0.5)
-    ap.add_argument("--match-pairs", type=int, default=3,
-                    help="duplicate pairs per match per round (marathon "
-                         "games are long — keep rounds flowing)")
+    ap.add_argument("--farm-win", type=int, default=500,
+                    help="farm hands use sprint geometry — the score "
+                         "distribution gen21 was trained on")
+    ap.add_argument("--farm-lose", type=int, default=-250)
+    ap.add_argument("--curriculum", type=float, default=0.4,
+                    help="fraction of farm hands from random score starts "
+                         "(gen_mimic's own curriculum)")
+    ap.add_argument("--farm-pairs", type=int, default=48,
+                    help="mirrored hand-pairs per learner per round")
     ap.add_argument("--rounds", type=int, default=10 ** 9)
     ap.add_argument("--eps", type=float, default=0.05)
     ap.add_argument("--lr", type=float, default=3e-5)
-    ap.add_argument("--batch-size", type=int, default=1024)
+    ap.add_argument("--batch-size", type=int, default=256)
     ap.add_argument("--epochs", type=int, default=2)
     ap.add_argument("--workers", type=int, default=7)
     ap.add_argument("--select-every-min", type=float, default=120.0)
     ap.add_argument("--select-pairs", type=int, default=50,
-                    help="exam pairs per learner per selection — 100 marathon "
-                         "games (~5700 hands) on contested decks; SE ~5pp, "
-                         "and exams cost ~seconds (0.4s/game measured)")
+                    help="exam pairs per learner per selection — 100 "
+                         "marathon games (~5700 hands) on contested decks")
     ap.add_argument("--max-hours", type=float, default=12.0)
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--seed", type=int, default=0)
@@ -286,8 +349,6 @@ def main():
     run_dir.mkdir(parents=True, exist_ok=True)
     rng = random.Random(args.seed)
     torch.manual_seed(args.seed)
-    sugar = {"bid": args.sugar_bid, "pts": args.sugar_pts,
-             "hand": args.sugar_hand, "game": args.sugar_game}
     train_w = tuple(float(x) for x in args.tier_weights.split(","))
     exam_w = tuple(float(x) for x in args.exam_weights.split(","))
 
@@ -302,18 +363,11 @@ def main():
     names = [FOUNDERS[i] for i in range(args.learners)]
     nets = [_rebuild({k: v.clone() for k, v in champ_sd.items()})
             for _ in range(args.learners)]
-    trainable = [True] * args.learners
-    for anch in ("gen21", "gen21b"):
-        names.append(anch)
-        nets.append(champ)
-        trainable.append(False)
-    opts = [torch.optim.Adam(n.parameters(), lr=args.lr) if tr else None
-            for n, tr in zip(nets, trainable)]
-    elo = {n: 1000.0 for n in names}
-    banked: dict = {}          # name -> (exam_wr, state_dict)
-    curve: list = []           # [{ts, round, best, mean}]
-    exams: list = []           # selection records
-    totals = {"games": 0, "hands": 0, "rows": 0}
+    opts = [torch.optim.Adam(n.parameters(), lr=args.lr) for n in nets]
+    banked: dict = {}
+    curve: list = []
+    exams: list = []
+    totals = {"games": 0, "hands": 0, "rows": 0, "pos": 0, "neg": 0}
     sel_idx = 0
     start_round = 0
 
@@ -321,23 +375,16 @@ def main():
     if args.resume and state_path.exists():
         st = torch.load(state_path, map_location="cpu", weights_only=False)
         names = list(st["names"])
-        nets, opts, trainable = [], [], []
+        nets, opts = [], []
         for nm in names:
-            if nm.startswith("gen21"):
-                nets.append(champ)
-                opts.append(None)
-                trainable.append(False)
-            else:
-                nets.append(_rebuild(st["nets"][nm]))
-                opt = torch.optim.Adam(nets[-1].parameters(), lr=args.lr)
-                if nm in st["opts"]:
-                    try:
-                        opt.load_state_dict(st["opts"][nm])
-                    except Exception:
-                        pass
-                opts.append(opt)
-                trainable.append(True)
-        elo = st["elo"]
+            nets.append(_rebuild(st["nets"][nm]))
+            opt = torch.optim.Adam(nets[-1].parameters(), lr=args.lr)
+            if nm in st["opts"]:
+                try:
+                    opt.load_state_dict(st["opts"][nm])
+                except Exception:
+                    pass
+            opts.append(opt)
         banked = st["banked"]
         curve = st.get("curve", [])
         exams = st.get("exams", [])
@@ -347,15 +394,12 @@ def main():
         print(f"resumed {args.run} at round {start_round} "
               f"(selection {sel_idx})", flush=True)
 
-    # RATCHET FLOOR (added after the first live selection read 0-7%
-    # across all cities): every founder's bank starts as a pristine
-    # champion copy at its mirror-true 50%. If training wrecks the field
-    # (S3 target-redefinition collapse, or plain law-3 churn), the cull
-    # pulls wrecked fighters BACK to fresh champion clones instead of
-    # cloning the least-wrecked wreck — the population can never do
-    # worse than restart from gen21.
-    for nm, tr in zip(names, trainable):
-        if tr and nm not in banked:
+    # RATCHET FLOOR: every lineage's bank starts as a pristine champion
+    # copy at its mirror-true 50% — the cull pulls wrecked fighters back
+    # to fresh gen21 clones; the population can never do worse than
+    # restart from the champion.
+    for nm in names:
+        if nm not in banked:
             banked[nm] = (0.50, {k: v.clone() for k, v in champ_sd.items()})
 
     import multiprocessing as mp
@@ -363,7 +407,9 @@ def main():
     pool = ctx.Pool(args.workers, initializer=_winit,
                     initargs=(args.deck_lib, train_w, exam_w,
                               args.random_decks, champ_sd,
-                              args.win_score, args.lose_score))
+                              args.win_score, args.lose_score,
+                              args.farm_win, args.farm_lose,
+                              args.curriculum))
 
     def log(rec):
         rec["ts"] = time.time()
@@ -372,25 +418,23 @@ def main():
 
     def save_state(rd):
         torch.save({"nets": {nm: nt.state_dict()
-                             for nm, nt, tr in zip(names, nets, trainable)
-                             if tr},
+                             for nm, nt in zip(names, nets)},
                     "opts": {nm: op.state_dict()
-                             for nm, op, tr in zip(names, opts, trainable)
-                             if tr},
-                    "elo": elo, "banked": banked, "curve": curve,
-                    "exams": exams, "totals": totals, "sel_idx": sel_idx,
+                             for nm, op in zip(names, opts)},
+                    "banked": banked, "curve": curve, "exams": exams,
+                    "totals": totals, "sel_idx": sel_idx,
                     "round": rd, "names": names}, state_path)
 
-    def write_status(rd, sec_per_round):
-        best = max(((v[0], k) for k, v in banked.items() if v[1] is not None),
-                   default=(None, None))
+    def write_status(rd, sec_per_round, last_pos_rate):
+        best = max(((v[0], k) for k, v in banked.items()
+                    if v[1] is not None), default=(None, None))
         status = {
             "city": args.city, "run": args.run, "ts": time.time(),
             "round": rd, "totals": totals,
+            "pos_rate": last_pos_rate,
             "rate_games_day": round(86400 / sec_per_round
-                                    * status_games_last, 0)
+                                    * status_pairs_last * 2, 0)
             if sec_per_round else None,
-            "elo": {k: round(v, 1) for k, v in elo.items()},
             "lineages": {k: round(v[0], 3) for k, v in banked.items()},
             "best": {"wr": best[0], "name": best[1]},
             "curve": curve[-200:],
@@ -398,8 +442,10 @@ def main():
             "config": {"tier_weights": list(train_w),
                        "exam_weights": list(exam_w),
                        "random_decks": args.random_decks,
-                       "lr": args.lr, "eps": args.eps, "sugar": sugar,
+                       "lr": args.lr, "eps": args.eps,
                        "win": args.win_score, "lose": args.lose_score,
+                       "farm": [args.farm_lose, args.farm_win,
+                                args.curriculum],
                        "select_every_min": args.select_every_min,
                        "select_pairs": args.select_pairs,
                        "lib": lib_stats},
@@ -410,116 +456,87 @@ def main():
 
     t_start = time.time()
     last_sel = time.time()
-    status_games_last = 0
-    print(f"DARWIN GYM {args.city} ({args.run}): {args.learners} learners "
-          f"from {args.champion} + 2 anchors | decks "
+    status_pairs_last = 0
+    pos_rate = None
+    print(f"DARWIN GYM v2 {args.city} ({args.run}): {args.learners} "
+          f"learners from {args.champion} | mirrored-hand farm vs frozen "
+          f"champion, CE self-imitation | decks "
           f"{'RANDOM (control)' if args.random_decks else train_w} | "
-          f"rules {args.lose_score}..{args.win_score} | lr {args.lr}",
-          flush=True)
+          f"exam rules {args.lose_score}..{args.win_score} | lr {args.lr} "
+          f"eps {args.eps}", flush=True)
 
     for rd in range(start_round, args.rounds):
         if (time.time() - t_start) > args.max_hours * 3600:
-            print(f"max-hours reached at round {rd} — clean exit", flush=True)
+            print(f"max-hours reached at round {rd} — clean exit",
+                  flush=True)
             save_state(rd)
             break
         t0 = time.time()
 
-        # matchmaking: Elo-adjacent pairs, never anchor-vs-anchor.
-        # Separation must be DETERMINISTIC: once the two frozen anchors'
-        # Elo runs a few hundred points clear of the field (they never
-        # explore, so they farm the eps-noised learners), no amount of
-        # shuffle noise puts a learner between them — a retry-until loop
-        # here spun forever and froze all four cities at round ~100.
-        order = sorted(range(len(nets)),
-                       key=lambda i: elo[names[i]] + rng.gauss(0, 60))
-        for k in range(0, len(order) - 1, 2):
-            if not trainable[order[k]] and not trainable[order[k + 1]]:
-                m = k + 2 if k + 2 < len(order) else k - 1
-                order[k + 1], order[m] = order[m], order[k + 1]
-        pairs = [(order[k], order[k + 1])
-                 for k in range(0, len(order) - 1, 2)]
-
-        chunks = max(1, (args.workers + len(pairs) - 1) // len(pairs))
-        per = max(1, args.match_pairs // chunks + (args.match_pairs % chunks > 0))
+        # --- FARM: every learner works a chunk of mirrored hand-pairs ---
+        chunks = max(1, args.workers // max(1, len(nets)))
+        per = max(4, args.farm_pairs // chunks)
         jobs, meta = [], []
-        for pi, (i, j) in enumerate(pairs):
-            sd_i = ({k: v.cpu() for k, v in nets[i].state_dict().items()}
-                    if trainable[i] else None)
-            sd_j = ({k: v.cpu() for k, v in nets[j].state_dict().items()}
-                    if trainable[j] else None)
-            for _ in range(chunks):
-                seeds = [rng.randrange(1 << 30) for _ in range(per)]
-                jobs.append((sd_i, sd_j, trainable[i], trainable[j],
-                             args.eps if trainable[i] else 0.0,
-                             args.eps if trainable[j] else 0.0,
-                             seeds, sugar))
-                meta.append(pi)
-        results = pool.map(_wmatch, jobs)
+        for idx in range(len(nets)):
+            sd = {k: v.cpu() for k, v in nets[idx].state_dict().items()}
+            for c in range(chunks):
+                jobs.append((sd, rng.randrange(1 << 30), per, args.eps))
+                meta.append(idx)
+        results = pool.map(_wfarm, jobs)
 
-        agg = {pi: [[], [], 0, 0] for pi in range(len(pairs))}
-        for pi, (pa, pb, wins_a, games, hands) in zip(meta, results):
-            if pa is not None:
-                agg[pi][0].append(pa)
-            if pb is not None:
-                agg[pi][1].append(pb)
-            agg[pi][2] += wins_a
-            agg[pi][3] += games
-            totals["games"] += games
+        agg: dict = {}
+        pos = neg = tied = 0
+        adv_sum = 0
+        for idx, (pk, p, n_, t, hands, a) in zip(meta, results):
+            if pk is not None:
+                agg.setdefault(idx, []).append(pk)
+            pos += p
+            neg += n_
+            tied += t
+            adv_sum += a
+            totals["games"] += 2 * (p + n_ + t)
             totals["hands"] += hands
-        round_games = sum(a[3] for a in agg.values())
-        status_games_last = round_games
+        totals["pos"] += pos
+        totals["neg"] += neg
+        status_pairs_last = pos + neg + tied
 
-        for pi, (i, j) in enumerate(pairs):
-            packs_a, packs_b, wins_a, n = agg[pi]
-            if n == 0:
-                continue
-            elo[names[i]], elo[names[j]] = _elo_update(
-                elo[names[i]], elo[names[j]], wins_a / n)
-            for idx, packs in ((i, packs_a), (j, packs_b)):
-                if not packs or not trainable[idx]:
-                    continue
-                S = torch.from_numpy(np.concatenate([p[0] for p in packs]))
-                A = torch.from_numpy(np.concatenate([p[1] for p in packs]))
-                Y = torch.from_numpy(np.concatenate([p[2] for p in packs]))
-                totals["rows"] += len(Y)
-                net, opt = nets[idx], opts[idx]
-                net.train()
-                for _ in range(args.epochs):
-                    perm = torch.randperm(len(Y))
-                    for b in range(0, len(Y), args.batch_size):
-                        bi = perm[b:b + args.batch_size]
-                        loss = torch.nn.functional.mse_loss(
-                            net(S[bi], A[bi]), Y[bi])
-                        opt.zero_grad()
-                        loss.backward()
-                        torch.nn.utils.clip_grad_norm_(net.parameters(), 5.0)
-                        opt.step()
-                net.eval()
+        round_rows = 0
+        losses = []
+        for idx, packs in agg.items():
+            nrows, loss = ce_step(nets[idx], opts[idx], packs,
+                                  args.batch_size, args.epochs)
+            totals["rows"] += nrows
+            round_rows += nrows
+            losses.append(loss)
 
+        decided = pos + neg
+        pos_rate = round(pos / decided, 3) if decided else None
         sec = time.time() - t0
-        rec = {"round": rd, "games": round_games, "sec": round(sec, 1),
-               "elo": {k: round(v, 1) for k, v in elo.items()}}
-        board = sorted(elo.items(), key=lambda kv: -kv[1])
-        print(f"[{args.city} rd {rd}] {round_games}g {sec:.0f}s | "
-              + "  ".join(f"{k}:{v:.0f}" for k, v in board[:4]), flush=True)
+        rec = {"round": rd, "pairs": pos + neg + tied, "pos": pos,
+               "neg": neg, "pos_rate": pos_rate,
+               "adv_mean": round(adv_sum / max(1, decided), 1),
+               "rows": round_rows, "sec": round(sec, 1),
+               "ce": round(sum(losses) / len(losses), 4) if losses
+               else None}
+        print(f"[{args.city} rd {rd}] {pos + neg + tied}pr "
+              f"+{pos}/-{neg} pos_rate "
+              f"{pos_rate if pos_rate is not None else '—'} "
+              f"rows {round_rows} {sec:.0f}s", flush=True)
 
-        # --- SELECTION: the salted exam, banking, clone-and-cull ----------
+        # --- SELECTION: the salted exam, banking, clone-and-cull --------
         if (time.time() - last_sel) >= args.select_every_min * 60:
             sel_idx += 1
             base = salt(args.city, sel_idx, time.strftime("%Y%m%d"))
             exam_seeds = [base + p * 104729 + 1
                           for p in range(args.select_pairs)]
-            jobs = []
-            meta2 = []
+            jobs2, meta2 = [], []
             per_w = max(2, args.select_pairs // args.workers + 1)
             for idx in range(len(nets)):
-                if not trainable[idx]:
-                    continue
                 sd = {k: v.cpu() for k, v in nets[idx].state_dict().items()}
                 for c in range(0, len(exam_seeds), per_w):
-                    jobs.append((sd, exam_seeds[c:c + per_w]))
+                    jobs2.append((sd, exam_seeds[c:c + per_w]))
                     meta2.append(idx)
-            eres = pool.map(_wexam, jobs)
+            eres = pool.map(_wexam, jobs2)
             fitness: dict = {}
             tiers: dict = {}
             for idx, (wins, games, hands, tally) in zip(meta2, eres):
@@ -533,7 +550,7 @@ def main():
                 totals["games"] += games
                 totals["hands"] += hands
             fitness = {i: w / max(1, g) for i, (w, g) in fitness.items()}
-            exam_names = dict(enumerate(names))  # pre-swap names for records
+            exam_names = dict(enumerate(names))
             for idx, wr in fitness.items():
                 prev = banked.get(names[idx], (-1.0, None))[0]
                 if wr > prev:
@@ -556,7 +573,6 @@ def main():
                 old = names[slot]
                 new = f"{src_name}.c{rd}"
                 names[slot] = new
-                elo[new] = elo.pop(old, 1000.0)
                 banked[new] = (src_wr, {k: v.clone()
                                         for k, v in src_sd.items()})
                 banked.pop(old, None)
@@ -569,7 +585,8 @@ def main():
                     skill = l + c
                     out[lbl] = {"skill_share":
                                 round(l / skill, 3) if skill else None,
-                                "skill_hands": skill, "cards_hands": cards}
+                                "skill_hands": skill,
+                                "cards_hands": cards}
                 return out
 
             sel_rec = {"sel": sel_idx, "round": rd, "ts": time.time(),
@@ -601,9 +618,9 @@ def main():
 
         log(rec)
         if rd % 25 == 0:
-            write_status(rd, sec)
+            write_status(rd, sec, pos_rate)
         if rd % 100 == 0 and rd > start_round:
-            save_state(rd)  # the hang cost 100 unsaved rounds; save oftener
+            save_state(rd)
     pool.close()
 
 

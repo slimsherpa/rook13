@@ -71,9 +71,11 @@ def city_block(name, culture, s):
     best = s.get("best") or {}
     best_txt = (f"{best['name']} @ <b>{best['wr']:.1%}</b> vs gen21"
                 if best.get("wr") is not None else "no bank yet")
-    elo = sorted(s["elo"].items(), key=lambda kv: -kv[1])
-    elo_txt = " · ".join(f"{k} {v:.0f}" for k, v in elo[:4])
     tot = s["totals"]
+    pr = s.get("pos_rate")
+    farm_txt = (f"beats-champ hand rate {pr:.1%} (lifetime "
+                f"+{tot.get('pos', 0):,}/-{tot.get('neg', 0):,})"
+                if pr is not None else "farming…")
     rate = s.get("rate_games_day")
     exam_rows = ""
     if s.get("exams"):
@@ -99,7 +101,7 @@ def city_block(name, culture, s):
 {tot['rows']:,} rows{f" · {rate / 1000:.0f}k games/day" if rate else ""}</p>
 <p>best banked: {best_txt}</p>
 {spark(s.get('curve', []))}
-<p class=sub>Elo: {elo_txt}</p>
+<p class=sub>{farm_txt}</p>
 {exam_rows}</div>"""
 
 
@@ -173,7 +175,9 @@ time.gmtime())}</span></div>
 (same side won them from both chairs — ~26% of random hands, more on
 contested decks), the share the fighter took. gen21's own edge over Puma
 was 53-54% skill-share; sustained 55%+ here is a real rung.<br>
-cities: 6 learners + 2 frozen gen21 anchors each · selection every 2h:
+cities: 6 learners sparring frozen gen21 on mirrored hand-pairs (CE
+self-imitation: clone verified wins, champion pulls back losses) ·
+selection every 2h:
 clone top-2 banked, cull bottom-2 (pedigree = name.c&lt;round&gt;) ·
 exams on held-out contested decks, salted per city+day (law 8) ·
 moab trains on RANDOM decks as the control — if curation is the active
