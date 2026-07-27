@@ -35,7 +35,7 @@ mkdir -p runs/gen23/shards
 # want it back.
 pkill -f "alpharook.evo" 2>/dev/null
 
-for w in 0 1 2 3 4; do   # 5 of 8 cores; the ceiling report has the other 3
+for w in 0 1; do   # 2 of 8: the big t1-vs-t3 marathon has 4, ceiling 2
   pgrep -f "[c]ity${B}_w${w}.jsonl" > /dev/null && continue
   nohup $PY -m alpharook.gen_mimic \
     --out runs/gen23/shards/city${B}_w${w}.jsonl \
