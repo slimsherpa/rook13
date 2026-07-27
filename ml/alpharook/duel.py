@@ -273,7 +273,8 @@ def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
             import multiprocessing as mp
             ctx = mp.get_context("spawn")
             with ctx.Pool(workers, initializer=_worker_init,
-                          initargs=(*side_args, win_score, lose_score)) as pool:
+                          initargs=(*side_args, win_score, lose_score,
+                                    bool(dump_actions_path))) as pool:
                 for _, res in pool.imap_unordered(_worker_pair, pair_seeds):
                     yield res
         else:
