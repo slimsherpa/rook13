@@ -28,6 +28,7 @@ forward pass, so `--workers N` fans pairs out across processes:
 from __future__ import annotations
 
 import argparse
+import json
 import random
 import time
 
@@ -203,10 +204,32 @@ def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
     if record:
         game["seed"] = pair_seed
         game["flip"] = int(flip)
+        game["win"] = win_score
+        game["lose"] = lose_score
         game["d"] = decs
         game["n_srch"] = sum(x[4] for x in decs)
         game["n_ovr"] = sum(1 for x in decs if x[4] and x[3] != x[2])
     return winner_side, diff0, stats, game
+
+
+def completed_pairs(dump_actions_path: str) -> set:
+    """Pair seeds with BOTH mirror games already banked in the corpus file.
+    Streams get killed (OOM, reboots, keeper restarts) and relaunched with
+    the same seed base; without this, every relaunch replays the whole seed
+    space at full search cost. Half-written pairs rerun whole — the miller
+    dedups on (seed, flip)."""
+    import os
+    done: dict = {}
+    if not os.path.exists(dump_actions_path):
+        return set()
+    with open(dump_actions_path) as f:
+        for line in f:
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue        # torn tail line from a killed writer
+            done.setdefault(r["seed"], set()).add(r["flip"])
+    return {s for s, fl in done.items() if fl == {0, 1}}
 
 
 def replay_duel_game(rec: dict, win_score: int = 2000,
@@ -268,6 +291,12 @@ def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
 
     def pair_stream():
         pair_seeds = [seed + p * 104729 + 1 for p in range(n_pairs)]
+        if dump_actions_path:
+            done = completed_pairs(dump_actions_path)
+            if done:
+                pair_seeds = [s for s in pair_seeds if s not in done]
+                print(f"  resume: {len(done)} pairs already banked, "
+                      f"{len(pair_seeds)} to play", flush=True)
         if workers > 1:
             assert side_args is not None, "workers need side ctor args"
             import multiprocessing as mp

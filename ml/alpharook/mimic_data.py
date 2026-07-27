@@ -40,12 +40,23 @@ def is_val_seed(seed: int) -> bool:
 
 def iter_records(paths: list[Path], want_val: bool):
     for p in paths:
-        with open(p) as f:
+        seen = set()   # duel streams replay their seed space after a
+        with open(p) as f:  # crash-relaunch; dedup mirror games per shard
             for line in f:
                 try:
                     rec = json.loads(line)
                 except json.JSONDecodeError:
                     continue        # torn tail line of a live shard
+                if "flip" in rec:   # duel-corpus row (teacher vs gen21)
+                    key = (rec["seed"], rec["flip"])
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    if "win" not in rec:
+                        # rows dumped before duel.py stamped the format:
+                        # keeper convention puts 'std' in the 500/-250 shards
+                        rec["win"], rec["lose"] = \
+                            (500, -250) if "std" in p.name else (2000, -1000)
                 if is_val_seed(rec["seed"]) == want_val:
                     yield rec
 
@@ -53,14 +64,31 @@ def iter_records(paths: list[Path], want_val: bool):
 def rows_from_record(rec: dict, reflex_keep: float, rng: random.Random,
                      ovr_weight: float):
     """Replay one game; yield (state, dtype, cands, chosen_idx, weight, kind).
-    Single-candidate decisions carry no signal and are skipped."""
+    Single-candidate decisions carry no signal and are skipped.
+
+    Two raw formats, one miller:
+      gen_mimic — teacher on all 4 seats, curriculum score start; every
+        multi-candidate decision is a training row.
+      duel corpus (has "flip") — teacher (side 0) vs bare gen21, full game
+        from 0-0 at the run's win/lose scores. BOTH sides' decisions replay
+        the game, but only the teacher's become rows: gen21's lines are
+        what the warm-started student already is."""
     seed = rec["seed"]
-    env = SelfPlayGame(seed=seed, deck_fn=deck_stream(seed), dealer=seed % 4)
-    env.g.scores = list(rec["start"])
-    for seat, dtype, action, reflex, srch in rec["d"]:
+    is_duel = "flip" in rec
+    if is_duel:
+        env = SelfPlayGame(seed=seed, deck_fn=deck_stream(seed),
+                           dealer=seed % 4, win_score=rec["win"],
+                           lose_score=rec["lose"])
+    else:
+        env = SelfPlayGame(seed=seed, deck_fn=deck_stream(seed),
+                           dealer=seed % 4)
+        env.g.scores = list(rec["start"])
+    for d in rec["d"]:
+        seat, dtype, action, reflex, srch = d[:5]
+        mine = d[5] if is_duel else 1
         s2, d2, cands = env.decision()
         assert s2 == seat and d2 == dtype, f"replay divergence in seed {seed}"
-        if len(cands) > 1:
+        if mine and len(cands) > 1:
             kind = 2 if (srch and action != reflex) else (1 if srch else 0)
             # reflex subsampling applies ONLY to card plays: auction/widow/
             # trump rows are few, never searched, and load-bearing — the
@@ -124,8 +152,12 @@ class MimicStream(torch.utils.data.IterableDataset):
             rng.shuffle(mine)
             for p in mine:
                 for rec in iter_records([p], want_val=False):
-                    for row in rows_from_record(rec, self.reflex_keep, rng,
-                                                self.ovr_weight):
+                    try:
+                        rows = list(rows_from_record(
+                            rec, self.reflex_keep, rng, self.ovr_weight))
+                    except AssertionError:
+                        continue    # corrupt game: skip it, not the run
+                    for row in rows:
                         buf.append(row)
                         if len(buf) >= self.buffer_rows:
                             i = rng.randrange(len(buf))
