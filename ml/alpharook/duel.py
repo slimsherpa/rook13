@@ -122,9 +122,17 @@ def deck_stream(pair_seed: int):
 
 @torch.no_grad()
 def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
-                   win_score: int = 500, lose_score: int = -250):
+                   win_score: int = 500, lose_score: int = -250,
+                   record: bool = False):
     """side0 is team A unless flip. Returns (winning_side_idx, diff_for_side0,
-    per-side auction stats)."""
+    per-side auction stats).
+
+    `record` also captures the full action sequence in mimic format, so a
+    measurement run doubles as teacher corpus. Every decision from BOTH
+    sides is kept — that is what makes the game replayable — each tagged
+    with which side made it, plus the reflex choice and a searched flag for
+    side 0, which is where the needles are.
+    """
     sides = [side1, side0] if flip else [side0, side1]  # index by team
     env = SelfPlayGame(seed=pair_seed, deck_fn=deck_stream(pair_seed),
                        dealer=pair_seed % 4,
@@ -132,15 +140,25 @@ def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
     rng = random.Random(pair_seed ^ 0xD0E1)
     pending: dict[int, list[int]] = {0: [], 1: []}
     heur_styles = ["basic"] * 4
+    decs: list = []
+    side0_team = 1 if flip else 0
 
     while not env.done:
         seat, dtype, cands = env.decision()
         team = team_of(seat)
         side = sides[team]
         scripted = dtype in side.script or side.style is not None
+        reflex = -1
+        searched = 0
         if not scripted:
             if side.agent is not None:
                 action = side.agent.choose(env, seat, dtype, cands)
+                if record and team == side0_team and len(cands) > 1 \
+                        and side.agent.last_search is not None:
+                    # the needle test: what would the bare reflex have done?
+                    reflex = int(model_choose(side.net, "cpu", env, seat,
+                                              dtype, cands))
+                    searched = 1
             else:
                 action = model_choose(side.net, "cpu", env, seat, dtype, cands)
         elif dtype == D_TRUMP and env.trump_intent is None and env.g.phase == PHASE_WIDOW:
@@ -154,6 +172,9 @@ def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
         else:
             styles = [side.style or "basic"] * 4
             _, _, action = next_bot_action(env.g, styles, rng)
+        if record:
+            decs.append([seat, dtype, int(action), reflex, searched,
+                         1 if team == side0_team else 0])
         env.apply(action)
 
     s = env.g.scores
@@ -179,13 +200,38 @@ def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
                      int(h[4] - h[5]) if team_of_side0 == 0
                      else int(h[5] - h[4])]
                     for h in env.g.hand_history])
+    if record:
+        game["seed"] = pair_seed
+        game["flip"] = int(flip)
+        game["d"] = decs
+        game["n_srch"] = sum(x[4] for x in decs)
+        game["n_ovr"] = sum(1 for x in decs if x[4] and x[3] != x[2])
     return winner_side, diff0, stats, game
 
 
+def replay_duel_game(rec: dict, win_score: int = 2000,
+                     lose_score: int = -1000) -> None:
+    """Deterministically replay a recorded duel game and assert it lands on
+    the same final scores. Cheap (no search) and it is what makes these
+    records trustworthy as training data — same guarantee gen_mimic gives."""
+    seed = rec["seed"]
+    env = SelfPlayGame(seed=seed, deck_fn=deck_stream(seed),
+                       dealer=seed % 4, win_score=win_score,
+                       lose_score=lose_score)
+    for seat, dtype, action, _r, _s, _side in rec["d"]:
+        s2, d2, cands = env.decision()
+        assert s2 == seat and d2 == dtype and action in cands, \
+            f"replay divergence at seat {seat} dtype {dtype}"
+        env.apply(action)
+    t0 = 1 if rec["flip"] else 0
+    assert env.done and int(env.g.scores[t0]) == rec["a"], "replay mismatch"
+
+
 def _play_pair(side_a: Side, side_b: Side, pair_seed: int,
-               win_score: int, lose_score: int):
+               win_score: int, lose_score: int, record: bool = False):
     return [play_duel_game(side_a, side_b, pair_seed, flip,
-                           win_score, lose_score) for flip in (False, True)]
+                           win_score, lose_score, record)
+            for flip in (False, True)]
 
 
 # --- multiprocess plumbing: each worker builds its own Sides once ----------
@@ -193,22 +239,25 @@ def _play_pair(side_a: Side, side_b: Side, pair_seed: int,
 _W: dict = {}
 
 
-def _worker_init(a_args: tuple, b_args: tuple, win: int, lose: int):
+def _worker_init(a_args: tuple, b_args: tuple, win: int, lose: int,
+                 record: bool = False):
     torch.set_num_threads(1)  # one pair per process; don't thrash cores
     _W["a"] = Side(*a_args)
     _W["b"] = Side(*b_args)
     _W["win"], _W["lose"] = win, lose
+    _W["record"] = record
 
 
 def _worker_pair(pair_seed: int):
     return pair_seed, _play_pair(_W["a"], _W["b"], pair_seed,
-                                 _W["win"], _W["lose"])
+                                 _W["win"], _W["lose"], _W.get("record"))
 
 
 def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
          verbose: bool = True, win_score: int = 500, lose_score: int = -250,
          workers: int = 1, side_args: tuple | None = None,
-         dump_path: str | None = None):
+         dump_path: str | None = None,
+         dump_actions_path: str | None = None):
     """side_args = (a_ctor_args, b_ctor_args) enables workers > 1: live-net
     Sides can't cross process boundaries, so workers rebuild them from specs."""
     a_wins = b_wins = sweeps_a = sweeps_b = 0
@@ -229,16 +278,31 @@ def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
                     yield res
         else:
             for ps in pair_seeds:
-                yield _play_pair(side_a, side_b, ps, win_score, lose_score)
+                yield _play_pair(side_a, side_b, ps, win_score, lose_score,
+                                 bool(dump_actions_path))
 
     dump_f = open(dump_path, "a") if dump_path else None
+    act_f = open(dump_actions_path, "a") if dump_actions_path else None
     for p, pair in enumerate(pair_stream()):
         results = []
         for w, d, st, gm in pair:
             results.append(w)
             diffs.append(d)
+            import json as _json
+            if act_f is not None and "d" in gm:
+                # verify before trusting: a corpus row that cannot be
+                # replayed is worse than no corpus row at all
+                try:
+                    replay_duel_game(gm, win_score, lose_score)
+                    act_f.write(_json.dumps(
+                        {k: gm[k] for k in
+                         ("seed", "flip", "d", "n_srch", "n_ovr", "hands")})
+                        + "\n")
+                    act_f.flush()
+                except AssertionError:
+                    pass
+            gm = {k: v for k, v in gm.items() if k != "d"}
             if dump_f is not None:
-                import json as _json
                 rec = dict(gm, w=int(w),
                            a_contracts=st[0]["contracts"],
                            a_made=st[0]["made"], a_bids=st[0]["bid_sum"],
@@ -335,6 +399,13 @@ def main():
     ap.add_argument("--plan-lines-b", type=int, default=0)
     ap.add_argument("--workers", type=int, default=1,
                     help="parallel pair-playing processes (search is slow)")
+    ap.add_argument("--dump-actions", default=None,
+                    help="JSONL path: the full ACTION SEQUENCE per game in "
+                         "mimic format (seed + every decision, replay-"
+                         "verified), so a measurement run doubles as "
+                         "teacher corpus. Side A's searched decisions carry "
+                         "the reflex choice, making the needles millable "
+                         "later.")
     ap.add_argument("--dump", default=None,
                     help="JSONL path: one line per game (final scores, "
                          "hands, per-side contracts/made/bids) for "
@@ -352,7 +423,7 @@ def main():
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
          workers=args.workers, side_args=(a_args, b_args),
-         dump_path=args.dump)
+         dump_path=args.dump, dump_actions_path=args.dump_actions)
 
 
 if __name__ == "__main__":

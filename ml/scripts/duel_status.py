@@ -18,24 +18,24 @@ import subprocess
 import time
 from pathlib import Path
 
-SHOW_SCORES = False
-TARGET = 1000
+SHOW_SCORES = True
+TARGET = 2000   # t0 is best-effort: take as many as the clock allows
 HIST = Path("/root/status/duel_hist.json")
 WINDOW_S = 45 * 60          # rate is measured over this trailing window
 
 BOXES = [(1, None), (2, "5.78.130.139"), (3, "5.78.128.203"),
          (4, "5.78.135.83"), (5, "5.78.145.180")]
 MATCHUPS = [
-    ("t1 vs t3", "t1m_box{i}*.jsonl",
-     "which teacher gates better — search from trick 1 or trick 3"),
-    ("gen21 vs t3", "g21_vs_t3_box{i}*.jsonl",
-     "size of the rung the CURRENT teacher offers"),
-    ("gen21 vs t1", "g21_vs_t1_box{i}*.jsonl",
-     "size of the rung a trick-1 teacher would offer &mdash; note t1 "
-     "still plays the whole FIRST TRICK on reflex"),
     ("gen21 vs t0", "g21_vs_t0_box{i}*.jsonl",
-     "the thesis arm: t0 is the only gate that searches the OPENING "
-     "LEAD. Slowest config on the fleet, so best-effort"),
+     "THE LIVE QUESTION — t0 is the only gate that searches the opening "
+     "lead. Every game also recorded as teacher corpus."),
+    ("t1 vs t3", "t1m_box{i}*.jsonl",
+     "SETTLED: t1 wins 53.9% (p=0.007) but costs 1.47x per needle"),
+    ("gen21 vs t3", "g21_vs_t3_box{i}*.jsonl",
+     "SETTLED: the rung the current teacher offers"),
+    ("gen21 vs t1", "g21_vs_t1_box{i}*.jsonl",
+     "SETTLED: 74.9% vs gen21 &mdash; indistinguishable from t3, so t1 "
+     "buys nothing where it counts"),
 ]
 
 
