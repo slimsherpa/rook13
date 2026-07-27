@@ -29,6 +29,10 @@ MATCHUPS = [
     ("gen21 vs t0", "g21_vs_t0_box{i}*.jsonl",
      "THE LIVE QUESTION — t0 is the only gate that searches the opening "
      "lead. Every game also recorded as teacher corpus."),
+    ("gen21 vs t0 — standard slice", "g21_vs_t0_std_box{i}.jsonl",
+     "500/−250 corpus slice (boxes 4-5 + Riley's MBP, ~13% of streams): "
+     "covers the hand_number range and near-threshold score states the "
+     "marathon format under-samples."),
     ("t1 vs t3", "t1m_box{i}*.jsonl",
      "SETTLED: t1 wins 53.9% (p=0.007) but costs 1.47x per needle"),
     ("gen21 vs t3", "g21_vs_t3_box{i}*.jsonl",
