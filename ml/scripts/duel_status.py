@@ -23,13 +23,13 @@ HIST = Path("/root/status/duel_hist.json")
 WINDOW_S = 45 * 60          # rate is measured over this trailing window
 
 BOXES = [(1, None), (2, "5.78.130.139"), (3, "5.78.128.203"),
-         (4, "5.78.135.83")]
+         (4, "5.78.135.83"), (5, "5.78.145.180")]
 MATCHUPS = [
     ("t1 vs t3", "t1m_box{i}*.jsonl",
      "which teacher gates better — search from trick 1 or trick 3"),
-    ("gen21 vs t3", "g21_vs_t3_box{i}.jsonl",
+    ("gen21 vs t3", "g21_vs_t3_box{i}*.jsonl",
      "size of the rung the CURRENT teacher offers"),
-    ("gen21 vs t1", "g21_vs_t1_box{i}.jsonl",
+    ("gen21 vs t1", "g21_vs_t1_box{i}*.jsonl",
      "size of the rung a trick-1 teacher would offer"),
 ]
 
