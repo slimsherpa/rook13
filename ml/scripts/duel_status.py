@@ -13,6 +13,7 @@ Rates come from a rolling snapshot history on disk, since the duel dumps
 carry no timestamps — one line per finished game is all they hold.
 """
 import json
+import math
 import subprocess
 import time
 from pathlib import Path
@@ -30,7 +31,11 @@ MATCHUPS = [
     ("gen21 vs t3", "g21_vs_t3_box{i}*.jsonl",
      "size of the rung the CURRENT teacher offers"),
     ("gen21 vs t1", "g21_vs_t1_box{i}*.jsonl",
-     "size of the rung a trick-1 teacher would offer"),
+     "size of the rung a trick-1 teacher would offer &mdash; note t1 "
+     "still plays the whole FIRST TRICK on reflex"),
+    ("gen21 vs t0", "g21_vs_t0_box{i}*.jsonl",
+     "the thesis arm: t0 is the only gate that searches the OPENING "
+     "LEAD. Slowest config on the fleet, so best-effort"),
 ]
 
 
@@ -126,6 +131,9 @@ def main():
         hpg = hands / games if games else 0
         done = games >= TARGET
 
+        prec = ("<span class=sub>&mdash;</span>" if games < 30 else
+                f"&plusmn;{1.96 * math.sqrt(0.25 / games) * 100:.1f}pp"
+                + (f"<br><span class=sub>sees {50 + 1.64 * math.sqrt(0.25 / games) * 100:.1f}%+</span>"))
         score = ""
         if SHOW_SCORES and games:
             score = f"<td><b>{wins / games:.1%}</b></td>"
@@ -141,6 +149,7 @@ def main():
 <td class=num>{f"{sph:.2f}s" if sph else "<span class=sub>measuring…</span>"}</td>
 <td class=num>{f"{spg:.0f}s" if spg else "<span class=sub>measuring…</span>"}</td>
 <td class=num>{f"{gph:.0f}" if gph else "<span class=sub>measuring…</span>"}</td>
+<td class=num>{prec}</td>
 <td class=num><b>{"&#10003; DONE" if done else fmt_eta(eta)}</b></td>
 {score}</tr>""")
 
@@ -178,7 +187,7 @@ margin-top:16px;color:#aaa;font-size:12px}}</style></head><body>
 twice so both sides hold the same cards</div>
 
 <div class=hdr style='margin-top:14px'>
-<b>ALL THREE DONE IN &asymp; {fmt_eta(overall)}</b>
+<b>ALL {len(MATCHUPS)} ARMS DONE IN &asymp; {fmt_eta(overall)}</b>
 &nbsp;<span class=sub>(&asymp; {eta_clock})</span><br>
 <span class=sub>{tot_g:,} games &middot; {tot_h:,} hands played so far
 &middot; refreshed {time.strftime('%H:%M:%S UTC', time.gmtime(now))},
@@ -187,19 +196,25 @@ auto-reloads every 60s</span></div>
 <table>
 <tr><th>matchup</th><th class=num>games</th><th class=num>hands</th>
 <th class=num>sec / hand</th><th class=num>sec / game</th>
-<th class=num>games / hr</th><th class=num>ETA</th>
+<th class=num>games / hr</th><th class=num>precision</th>
+<th class=num>ETA</th>
 {"<th>A win%</th>" if SHOW_SCORES else ""}</tr>
 {''.join(rows)}
 </table>
 
 <div class=note>
-<b>Scores are hidden on purpose.</b> All three runs have a pre-registered
-read at {TARGET:,} games. A board that shows a live win rate turns every
+<b>Scores are hidden on purpose.</b> The three head-to-head arms have a
+pre-registered read at {TARGET:,} games; <b>gen21 vs t0 is best-effort</b>
+&mdash; take what the clock allows and read it with its own error bar. A board that shows a live win rate turns every
 glance into a stopping decision — check often enough and something will
 look significant that isn't. That is exactly how the nine mirages
 happened. Flip <code>SHOW_SCORES</code> in
 <code>/root/duel_status.py</code> whenever you want to look; it is your
 call, not the dashboard's.<br><br>
+<b>precision</b> = the 95% band a result would carry at the current game
+count, and the smallest edge that would clear significance. It tells you
+how sharp the answer is <i>without telling you what it is</i> — so you can
+judge when revealing is worth it.<br><br>
 <b>sec/hand</b> is fleet-effective (wall time &divide; hands finished
 across all boxes), so it already accounts for the workers running in
 parallel. Rates are measured over a trailing 45 min, so they settle a few

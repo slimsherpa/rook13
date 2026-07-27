@@ -1,20 +1,31 @@
 #!/bin/bash
-# DUEL KEEPER — keeps the three teacher matchups saturated and, as each one
-# reaches its target, hands its cores to whichever arm is furthest behind.
-# Installed as /root/duel_keeper.sh on every box; fired by the */5 cron.
+# DUEL KEEPER — keeps the teacher matchups saturated and moves cores to
+# whichever arm is furthest behind. Installed as /root/duel_keeper.sh on
+# every box; fired by the */5 cron.
 #
-# Each arm needs 1,000 marathon games (2000/-1000, duplicate decks, seats
-# swapped). Shard seeds are disjoint by box AND by stream, so any number of
-# workers can be added or removed at any time without colliding — the dumps
-# are append-only and pooled at read time.
+# Arms (all marathon 2000/-1000, duplicate decks, seats swapped):
+#   t1m         t1 teacher vs t3 teacher   — which gate is better
+#   g21_vs_t3   t3 stack vs bare gen21     — rung the CURRENT teacher offers
+#   g21_vs_t1   t1 stack vs bare gen21     — rung a trick-1 teacher offers
+#   g21_vs_t0   t0 stack vs bare gen21     — rung a teacher that searches
+#                                            the OPENING LEAD offers
+#
+# t0 is Riley's thesis arm: min_trick 0 is the ONLY gate that searches the
+# very first card. t1 still plays the whole first trick on reflex (it
+# starts once 1 trick is COMPLETE), so t1 does not test "the first card
+# matters most" at all — it only covers cards 5-8.
+#
+# t0 is also the slowest config on the fleet (search on all 9 tricks of a
+# ~68-hand game), so it is best-effort: take as many games as the clock
+# allows rather than blocking on a fixed target.
 B=__BOX__
 PY=/root/torch-env/bin/python
 cd /root/rook13/ml || exit 1
 TARGET=1000
+STREAMS=4                     # 4 streams x 2 workers = 8 cores
 HUB=5.78.115.122
 
-# fleet-wide count for one arm (every box's shards, this one included)
-count() {
+count() {                     # fleet-wide game count for one arm
   local pat=$1 total=0 n
   for spec in "1 $HUB" "2 5.78.130.139" "3 5.78.128.203" "4 5.78.135.83" \
               "5 5.78.145.180"; do
@@ -31,42 +42,60 @@ count() {
   echo $total
 }
 
-launch() {   # arm, min_trick, worker_count, stream_tag
-  local arm=$1 mt=$2 nw=$3 tag=$4
-  pgrep -f "[${arm:0:1}]${arm:1}_box${B}${tag}" > /dev/null && return
+running() { pgrep -f "[-]-dump runs/$1_box${B}$2.jsonl" > /dev/null; }
+
+launch() {                    # arm, min_trick, stream_tag
+  running "$1" "$3" && return
   nohup nice -n 5 $PY -m alpharook.duel \
     --a models/gen21-cand1.pt --b models/gen21-cand1.pt \
-    --worlds-a 24 --search-a play --prior-a 2.0 --min-trick-a $mt \
+    --worlds-a 24 --search-a play --prior-a 2.0 --min-trick-a $2 \
     --belief-a runs/gen15/best_duel.pt --belief-temp-a 0.5 \
     --worlds-b 0 --win-score 2000 --lose-score -1000 \
-    --pairs 400 --workers $nw --seed $(( RANDOM * 977 + B * 13 )) \
-    --dump runs/${arm}_box${B}${tag}.jsonl \
-    >> runs/${arm}_box${B}${tag}.log 2>&1 &
+    --pairs 400 --workers 2 --seed $(( (RANDOM + B * 7919) % 900000 + 1000 )) \
+    --dump runs/$1_box${B}$3.jsonl \
+    >> runs/$1_box${B}$3.log 2>&1 &
 }
 
+NT=$(count t1m)
 N3=$(count g21_vs_t3)
 N1=$(count g21_vs_t1)
-NT=$(count t1m)
+N0=$(count g21_vs_t0)
 
-# t1-vs-t3 is finished (or nearly): stop feeding it and release its cores
+# t1-vs-t3 reached its read: stop feeding it and release its cores
 if [ "$NT" -ge "$TARGET" ]; then
-  pkill -f "[t]1m_box${B}"
+  pkill -f "[-]-dump runs/t1m_box${B}"
+else
+  running t1m "" && STREAMS=$(( STREAMS - 1 ))   # it still holds a stream
 fi
 
-# Give the cores to whichever arm is furthest from its target. Both arms
-# stay fed; the laggard simply gets the extra stream.
-[ "$N3" -lt "$TARGET" ] && launch g21_vs_t3 3 2 ""
-[ "$N1" -lt "$TARGET" ] && launch g21_vs_t1 1 2 ""
-if [ "$N3" -lt "$TARGET" ] || [ "$N1" -lt "$TARGET" ]; then
-  if [ "$N1" -le "$N3" ]; then
-    [ "$N1" -lt "$TARGET" ] && launch g21_vs_t1 1 2 "x"
-  else
-    [ "$N3" -lt "$TARGET" ] && launch g21_vs_t3 3 2 "x"
-  fi
-fi
+# one base stream per unfinished arm, in priority order, then hand any
+# leftover streams to the arm furthest from target
+declare -a ARMS=()
+[ "$N3" -lt "$TARGET" ] && ARMS+=("g21_vs_t3 3 $N3")
+[ "$N1" -lt "$TARGET" ] && ARMS+=("g21_vs_t1 1 $N1")
+[ "$N0" -lt "$TARGET" ] && ARMS+=("g21_vs_t0 0 $N0")
+
+used=0
+for a in "${ARMS[@]}"; do
+  [ "$used" -ge "$STREAMS" ] && break
+  set -- $a; launch "$1" "$2" ""
+  used=$(( used + 1 ))
+done
+
+while [ "$used" -lt "$STREAMS" ] && [ "${#ARMS[@]}" -gt 0 ]; do
+  lag=""; low=999999
+  for a in "${ARMS[@]}"; do
+    set -- $a
+    if [ "$3" -lt "$low" ]; then low=$3; lag="$1 $2"; fi
+  done
+  [ -z "$lag" ] && break
+  set -- $lag; launch "$1" "$2" "x$used"
+  used=$(( used + 1 ))
+  break                       # one spare stream per tick is plenty
+done
 
 # everything done: stand down so the boxes are free for the corpus
-if [ "$N3" -ge "$TARGET" ] && [ "$N1" -ge "$TARGET" ] \
-   && [ "$NT" -ge "$TARGET" ]; then
+if [ "$NT" -ge "$TARGET" ] && [ "$N3" -ge "$TARGET" ] \
+   && [ "$N1" -ge "$TARGET" ] && [ "$N0" -ge "$TARGET" ]; then
   pkill -f "[a]lpharook.duel"
 fi
