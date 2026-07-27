@@ -28,6 +28,12 @@ PY=/root/torch-env/bin/python
 # the better student.
 GATE=0; [ "$B" -ge 3 ] && GATE=0.30
 cd /root/rook13/ml || exit 1
+
+# Corpus paused while the t1-vs-t3 question is open: if trick-1 wins, every
+# game banked now was made by the second-best teacher and cannot be
+# re-milled into a trick-1 corpus. Resolving the question first IS the
+# cheapest path. Remove the flag file to resume.
+[ -f /root/PAUSE_CORPUS ] && exit 0
 mkdir -p runs/gen23/shards
 
 # The gym is retired — make sure a stale evo process isn't still holding
