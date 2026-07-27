@@ -15,6 +15,18 @@
 # duplicates work. Seed spaces are disjoint per box AND per worker.
 B=__BOX__
 PY=/root/torch-env/bin/python
+# Equivalent-card collapsing (Riley's rule) is ON everywhere: measured
+# 1.20x faster AND it deletes fake needles — search and reflex picking two
+# interchangeable cards used to be recorded as a disagreement worth
+# learning from, which it never was.
+#
+# The margin gate is the one with a trade-off, so it runs as an A/B:
+# boxes 1-2 ungated, boxes 3-4 at 0.30. It buys 2.3x the games and 1.26x
+# the needles per hour, but the needles it drops are the ones where the
+# reflex was CONFIDENT and wrong — plausibly the most valuable kind.
+# Half the fleet stays clean until we can measure which corpus trains
+# the better student.
+GATE=0; [ "$B" -ge 3 ] && GATE=0.30
 cd /root/rook13/ml || exit 1
 mkdir -p runs/gen23/shards
 
@@ -30,6 +42,7 @@ for w in 0 1 2 3 4; do   # 5 of 8 cores; the ceiling report has the other 3
     --net models/gen21-cand1.pt \
     --belief runs/gen15/best_duel.pt --belief-temp 0.5 \
     --worlds 24 --min-trick 3 --prior 2.0 --curriculum 0.4 \
+    --margin-gate $GATE \
     --seed-base $(( (B*10 + w) * 10000000 )) --games 2000000 \
     >> runs/gen23/city${B}_w${w}.log 2>&1 &
 done
