@@ -37,6 +37,11 @@ from __future__ import annotations
 from .cards import CARD_POINTS, TAKING_TRICKS_BONUS, num_of, suit_of, team_of
 
 TOTAL_POINTS = 120          # 100 in counters + the 20-point trick bonus
+# Hard bound on the transposition table. It is a pure cache, so clearing
+# it costs time and never correctness — but leaving it unbounded cost a
+# whole ceiling run to the OOM killer.
+_TT_CAP = 400_000
+_CAND_CAP = 200_000
 _RANK = tuple(c % 10 for c in range(40))          # 0..9, higher = stronger
 _SUIT = tuple(c // 10 for c in range(40))
 _BIT = tuple(1 << c for c in range(40))
@@ -140,19 +145,25 @@ class _Solver:
         if tricks_done == self.n_tricks:
             return self.bonus if t0_tricks >= self.bonus_at else 0
 
-        key = (hands, turn, trick, t0_tricks)
+        # Cache only at TRICK BOUNDARIES. Mid-trick nodes are ~3/4 of the
+        # tree but transpose rarely (the cards on the table pin them), so
+        # storing them cost ~4x the memory for little reuse — which is
+        # what OOM-killed the first ceiling run at 10-14GB per worker.
+        store = not trick
         prev = None
-        hit = self.tt.get(key)
-        if hit is not None:
-            lo, hi, prev = hit
-            if lo == hi:
-                return lo
-            if lo >= beta:
-                return lo
-            if hi <= alpha:
-                return hi
-            alpha = max(alpha, lo)
-            beta = min(beta, hi)
+        key = (hands, turn, t0_tricks) if store else None
+        if store:
+            hit = self.tt.get(key)
+            if hit is not None:
+                lo, hi, prev = hit
+                if lo == hi:
+                    return lo
+                if lo >= beta:
+                    return lo
+                if hi <= alpha:
+                    return hi
+                alpha = max(alpha, lo)
+                beta = min(beta, hi)
         a0, b0 = alpha, beta
 
         lead = _SUIT[trick[0][1]] if trick else None
@@ -161,6 +172,8 @@ class _Solver:
         moves = self.cand.get(ckey)
         if moves is None:
             moves = _candidates(_legal(hands[turn], lead), live, self.trump)
+            if len(self.cand) >= _CAND_CAP:
+                self.cand.clear()
             self.cand[ckey] = moves
         # A move that was best here in an earlier (narrower) search jumps
         # the queue: refuting first is what makes zero-window passes cheap.
@@ -211,9 +224,11 @@ class _Solver:
                     break
 
         # store a bound, or the exact value when the window didn't clip it
-        lo = best if best > a0 else 0
-        hi = best if best < b0 else TOTAL_POINTS
-        self.tt[key] = (lo, hi, best_mv)
+        if store:
+            if len(self.tt) >= _TT_CAP:
+                self.tt.clear()      # pure cache: dropping it is always safe
+            self.tt[key] = (best if best > a0 else 0,
+                            best if best < b0 else TOTAL_POINTS, best_mv)
         return best
 
 

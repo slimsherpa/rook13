@@ -147,7 +147,18 @@ def main() -> None:
     net.eval()
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    done = sum(1 for _ in open(out)) if out.exists() else 0
+    # Resume by SEED, not by count: hands that produced no record (engine
+    # redeals) leave gaps, so counting lines would re-run seeds we already
+    # have and append duplicates — which would quietly bias the aggregate.
+    seen = set()
+    if out.exists():
+        for line in open(out):
+            line = line.strip()
+            if line:
+                seen.add(json.loads(line)["seed"])
+    if seen:
+        print(f"resuming {out.name}: {len(seen)} hands already recorded",
+              flush=True)
     rng = random.Random(args.seed_base ^ 0xCE11)
 
     written = 0
@@ -156,6 +167,8 @@ def main() -> None:
         seed = args.seed_base
         while written < args.hands:
             seed += 1
+            if seed in seen:
+                continue
             env = SelfPlayGame(seed=seed, deck_fn=deck_stream(seed),
                                dealer=seed % 4)
             rows = []
