@@ -326,7 +326,8 @@ def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
                     replay_duel_game(gm, win_score, lose_score)
                     act_f.write(_json.dumps(
                         {k: gm[k] for k in
-                         ("seed", "flip", "d", "n_srch", "n_ovr", "hands")})
+                         ("seed", "flip", "win", "lose",
+                          "d", "n_srch", "n_ovr", "hands")})
                         + "\n")
                     act_f.flush()
                 except AssertionError:
