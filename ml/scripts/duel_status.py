@@ -196,6 +196,8 @@ tr.bad td{{background:#251111}}
 .note{{background:#161616;border:1px solid #2a2a2a;padding:10px 16px;
 margin-top:16px;color:#aaa;font-size:12px}}</style></head><body>
 <h1>&#127981; T0 CORPUS &mdash; the gen23 teacher bank</h1>
+<div style='margin:4px 0'><a href="/train.html" style="color:#5b8bd9">
+&#127891; gen23-mimic1 training curves &rarr;</a></div>
 <div class=sub>teacher = gen21 &times; belief &times; K24 search from the
 opening lead &middot; every game replay-verified into training data
 &middot; refreshed {time.strftime('%H:%M UTC', time.gmtime(now))}</div>
