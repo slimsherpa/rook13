@@ -313,3 +313,70 @@ held-out exams, so gradient churn gets culled instead of compounding.
 Wrap search+belief around gen21 → new teacher (starts from Cosmo-parity,
 should exceed the 62.6% teacher) → regenerate raw corpus → warm-start
 clone → examine. If the Darwin gym plateaus, this is the proven channel.
+
+### gen23 — THE T0 CORPUS (2026-07-27/29, branch alpharook12) — IN PROGRESS
+**The mimic loop, activated. Teacher = gen21 × gen15-belief(0.5) × K24
+PIMC from the OPENING LEAD (t0), the strongest player this project has
+ever measured.**
+
+**Teacher selection (the three-arm bake-off, all marathon duplicate-deck):**
+- t3 stack 74.7% vs bare gen21 (n=810); t1 74.9% (n=466) — t1 beats t3
+  head-to-head 53.9% (p=0.007) but buys NOTHING where it counts and costs
+  1.47x per needle. Closed.
+- **t0 = 78.5% vs gen21 at n=10,046 (±1.0pp)** — the only gate that
+  searches the opening lead, and law 9's gate finally moved: belief
+  posteriors make trick-0/1/2 worlds true enough to profit (gen16-era
+  uniform worlds measurably LOST below t3).
+- Hand-level mechanism (hand_analysis.py, 51k hands): t0 wins only ~54%
+  of hands (+11 pts of ~120) — but it CONVERTS luck-hands into
+  skill-hands (22.8% of hands skill-decided vs t3's 19.6%, p<1e-5) and
+  its make-rate edge GROWS with contract difficulty (+5pp at bid 95 →
+  +12pp at 110). Small per-hand edge × 68 hands = 79% of marathons.
+
+**Corpus design (duel-dump format, duel.py --dump-actions):**
+- Measurement runs double as teacher corpus: teacher (side 0) vs bare
+  gen21, every game replay-verified before it is trusted, BOTH sides'
+  decisions kept (replayability) with a side flag — only teacher rows
+  train; the opponent's lines are what the warm-started student already
+  is. Records stamp win/lose so the miller never guesses the format.
+- Teacher-vs-gen21 chosen over teacher-vs-teacher: same teacher rows per
+  compute-hour, 2x the deal diversity, and the duel doubles as the
+  measurement.
+- **Format mix: ~85% marathon (2000/−1000) + ~15% standard (500/−250).**
+  Measured justification: 69% of marathon teacher rows sit AT the
+  encoder's hand_number cap vs 3% in standard games (the OOD risk);
+  near-threshold score coverage is fine in both (~18%) because score
+  features are fraction-of-target by design.
+- Conversion (measured): marathon game ≈ 69 hands ≈ 1,500 teacher rows
+  ≈ 107 needles; standard game ≈ 13 hands ≈ 300 rows ≈ 22 needles.
+  Needle density 7% of teacher decisions — 2x the gen21 corpus (t0
+  searches the early tricks, where reflex disagreement lives).
+- Fleet: 5 Hetzner boxes × 4 streams + Riley's MBP × 3 streams (the MBP
+  out-produced every box ~2x per core). ~21-27M rows/day, ~$25/day.
+- **Sizing ladder** (anchored to gen21's proven 30M-row/1.1M-needle
+  recipe): Good 18M / Great 30M / Excellent 45M (train here) / Ideal 75M
+  (past which steps, not data, bind). **45M rows + 3.2M needles banked
+  in ~48h — 3x gen21's needle budget off a 2.5x-steeper teacher.**
+
+**Engineering laws earned this round:**
+- **Streams must be resume-safe** (duel.py completed_pairs): a killed
+  stream otherwise replays its whole seed space at full search cost.
+  Keeper relaunches + OOM kills + laptop sleep all made this real within
+  the first day. The miller dedups on (seed, flip) for half-pairs.
+- **pkill of a duel parent orphans its spawn-pool workers** — they run
+  forever at full CPU with PPID 1. Two-day-old orphans were found eating
+  3 cores. Always sweep `ps -eo pid,ppid ... $2==1` after any stream kill.
+- **A write-time field filter eats your new fields silently**: the
+  win/lose stamp was added to the record but the corpus writer's
+  explicit key list dropped it — caught only by auditing actual rows an
+  hour into production. Audit the artifact, not the code.
+- Incremental byte-offset counters (corpus_count.py) or the status board
+  re-reads GB shards every 2 min by day two. macOS crontab HANGS from
+  non-interactive shells (TCC) — LaunchAgents instead.
+
+**Next: mill → warm-start clone from gen21-cand1 (--hidden 512,512,256,
+lr 5e-5, override ×4 — the draft-2 recipe verbatim) → quiz banking by
+match_ovr gated on bid fidelity → fresh-seed sprint+marathon gauntlet vs
+gen13/16/21. Fallback if the clone doesn't graduate: ship t0 directly
+(needs its own duel validation at browser K8 budget — 78.5% was measured
+at K24).**
