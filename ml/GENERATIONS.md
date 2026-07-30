@@ -374,9 +374,26 @@ ever measured.**
   re-reads GB shards every 2 min by day two. macOS crontab HANGS from
   non-interactive shells (TCC) — LaunchAgents instead.
 
-**Next: mill → warm-start clone from gen21-cand1 (--hidden 512,512,256,
-lr 5e-5, override ×4 — the draft-2 recipe verbatim) → quiz banking by
-match_ovr gated on bid fidelity → fresh-seed sprint+marathon gauntlet vs
-gen13/16/21. Fallback if the clone doesn't graduate: ship t0 directly
-(needs its own duel validation at browser K8 budget — 78.5% was measured
-at K24).**
+**The clone (gen23-mimic1, trained 2026-07-29 on the hub):** warm-start
+from gen21-cand1 (--hidden 512,512,256, lr 5e-5, override ×4 — the
+draft-2 recipe verbatim), 120k steps ≈ 61M rows at ~4,000 rows/s ≈ 4.5h
+wall on 8 CPX41 cores. Quiz val = 494k rows / 42.9k overrides from 400
+held-out games.
+- **The curve's shape IS the lesson: the leap is immediate, the rest is
+  calibration.** Needle-match jumped 1.1% → 20.9% inside the first 2,000
+  steps (~1M rows, 2% of the corpus), then plateaued 19–21% for the
+  remaining 118k steps while val loss kept falling (0.95 → 0.46) and bid
+  fidelity recovered 96.2 → 97.9%. Reading: a warm-started student
+  absorbs the teacher's *learnable* tendencies almost instantly; the
+  ~80% of needles it never matches are heavily search-noise near-ties
+  (Green 6 vs Green 8 with 24 sampled worlds tipping a hair) that no
+  reflex can or should memorize. The long tail of training buys
+  confidence calibration, not argmax changes.
+- **Two candidates, picked by duel not quiz** (the banking rule starred
+  step-2k best.pt at ovr 20.9%; latest.pt at 120k has equal ovr, better
+  bids and best val loss — the gen9-era "latest often wins after stable
+  runs" note applies): 4-arm fresh-seed screen vs gen21 launched on
+  boxes 2-5 (sprint 750 pairs + marathon 400 pairs per candidate,
+  screen_*.jsonl dumps). Corpus streams retired first — final bank
+  ~2.5M hands / ~60M teacher rows / ~4.3M needles, raw and re-millable
+  forever.
