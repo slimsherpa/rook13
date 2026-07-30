@@ -21,7 +21,7 @@ import { validateAction } from '../game/engine';
 import { nextAgentActionAsync, preloadNets } from '../alpharook/agent';
 import { overlayPending, sameAction, PendingAction } from '../game/optimistic';
 import { subscribeGame, submitAction, isExpectedRaceError, describeFirestoreError } from '../firebase/gameService';
-import { nudgeBotService } from '../botService';
+import { nudgeBotService, botServiceHealthy } from '../botService';
 import { recordGameStats } from '../firebase/userService';
 import { paced } from '../settings';
 import { useTableHold } from '../tableHold';
@@ -223,7 +223,8 @@ export const useGame = (gameId: string | null): UseGameResult => {
                 leadsNextTrick ? BOT_TRICK_LEAD_DELAY_MS :
                 BOT_BASE_DELAY_MS;
             const jitter = Math.random() * 400;
-            const delay = serverDriven
+            // a known-down service gets normal bot pacing, not the 20s grace
+            const delay = serverDriven && botServiceHealthy()
                 ? SERVER_COVER_MS + (isHost ? 0 : FALLBACK_EXTRA_MS)
                 : paced(baseDelay + jitter) + (isHost ? 0 : paced(FALLBACK_EXTRA_MS));
             const expected = serverGame.actionCount;

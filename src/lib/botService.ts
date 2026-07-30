@@ -11,6 +11,13 @@ export const BOT_SERVICE_URL =
 
 const nudged = new Map<string, number>(); // gameId -> last actionCount nudged
 
+// When the service is unreachable (not deployed public yet, offline, …)
+// the local cover shouldn't sit out its full 20s grace on every move —
+// remember recent failures so useGame can fall back to normal pacing.
+let unhealthyUntil = 0;
+export const botServiceHealthy = (): boolean => Date.now() >= unhealthyUntil;
+const markUnhealthy = () => { unhealthyUntil = Date.now() + 60_000; };
+
 export const nudgeBotService = (gameId: string, actionCount: number): void => {
     if (nudged.get(gameId) === actionCount) return;
     nudged.set(gameId, actionCount);
@@ -19,5 +26,8 @@ export const nudgeBotService = (gameId: string, actionCount: number): void => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ gameId }),
         keepalive: true,
-    }).catch(() => { /* cover handles it */ });
+    }).then((res) => {
+        if (!res.ok) markUnhealthy();
+        else unhealthyUntil = 0;
+    }).catch(markUnhealthy);
 };
