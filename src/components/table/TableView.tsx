@@ -3,9 +3,10 @@
 // The live table. Mobile-first: you always sit at the bottom, partner across
 // the top, play runs clockwise bottom -> left -> top -> right.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, GameAction, GameDoc, Seat, Team, sameCard, teamOf } from '@/lib/game/types';
+import { Card, GameAction, GameDoc, Seat, SEATS, Team, isServerStyle, sameCard, teamOf } from '@/lib/game/types';
+import { botServiceHealthy, subscribeBotServiceHealth } from '@/lib/botService';
 import { bidTeamMaxPoints } from '@/lib/game/engine';
 import { positionsFor } from './layout';
 import { themeFor } from './theme';
@@ -65,6 +66,29 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
         if (hand > 0 && !audits.has(hand)) requestHandAudit(game.id, hand);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [game.phase, game.status, game.handHistory.length, blunderDetector, game.id]);
+
+    // cloud-bot transparency: a header chip while the service is unreachable,
+    // and a toast whenever this device's browser backup plays a cloud seat
+    const cloudHealthy = useSyncExternalStore(subscribeBotServiceHealth, botServiceHealthy, () => true);
+    const hasCloudBots = SEATS.some((s) => game.seats[s].kind === 'bot' && isServerStyle(game.seats[s].botStyle));
+    const [coverToast, setCoverToast] = useState<string | null>(null);
+    const seatsRef = useRef(game.seats);
+    seatsRef.current = game.seats;
+    useEffect(() => {
+        let t: ReturnType<typeof setTimeout> | null = null;
+        const onCover = (e: Event) => {
+            const seat = (e as CustomEvent).detail?.seat as Seat | undefined;
+            const name = seat ? seatsRef.current[seat]?.name.split(' ')[0] : 'a bot';
+            setCoverToast(name ?? 'a bot');
+            if (t) clearTimeout(t);
+            t = setTimeout(() => setCoverToast(null), 5000);
+        };
+        window.addEventListener('rook13-bot-cover', onCover);
+        return () => {
+            window.removeEventListener('rook13-bot-cover', onCover);
+            if (t) clearTimeout(t);
+        };
+    }, []);
 
     // competitive turn clock: a human who stalls a full minute forfeits
     const clock = useForfeitClock(game, game.id);
@@ -286,6 +310,15 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                     <span className="font-orbitron font-bold text-white text-sm sm:text-base">ROOK<span className="text-yellow-400">13</span></span>
                 </div>
                 <div className="flex items-center gap-2.5">
+                    {hasCloudBots && !cloudHealthy && (
+                        <span
+                            className="flex items-center gap-1 text-amber-300/90"
+                            title="Cloud bots unreachable — this device's backup brain (gen19) is playing their moves"
+                        >
+                            <span className="material-symbols-outlined text-lg">cloud_off</span>
+                            <span className="material-symbols-outlined text-sm">computer</span>
+                        </span>
+                    )}
                     {watchers.length > 0 && (
                         <button
                             onClick={() => setShowWatchers(true)}
@@ -485,6 +518,16 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
 
                 {/* table talk: bubbles + quick-message tray */}
                 <TableChat game={game} mySeat={mySeat} bottomSeat={bottomSeat} />
+
+                {/* the browser backup just played a cloud seat — say so */}
+                {coverToast && (
+                    <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none animate-card-reveal">
+                        <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/80 border border-amber-400/50 text-amber-200 font-orbitron text-[11px] shadow-lg whitespace-nowrap">
+                            <span className="material-symbols-outlined text-sm">computer</span>
+                            Backup brain played for {coverToast} — cloud unreachable
+                        </span>
+                    </div>
+                )}
             </main>
 
             {/* dock + hand (spectators have neither) */}

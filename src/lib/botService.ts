@@ -7,16 +7,27 @@
 // service is down, useGame's 20s local cover keeps the table moving.
 
 export const BOT_SERVICE_URL =
-    process.env.NEXT_PUBLIC_BOT_SERVICE_URL ?? 'https://rook13-bots-522004115691.us-central1.run.app';
+    process.env.NEXT_PUBLIC_BOT_SERVICE_URL ?? 'https://rook13-bots-3ytxfwifyq-uc.a.run.app';
 
 const nudged = new Map<string, number>(); // gameId -> last actionCount nudged
 
 // When the service is unreachable (not deployed public yet, offline, …)
 // the local cover shouldn't sit out its full 20s grace on every move —
-// remember recent failures so useGame can fall back to normal pacing.
+// remember recent failures so useGame can fall back to normal pacing,
+// and let the UI show a "cloud bots offline" indicator.
 let unhealthyUntil = 0;
+const healthListeners = new Set<() => void>();
+const notifyHealth = () => healthListeners.forEach((l) => l());
 export const botServiceHealthy = (): boolean => Date.now() >= unhealthyUntil;
-const markUnhealthy = () => { unhealthyUntil = Date.now() + 60_000; };
+export const subscribeBotServiceHealth = (l: () => void): (() => void) => {
+    healthListeners.add(l);
+    return () => { healthListeners.delete(l); };
+};
+const markUnhealthy = () => {
+    const was = botServiceHealthy();
+    unhealthyUntil = Date.now() + 60_000;
+    if (was) notifyHealth();
+};
 
 export const nudgeBotService = (gameId: string, actionCount: number): void => {
     if (nudged.get(gameId) === actionCount) return;
@@ -28,6 +39,6 @@ export const nudgeBotService = (gameId: string, actionCount: number): void => {
         keepalive: true,
     }).then((res) => {
         if (!res.ok) markUnhealthy();
-        else unhealthyUntil = 0;
+        else if (unhealthyUntil !== 0) { unhealthyUntil = 0; notifyHealth(); }
     }).catch(markUnhealthy);
 };
