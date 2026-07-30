@@ -415,11 +415,25 @@ held-out games.
   cards per Riley's hand-drawn spec) published; dumps in hub
   runs/gauntlet/. NOTE for future dumps: seed/flip ride only with
   --dump-actions; sweeps from plain dumps = pair consecutive lines.
-- **Riley's calibration challenge (the "should beat gen8 99%" debate):**
-  resolved by the luck floor — the teacher itself only manages 63.7%
-  sprints vs gen21; ~74-80% of hands are deal-decided, so sprint
-  ceilings are luck-bounded, not skill-bounded. Calibration arms queued:
-  ALPHAGODROOK (god.py, --god-a/b: exact-solver omniscient card play,
-  net bids — legitimate truth-conditioning, referee-with-a-chair) and
-  gen23/gen8-vs-Standard-heuristic. God timing: ~1 min/hand — overnight
-  single-box arms only until a budgeted config exists.
+- **THE ALPHAGODROOK GAUNTLET (2026-07-30 overnight) — the ceiling,
+  measured, and a law revised.** god.py (--god-a/b): exact-solver
+  omniscient card play, gen21 bids — the one legitimate use of
+  truth-conditioning (a referee with a chair; its games are training
+  poison, law 9). ~2 min/hand; 12 arms, 6 machines, ~950 games.
+  RESULTS (sprint win% / pts-per-hand / make%): teacher 92.0/+38/77,
+  gen23 91.0/+40/80, gen21 89.0/+37/78, Cosmo 93.0/+44/80, Cougar
+  95.0/+45/76, Puma 95.8/+45/83, Cub 91.0/+42/82, Bobcat 97.1/+51/86,
+  Kitten 92.0/+47/80, Stomper 97.9/+53/85; marathons vs gen21 and
+  gen23: 100%. **Across 460 duplicate-deck pairs: ZERO pairs swept
+  against god — not one, by anyone, including the teacher.**
+  **LAW REVISED — hidden information, not deal luck, is the wall.**
+  The luck-floor argument ("the teacher only wins 63.7% of sprints, so
+  99% is impossible") holds only between information-equal players; an
+  omniscient +40-of-120 per-hand edge steamrolls sprint variance.
+  Riley's "99% vs gen8" intuition was right ABOUT THE CEILING (god:
+  97.9% and counting); every mortal sits far below it. Corollary: the
+  space above the teacher is enormous, and the preventable/irreducible
+  split (ceiling.py) is the map to how much of it mortals can claim.
+  Full data + compressed dumps + era summary: history/gen23-era/.
+  Method note: per-hand stats (pts/hand, make-at-same-bid) sharpen ~10x
+  faster than game win% — they made 40-game arms readable overnight.
