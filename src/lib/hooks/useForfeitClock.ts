@@ -11,7 +11,7 @@
 // the extras harmless races, exactly like duplicate bot moves.
 
 import { useEffect, useRef, useState } from 'react';
-import { GameDoc, Seat } from '../game/types';
+import { GameDoc, Seat, SEATS } from '../game/types';
 import { submitAction, isExpectedRaceError } from '../firebase/gameService';
 
 export const FORFEIT_MS = 60_000;       // the full clock
@@ -32,9 +32,15 @@ export const useForfeitClock = (game: GameDoc | null, gameId: string | null): Fo
     const [nowMs, setNowMs] = useState(() => Date.now());
     const firedFor = useRef(-1); // actionCount we already submitted a forfeit against
 
+    // The clock is a courtesy to OTHER HUMANS waiting on you — solo-vs-bots
+    // games never time out (take the phone call, finish the sandwich).
+    const humansSeated = game
+        ? SEATS.filter((s) => game.seats[s].kind === 'human').length
+        : 0;
     const armed = !!(
         game && gameId
         && game.status === 'active'
+        && humansSeated >= 2
         && game.turn
         && CLOCKED_PHASES.has(game.phase)
         && game.seats[game.turn].kind === 'human'

@@ -106,3 +106,27 @@ export const useAiAssist = (): [boolean, (on: boolean) => void] => {
     const set = useCallback((v: boolean) => setAiAssist(v), []);
     return [on, set];
 };
+
+// ---------------------------------------------------------------------------
+// Blunder detector: the instant a hand ends, AlphaGodRook's solver replays it
+// in hindsight and the recap marks the (at most two) cards that truly cost
+// points — with what should have been played. ON by default; device-local.
+// ---------------------------------------------------------------------------
+
+const BLUNDER_KEY = 'rook13-blunder-detector';
+
+export const getBlunderDetector = (): boolean => {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem(BLUNDER_KEY) !== 'off';
+};
+
+export const setBlunderDetector = (on: boolean): void => {
+    window.localStorage.setItem(BLUNDER_KEY, on ? 'on' : 'off');
+    window.dispatchEvent(new Event(EVT));
+};
+
+export const useBlunderDetector = (): [boolean, (on: boolean) => void] => {
+    const on = useSyncExternalStore(subscribe, getBlunderDetector, () => true);
+    const set = useCallback((v: boolean) => setBlunderDetector(v), []);
+    return [on, set];
+};

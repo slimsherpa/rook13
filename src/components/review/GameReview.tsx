@@ -9,6 +9,8 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { GameDoc, GameAction, Seat, teamOf } from '@/lib/game/types';
 import { getGame, loadActionLog } from '@/lib/firebase/gameService';
 import { HandReview, reconstructGame } from '@/lib/game/review';
+import { requestHandAudit, subscribeAudits, HandAudit } from '@/lib/firebase/auditService';
+import { useBlunderDetector } from '@/lib/settings';
 import LoadingPage from '@/components/LoadingPage';
 import { DealBreakdown, TrickByTrick } from '@/components/table/HandRecapModal';
 import { BlunderProvider, BlunderTrigger } from '@/components/review/BlunderReport';
@@ -21,6 +23,23 @@ export default function GameReview({ gameId }: { gameId: string }) {
     const [complete, setComplete] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [openHand, setOpenHand] = useState<number | null>(null);
+    const [blunderDetector] = useBlunderDetector();
+    const [audits, setAudits] = useState<Map<number, HandAudit>>(new Map());
+
+    useEffect(() => {
+        if (!user) return;
+        return subscribeAudits(gameId, setAudits);
+    }, [gameId, user]);
+
+    // solve any hand that hasn't been solved yet (idempotent server-side —
+    // each hand is only ever solved once, then stored forever)
+    useEffect(() => {
+        if (!blunderDetector || !hands) return;
+        for (const h of hands) {
+            if (!audits.has(h.summary.handNumber)) requestHandAudit(gameId, h.summary.handNumber);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [blunderDetector, hands, gameId]);
 
     useEffect(() => {
         if (!user) return;
@@ -117,6 +136,7 @@ export default function GameReview({ gameId }: { gameId: string }) {
                                 : game.seats.A2.uid === user?.uid ? 'A2'
                                 : game.seats.B2.uid === user?.uid ? 'B2' : null}
                             compact
+                            audit={blunderDetector ? audits.get(s.handNumber) ?? null : null}
                         />
 
                         {/* the experts' door: flag a bad decision for AI training */}

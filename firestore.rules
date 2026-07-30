@@ -39,6 +39,13 @@ service cloud.firestore {
         allow delete: if signedIn() && resource.data.reporter.uid == request.auth.uid;
       }
 
+      // Hindsight blunder audits: written ONLY by the Cloud Run service
+      // (admin SDK bypasses rules); clients just read the verdicts.
+      match /audits/{handNumber} {
+        allow read: if signedIn();
+        allow write: if false;
+      }
+
       // Table talk: short bubbles, append-only FOREVER — the permanent log
       // is the anti-signaling audit trail (chatService.ts caps length).
       match /chat/{msgId} {

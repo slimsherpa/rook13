@@ -24,7 +24,8 @@ import ConfettiBurst from '@/components/ui/ConfettiBurst';
 import TableChat from './TableChat';
 import { useWatchers } from '@/lib/hooks/useWatchers';
 import { useForfeitClock, CLOCK_SHOW_S, CLOCK_PANIC_S } from '@/lib/hooks/useForfeitClock';
-import { paced, useTablePace, useAiAssist } from '@/lib/settings';
+import { requestHandAudit, subscribeAudits, HandAudit } from '@/lib/firebase/auditService';
+import { paced, useTablePace, useAiAssist, useBlunderDetector } from '@/lib/settings';
 import { armTableHold, releaseTableHold, useTableHold } from '@/lib/tableHold';
 import { useModelAdvice } from '@/lib/hooks/useModelAdvice';
 import SettingsModal from './SettingsModal';
@@ -52,6 +53,19 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     const [showWatchers, setShowWatchers] = useState(false);
     const watchers = useWatchers(game.id, mySeat === null);
     const theme = themeFor(game.trump);
+    // hindsight blunder audits: request the instant a hand is done, hear the
+    // verdict through Firestore (the solver writes exactly one doc per hand)
+    const [blunderDetector] = useBlunderDetector();
+    const [audits, setAudits] = useState<Map<number, HandAudit>>(new Map());
+    useEffect(() => subscribeAudits(game.id, setAudits), [game.id]);
+    useEffect(() => {
+        if (!blunderDetector) return;
+        if (game.phase !== 'hand_done' && game.status !== 'completed') return;
+        const hand = game.handHistory.length;
+        if (hand > 0 && !audits.has(hand)) requestHandAudit(game.id, hand);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [game.phase, game.status, game.handHistory.length, blunderDetector, game.id]);
+
     // competitive turn clock: a human who stalls a full minute forfeits
     const clock = useForfeitClock(game, game.id);
     const clockName = clock.seat ? game.seats[clock.seat].name.split(' ')[0] : '';
@@ -249,6 +263,11 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
             isTurn={game.turn === seat && game.status === 'active'}
             bid={showBids ? game.bids[seat] : (game.bidWinner === seat && game.highBid ? game.highBid : undefined)}
             horizontal={horizontal}
+            thinking={
+                game.turn === seat && game.status === 'active'
+                && game.seats[seat].kind === 'bot'
+                && ['bidding', 'widow', 'trump', 'playing'].includes(game.phase)
+            }
         />
     );
 
@@ -513,6 +532,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                     mySeat={mySeat}
                     onNextHand={() => act({ type: 'NEXT_HAND' })}
                     onShowScores={() => setShowScores(true)}
+                    audit={blunderDetector ? audits.get(game.handHistory.length) ?? null : null}
                 />
             )}
             {game.phase === 'game_over' && recapReady && !showScores && (

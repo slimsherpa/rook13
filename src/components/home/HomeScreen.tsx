@@ -279,7 +279,11 @@ export default function HomeScreen() {
                 {joinError && <p className="text-red-300 text-xs font-orbitron mt-2 text-center">{joinError}</p>}
 
                 {/* THE LOBBY — presence, ranks, and the family group chat */}
-                <LobbyPanel myUid={user.uid} myName={user.displayName || 'Player'} />
+                <LobbyPanel
+                    myUid={user.uid}
+                    myName={user.displayName || 'Player'}
+                    {...(user.photoURL ? { myPhotoURL: user.photoURL } : {})}
+                />
 
                 {/* my games */}
                 {myGames.length > 0 && (
@@ -360,6 +364,18 @@ export default function HomeScreen() {
                     <div className="text-left">
                         <div className="font-orbitron text-white font-bold">THE ROOK T-SHIRT</div>
                         <div className="text-white/60 text-xs">Wear the bird · from $36</div>
+                    </div>
+                </button>
+
+                {/* THE STORY */}
+                <button
+                    onClick={() => router.push('/about')}
+                    className="mt-3 w-full rounded-2xl border border-yellow-500/30 bg-gradient-to-r from-yellow-500/5 to-transparent p-4 flex items-center gap-4"
+                >
+                    <span className="material-symbols-outlined text-yellow-400/90 text-4xl">auto_stories</span>
+                    <div className="text-left">
+                        <div className="font-orbitron text-white font-bold">THE ALPHAROOK STORY</div>
+                        <div className="text-white/60 text-xs">How the family game got a superintelligence</div>
                     </div>
                 </button>
             </div>

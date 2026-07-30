@@ -170,10 +170,75 @@ const maybeAct = async (gameId: string): Promise<string> => {
 };
 
 // ---------------------------------------------------------------------------
-// HTTP surface: POST /nudge {gameId}, GET /healthz
+// Blunder audits: solve the hand in hindsight, store the verdict once.
+// games/{id}/audits/{hand} is written by THIS service only (rules deny
+// client writes) so one hand is only ever solved once, no matter how many
+// phones ask.
+// ---------------------------------------------------------------------------
+const auditInflight = new Set<string>();
+
+const runAudit = async (gameId: string, hand: number): Promise<Record<string, unknown>> => {
+    const ref = db.collection('games').doc(gameId);
+    const auditRef = ref.collection('audits').doc(String(hand));
+    const existing = await auditRef.get();
+    if (existing.exists) return existing.data()!;
+
+    const key = `${gameId}:${hand}`;
+    if (auditInflight.has(key)) return { status: 'busy' };
+    auditInflight.add(key);
+    try {
+        const snap = await ref.get();
+        if (!snap.exists) throw new Error('no such game');
+        const game = snap.data() as GameDoc;
+        if (hand < 1 || hand > game.handHistory.length) throw new Error('hand not finished');
+
+        const log = await ref.collection('actions').orderBy('index').get();
+        const actions = log.docs
+            .map((d) => toBrainAction((d.data() as { action: GameAction }).action))
+            .filter(Boolean);
+        const res = await fetch(`${BRAIN}/audit`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ dealer: firstDealer(game.id), actions, hand }),
+        });
+        if (!res.ok) throw new Error(`brain ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        const verdict = await res.json();
+        const doc = {
+            hand,
+            blunders: (verdict.blunders as any[]).map((b) => ({
+                trick: b.trick,
+                seat: b.seat,
+                card: intToCard(b.card),
+                better: intToCard(b.better),
+                delta: b.delta,
+            })),
+            analyzed: verdict.analyzed,
+            skipped: verdict.skipped,
+            engine: 'godrook-solver-v1',
+            at: Date.now(),
+        };
+        await auditRef.set(doc);
+        console.log(`🔍 audit ${gameId} hand ${hand}: ${doc.blunders.length} blunders (${verdict.analyzed} solved, ${verdict.skipped} skipped)`);
+        return doc;
+    } finally {
+        auditInflight.delete(key);
+    }
+};
+
+// ---------------------------------------------------------------------------
+// HTTP surface: POST /nudge {gameId}, POST /audit {gameId, hand}, GET /status
 // ---------------------------------------------------------------------------
 const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
+    // browsers preflight the JSON nudge — without these headers every
+    // client fetch dies at OPTIONS and the tables fall back to local cover
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'content-type');
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204).end();
+        return;
+    }
     // NB: /healthz is intercepted by Google's frontend on run.app (stock 404
     // before the container) — hence /status
     if (req.method === 'GET' && (url.pathname === '/status' || url.pathname === '/healthz')) {
@@ -185,21 +250,23 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ ok: true, decisions, covered, brain }));
         return;
     }
-    if (req.method === 'POST' && url.pathname === '/nudge') {
+    if (req.method === 'POST' && (url.pathname === '/nudge' || url.pathname === '/audit')) {
         let body = '';
         req.on('data', (c) => { body += c; });
         req.on('end', async () => {
             try {
-                const { gameId } = JSON.parse(body || '{}');
+                const { gameId, hand } = JSON.parse(body || '{}');
                 if (typeof gameId !== 'string' || !/^[a-z0-9]{1,32}$/.test(gameId)) {
                     res.writeHead(400).end('bad gameId');
                     return;
                 }
-                // answer after deciding so Cloud Run keeps CPU allocated
+                // answer after the work so Cloud Run keeps CPU allocated
                 // for the whole think (request-based billing)
-                const outcome = await maybeAct(gameId);
+                const payload = url.pathname === '/nudge'
+                    ? { outcome: await maybeAct(gameId) }
+                    : await runAudit(gameId, Number(hand));
                 res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(JSON.stringify({ outcome }));
+                res.end(JSON.stringify(payload));
             } catch (e: any) {
                 res.writeHead(500).end(e?.message ?? 'error');
             }

@@ -10,11 +10,14 @@ import { useRouter } from 'next/navigation';
 import { PresenceDoc, subscribePresence } from '@/lib/firebase/presenceService';
 import { ChatMessage, LOBBY_MSG_MAX, sendLobbyMessage, subscribeLobbyChat } from '@/lib/firebase/chatService';
 import { listPlayers, UserProfile } from '@/lib/firebase/userService';
+import { createGame, listMyGames } from '@/lib/firebase/gameService';
+import { sendInvite } from '@/lib/firebase/inviteService';
 import { rankFor, RankInfo } from '@/lib/game/rank';
 
 interface LobbyPanelProps {
     myUid: string;
     myName: string;
+    myPhotoURL?: string;
 }
 
 const timeShort = (ms: number): string => {
@@ -22,14 +25,37 @@ const timeShort = (ms: number): string => {
     return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-export default function LobbyPanel({ myUid, myName }: LobbyPanelProps) {
+export default function LobbyPanel({ myUid, myName, myPhotoURL }: LobbyPanelProps) {
     const router = useRouter();
     const [online, setOnline] = useState<PresenceDoc[]>([]);
     const [msgs, setMsgs] = useState<ChatMessage[]>([]);
     const [draft, setDraft] = useState('');
     const [sending, setSending] = useState(false);
     const [ranks, setRanks] = useState<Record<string, RankInfo>>({});
+    const [challenged, setChallenged] = useState<Set<string>>(new Set());
+    const [challenging, setChallenging] = useState(false);
     const logRef = useRef<HTMLDivElement>(null);
+
+    // "Want to play?" — one tap sets a table, invites them, and seats you.
+    // They get the tap-to-join invite card (and a shout in the chat).
+    const challenge = async (p: PresenceDoc) => {
+        if (challenging || challenged.has(p.uid)) return;
+        setChallenging(true);
+        try {
+            const me = { uid: myUid, name: myName, ...(myPhotoURL ? { photoURL: myPhotoURL } : {}) };
+            const mine = await listMyGames(myUid).catch(() => []);
+            const lobbyGame = mine.find((g) => g.status === 'lobby' && g.hostUid === myUid);
+            const game = lobbyGame ?? await createGame(me);
+            await sendInvite(game, me, p.uid);
+            sendLobbyMessage(me, `🎴 challenged ${p.name.split(' ')[0]} — table ${game.joinCode}`).catch(() => {});
+            setChallenged((s) => new Set(s).add(p.uid));
+            router.push(`/game?id=${game.id}`);
+        } catch (e) {
+            console.error('challenge failed', e);
+        } finally {
+            setChallenging(false);
+        }
+    };
 
     useEffect(() => subscribePresence(setOnline), []);
     useEffect(() => subscribeLobbyChat(setMsgs), []);
@@ -82,31 +108,46 @@ export default function LobbyPanel({ myUid, myName }: LobbyPanelProps) {
                 )}
                 {online.map((p) => {
                     const rank = ranks[p.uid];
+                    const isMe = p.uid === myUid;
                     return (
-                        <button
+                        <div
                             key={p.uid}
-                            onClick={() => router.push(`/profile?uid=${p.uid}`)}
                             className="flex-shrink-0 rounded-xl border border-white/10 bg-navy-950/60 px-2.5 py-1.5 flex items-center gap-2"
                         >
-                            {p.photoURL ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={p.photoURL} alt="" className="w-6 h-6 rounded-full border border-white/20" referrerPolicy="no-referrer" />
-                            ) : (
-                                <span className="w-6 h-6 rounded-full bg-navy-900 border border-white/20 flex items-center justify-center text-white text-[10px] font-orbitron">
-                                    {p.name.charAt(0)}
-                                </span>
-                            )}
-                            <span className="text-left">
-                                <span className="block text-white font-orbitron text-[11px] leading-tight">
-                                    {p.name.split(' ')[0]}{p.uid === myUid ? ' (you)' : ''}
-                                </span>
-                                {rank && (
-                                    <span className={`block text-[10px] leading-tight font-orbitron ${rank.tier.color}`}>
-                                        {rank.tier.emoji} {rank.tier.name}{rank.winPct !== null ? ` · ${rank.winPct}%` : ''}
+                            <button onClick={() => router.push(`/profile?uid=${p.uid}`)} className="flex items-center gap-2">
+                                {p.photoURL ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={p.photoURL} alt="" className="w-6 h-6 rounded-full border border-white/20" referrerPolicy="no-referrer" />
+                                ) : (
+                                    <span className="w-6 h-6 rounded-full bg-navy-900 border border-white/20 flex items-center justify-center text-white text-[10px] font-orbitron">
+                                        {p.name.charAt(0)}
                                     </span>
                                 )}
-                            </span>
-                        </button>
+                                <span className="text-left">
+                                    <span className="block text-white font-orbitron text-[11px] leading-tight">
+                                        {p.name.split(' ')[0]}{isMe ? ' (you)' : ''}
+                                    </span>
+                                    {rank && (
+                                        <span className={`block text-[10px] leading-tight font-orbitron ${rank.tier.color}`}>
+                                            {rank.tier.emoji} {rank.tier.name}{rank.winPct !== null ? ` · ${rank.winPct}%` : ''}
+                                        </span>
+                                    )}
+                                </span>
+                            </button>
+                            {!isMe && (
+                                <button
+                                    onClick={() => challenge(p)}
+                                    disabled={challenging || challenged.has(p.uid)}
+                                    className={`ml-1 px-2 py-1 rounded-lg text-[10px] font-orbitron font-bold whitespace-nowrap ${
+                                        challenged.has(p.uid)
+                                            ? 'bg-green-600/25 text-green-300'
+                                            : 'bg-yellow-400 hover:bg-yellow-300 text-navy-950'
+                                    }`}
+                                >
+                                    {challenged.has(p.uid) ? 'INVITED ✓' : 'PLAY?'}
+                                </button>
+                            )}
+                        </div>
                     );
                 })}
             </div>

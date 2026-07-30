@@ -5,7 +5,7 @@
 // follows the host's device, since the host's client usually wins the race
 // to move the bots).
 
-import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist } from '@/lib/settings';
+import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist, useBlunderDetector } from '@/lib/settings';
 import { ASSIST_PINK } from './AssistDial';
 
 const PACES: { id: TablePace; label: string; blurb: string; icon: string }[] = [
@@ -17,6 +17,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     const [speed, setSpeed] = useGameSpeed();
     const [pace, setPace] = useTablePace();
     const [assist, setAssist] = useAiAssist();
+    const [blunders, setBlunders] = useBlunderDetector();
 
     const option = (selected: boolean, icon: string, label: string, blurb: string, onPick: () => void) => (
         <button
@@ -102,6 +103,21 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                     </span>
                     {assist && <span className="material-symbols-outlined text-lg" style={{ color: ASSIST_PINK }}>check_circle</span>}
                 </button>
+
+                <div className="flex items-center gap-2 text-white font-orbitron text-sm mt-5 mb-1">
+                    <span className="material-symbols-outlined text-lg">search_insights</span>
+                    Blunder Detector
+                </div>
+                <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
+                    The instant a hand ends, AlphaGodRook&apos;s solver replays it with all the cards
+                    face up. The recap marks the (at most two) plays that truly cost points — and
+                    what should have been played. If a hand was doomed anyway, it stays quiet.
+                </p>
+                <div className="space-y-1.5">
+                    {option(blunders, 'search_insights', blunders ? 'Detector on' : 'Detector off',
+                        blunders ? 'Hindsight verdicts show in recaps' : 'Recaps stay judgment-free',
+                        () => setBlunders(!blunders))}
+                </div>
 
                 <button
                     onClick={onClose}

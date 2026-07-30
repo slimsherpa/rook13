@@ -11,9 +11,11 @@ interface PlayerBadgeProps {
     isTurn: boolean;
     bid?: number | 'pass';
     horizontal?: boolean; // side seats stack vertically by default
+    /** a bot brain is working on this seat's move right now */
+    thinking?: boolean;
 }
 
-export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, horizontal }: PlayerBadgeProps) {
+export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, horizontal, thinking }: PlayerBadgeProps) {
     const team = teamOf(seat);
     const isA = team === 'A';
     const teamBorder = isA ? 'border-sky-400' : 'border-orange-400';
@@ -45,6 +47,15 @@ export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, horizon
                     <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-yellow-400 border-2 border-yellow-200/80 flex items-center justify-center shadow-md"
                         title="Dealer">
                         <span className="material-symbols-outlined text-navy-950" style={{ fontSize: 15 }}>playing_cards</span>
+                    </div>
+                )}
+                {/* the bot is thinking — three bouncing dots, arcade classic */}
+                {thinking && (
+                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-black/70 border border-white/25 flex items-center gap-0.5 shadow-md"
+                        title={`${firstName} is thinking…`}>
+                        {[0, 150, 300].map((d) => (
+                            <span key={d} className="w-1 h-1 rounded-full bg-yellow-300 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                        ))}
                     </div>
                 )}
                 {/* AI trainer: this player has a coach over their shoulder —

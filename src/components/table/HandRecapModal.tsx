@@ -8,6 +8,7 @@
 // you scroll. Any player can start the next hand.
 
 import { Card, GameDoc, Seat, Suit, Team, HandSummary, TrickRecord, teamOf, nextSeat, getCardPoints } from '@/lib/game/types';
+import { HandAudit } from '@/lib/firebase/auditService';
 import { rainbowNumbersFor } from '@/lib/game/stats';
 import { setSealedTrick } from '@/lib/game/setPoint';
 import { sortHand } from '@/lib/game/deck';
@@ -23,6 +24,8 @@ interface HandRecapModalProps {
     mySeat: Seat | null;
     onNextHand: () => void;
     onShowScores: () => void;
+    /** hindsight verdict for the hand being recapped, once the solver's done */
+    audit?: HandAudit | null;
 }
 
 interface TrophyMoment {
@@ -255,7 +258,7 @@ const teamNames = (seats: Seats, t: Team) =>
 /** Trick-by-trick replay, with the "…got SET!" beat dropped in exactly where
  *  the set became inevitable — and the "laid them down" beat where a player
  *  claimed the rest. Shared by the live recap and the review page. */
-export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown }: {
+export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown, audit }: {
     seats: Seats;
     tricks: TrickRecord[];
     trump: Suit | null;
@@ -264,6 +267,8 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
     compact?: boolean;
     /** who laid their hand down, and before which trick (0-indexed) */
     laydown?: { seat: Seat; trick: number } | null;
+    /** hindsight verdict from AlphaGodRook's solver (auditService) */
+    audit?: HandAudit | null;
 }) {
     // blunder-report mode: when armed, every played card becomes flaggable
     const blunder = useBlunderMode();
@@ -312,6 +317,13 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
         </div>
     );
 
+    // hindsight blunders (at most two per hand, by design): badge the card,
+    // caption the verdict under its trick
+    const blunderAt = (trickIdx: number, seat: Seat) =>
+        audit?.blunders.find((b) => b.trick === trickIdx && b.seat === seat);
+    const blunderEmoji = (delta: number) => (delta >= 80 ? '😫' : '😬');
+    const cardName = (c: Card) => `${c.suit} ${c.number}`;
+
     const numW = compact ? 'w-6 text-lg' : 'w-7 text-2xl';
     return (
         <div className={compact ? 'space-y-3' : 'space-y-4'}>
@@ -333,6 +345,7 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
                                 const isWinner = seat === trick.winner;
                                 const target: BlunderTarget = { kind: 'play', seat, card, trick: idx };
                                 const flagged = blunder?.reportedKeys.has(targetKey(target)) ?? false;
+                                const hindsight = blunderAt(idx, seat);
                                 return (
                                     <div key={seat} className="flex flex-col items-center gap-1">
                                         <span className={`px-1.5 py-px rounded text-[10px] font-orbitron max-w-full truncate ${isWinner ? 'bg-yellow-500/20 text-yellow-300 font-bold' : 'text-white/60'}`}>
@@ -348,12 +361,25 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
                                                 className={`${blunder?.armed ? blunderArmedClass : ''} ${flagged ? blunderFlaggedClass : ''}`}
                                             />
                                             {flagged && <BlunderFlag />}
+                                            {hindsight && !flagged && (
+                                                <span className="absolute -top-2 -right-2 text-base leading-none drop-shadow" title={`cost ~${hindsight.delta} pts`}>
+                                                    {blunderEmoji(hindsight.delta)}
+                                                </span>
+                                            )}
                                         </span>
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
+                    {audit?.blunders.filter((b) => b.trick === idx).map((b) => (
+                        <div key={`hb-${b.trick}-${b.seat}`} className="flex items-center justify-center gap-2 mt-1 py-1.5 px-3 rounded-xl bg-rose-950/50 border border-rose-400/30">
+                            <span className="text-base leading-none">{blunderEmoji(b.delta)}</span>
+                            <span className="font-orbitron text-rose-200 text-[11px] text-center leading-snug">
+                                {firstName(seats, b.seat)}&apos;s {cardName(b.card)} cost ~{b.delta} pts — {cardName(b.better)} was the play
+                            </span>
+                        </div>
+                    ))}
                     {(Object.keys(bonusAt) as Team[]).filter((tm) => bonusAt[tm] === idx).map(bonusBanner)}
                     {idx === sealed && setBanner()}
                 </div>
@@ -362,7 +388,7 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
     );
 }
 
-export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores }: HandRecapModalProps) {
+export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores, audit }: HandRecapModalProps) {
     const h = game.handHistory[game.handHistory.length - 1];
     if (!h) return null;
 
@@ -457,6 +483,7 @@ export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores 
                             laydown={game.laydownSeat != null && game.laydownTrick != null
                                 ? { seat: game.laydownSeat, trick: game.laydownTrick }
                                 : null}
+                            audit={audit}
                         />
 
                         {/* the experts' door: flag a bad decision for the AI

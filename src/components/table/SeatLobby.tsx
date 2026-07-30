@@ -163,7 +163,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
     };
 
     return (
-        <div className="min-h-dvh bg-navy-900 flex flex-col items-center px-4 py-6">
+        <div className="min-h-dvh bg-navy-900 flex flex-col items-center px-4 pt-6 pb-24">
             <div className="w-full max-w-md">
                 <div className="flex items-center justify-between mb-6">
                     <button onClick={() => router.push('/')} className="text-white/70 hover:text-white flex items-center gap-1 font-orbitron text-sm">
@@ -220,11 +220,16 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                             >
                                 START GAME
                             </button>
+                            <p className="text-center text-white/50 text-[11px] font-orbitron mt-2">
+                                Empty seats are filled with bots automatically.
+                            </p>
+                            {/* the secret doorstep lives well below the button —
+                                nobody summons the humbling machine by accident */}
                             <p
                                 onClick={secretTap}
-                                className="text-center text-white/50 text-[11px] font-orbitron mt-2 select-none cursor-default"
+                                className="text-center text-white/20 text-[10px] font-orbitron mt-16 select-none cursor-default"
                             >
-                                Empty seats are filled with bots automatically.
+                                ROOK13
                             </p>
                             {godFlash && (
                                 <p className="text-center text-yellow-300 text-xs font-orbitron mt-2 animate-pulse">

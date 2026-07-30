@@ -165,6 +165,113 @@ class DecideReq(BaseModel):
     style: str
 
 
+class AuditReq(BaseModel):
+    dealer: str
+    actions: list[dict]
+    hand: int          # 1-based hand number to audit
+
+
+@app.post("/audit")
+def audit(req: AuditReq):
+    """The blunder detector: replay the log and, for every real card play
+    in the target hand, ask the exact double-dummy solver (AlphaGodRook's
+    brain) what each legal card was worth IN THE TRUE WORLD. A blunder =
+    points the acting team left on the table vs the best card. Decisions
+    where every card scores the same (doomed anyway) score delta 0 and
+    are never reported. Per-decision solves are timeboxed; a global
+    budget keeps the request inside Cloud Run's timeout."""
+    import threading
+    import time as _time
+    from rook import solver as S
+    from rook.cards import CARD_POINTS, team_of
+
+    PER_SOLVE_S = 4.0
+    GLOBAL_BUDGET_S = 50.0
+    MIN_DELTA = 20        # below this, not worth the family's attention
+
+    g = Game(dealer=SEAT_IDX[req.dealer])
+    hand_no = 1
+    found: list[dict] = []
+    analyzed = skipped = 0
+    started = _time.time()
+
+    def solve_values(pos_g):
+        """play_values with a deadline; None on timeout."""
+        hands = [list(h) for h in pos_g.hands]
+        trump = pos_g.trump
+        leader = pos_g.trick_leader
+        gd = sum(CARD_POINTS[c] for c in pos_g.go_down)
+        trick = tuple((s, c) for s, c in pos_g.trick_plays)
+        tricks_done = len(pos_g.completed_tricks)
+        t0 = pos_g.tricks_won[0]
+        out: list = []
+
+        def run():
+            try:
+                out.append(S.play_values(
+                    hands, trump, leader, gd, t0_tricks=t0,
+                    tricks_done=tricks_done, trick=trick))
+            except Exception:
+                pass
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        t.join(PER_SOLVE_S)
+        return out[0] if out else None
+
+    for a in req.actions:
+        t = a["type"]
+        if t in ("DEAL", "ACK_REDEAL"):
+            g.deal(a["deck"])
+        elif t == "BID":
+            g.bid(SEAT_IDX[a["seat"]],
+                  PASS if a["bid"] == "pass" else a["bid"])
+        elif t == "SELECT_GODOWN":
+            g.select_go_down(SEAT_IDX[a["seat"]], a["cards"])
+        elif t == "SELECT_TRUMP":
+            g.select_trump(SEAT_IDX[a["seat"]], a["suit"])
+        elif t == "PLAY_CARD":
+            seat = SEAT_IDX[a["seat"]]
+            card = a["card"]
+            if hand_no == req.hand:
+                legal = g.legal_cards(seat)
+                if len(legal) > 1 and _time.time() - started < GLOBAL_BUDGET_S:
+                    vals = solve_values(g)
+                    if vals is None:
+                        skipped += 1
+                    else:
+                        analyzed += 1
+                        if team_of(seat) == 0:
+                            best = max(vals, key=lambda c: vals[c])
+                            delta = vals[best] - vals.get(card, vals[best])
+                        else:
+                            best = min(vals, key=lambda c: vals[c])
+                            delta = vals.get(card, vals[best]) - vals[best]
+                        if delta >= MIN_DELTA and best != card:
+                            found.append({
+                                "trick": len(g.completed_tricks),
+                                "seat": SEAT_NAME[seat],
+                                "card": card,
+                                "better": best,
+                                "delta": int(delta),
+                            })
+                elif len(legal) > 1:
+                    skipped += 1
+            g.play_card(seat, card)
+        elif t == "LAYDOWN":
+            # deterministic claim — nothing to audit
+            laydown_fastforward(g, SEAT_IDX[a["seat"]])
+        elif t == "NEXT_HAND":
+            g.next_hand()
+            hand_no += 1
+        if hand_no > req.hand:
+            break
+
+    # the two worst moments only — a recap, not a lecture
+    found.sort(key=lambda b: -b["delta"])
+    return {"hand": req.hand, "blunders": found[:2],
+            "analyzed": analyzed, "skipped": skipped}
+
+
 @app.post("/decide")
 def decide(req: DecideReq):
     g = replay(req.dealer, req.actions)
