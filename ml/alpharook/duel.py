@@ -55,7 +55,7 @@ class Side:
                  infer_temp: float = 0.0, bid_infer: float = 0.0,
                  belief_ckpt: str | None = None, belief_temp: float = 1.0,
                  fork_depth: int = 0, fork_width: int = 3,
-                 plan_lines: int = 0):
+                 plan_lines: int = 0, god: bool = False):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
         self.net = net
@@ -79,7 +79,13 @@ class Side:
             from .model import load_qnet
             self.net = load_qnet(spec)
         self.agent = None
-        if worlds > 0:
+        self.god = god
+        if god:
+            assert self.net is not None, "god mode bids with a net"
+            assert worlds == 0, "god does not imagine; god knows"
+            from .god import GodAgent
+            self.agent = GodAgent(self.net)
+        elif worlds > 0:
             assert self.net is not None, "search needs a net"
             from .search import SearchAgent
             from .encoder import D_BID, D_DISCARD, D_TRUMP, D_PLAY
@@ -101,6 +107,8 @@ class Side:
 
     def name(self) -> str:
         base = self.spec.split("/")[-1]
+        if self.god:
+            return f"{base}+GOD(omniscient play)"
         if not self.worlds:
             return base
         bel = (f",B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g}"
@@ -428,6 +436,10 @@ def main():
                          "next-play intentions per candidate, same line "
                          "across all worlds (fusion-free)")
     ap.add_argument("--plan-lines-b", type=int, default=0)
+    ap.add_argument("--god-a", action="store_true",
+                    help="ALPHAGODROOK: side A plays cards with the exact "
+                         "omniscient solver (bids stay with --a's net)")
+    ap.add_argument("--god-b", action="store_true")
     ap.add_argument("--workers", type=int, default=1,
                     help="parallel pair-playing processes (search is slow)")
     ap.add_argument("--dump-actions", default=None,
@@ -446,11 +458,11 @@ def main():
     a_args = (args.a, args.script_a, None, args.worlds_a, args.search_a,
               args.prior_a, args.min_trick_a, args.infer_a, args.bid_infer_a,
               args.belief_a, args.belief_temp_a, args.fork_depth_a,
-              args.fork_width_a, args.plan_lines_a)
+              args.fork_width_a, args.plan_lines_a, args.god_a)
     b_args = (args.b, args.script_b, None, args.worlds_b, args.search_b,
               args.prior_b, args.min_trick_b, args.infer_b, args.bid_infer_b,
               args.belief_b, args.belief_temp_b, args.fork_depth_b,
-              args.fork_width_b, args.plan_lines_b)
+              args.fork_width_b, args.plan_lines_b, args.god_b)
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
          workers=args.workers, side_args=(a_args, b_args),
