@@ -209,6 +209,29 @@ export const PERSONALITIES: Record<BotStyle, BotPersonality> = {
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
         feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
     },
+    // Server-side styles (SERVER_STYLES): the Cloud Run driver makes every
+    // thinking decision; these rows exist only for the total Record and as
+    // the last-resort local cover if the service stays silent.
+    gen21: {
+        bidCushion: 3, minBidTricks: 0.8, widowTricks: 0, warStretch: 0, jumpGap: 20, jumpReserve: 5, partnerOverbidMargin: 15,
+        pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
+        feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
+    },
+    gen23: {
+        bidCushion: 3, minBidTricks: 0.8, widowTricks: 0, warStretch: 0, jumpGap: 20, jumpReserve: 5, partnerOverbidMargin: 15,
+        pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
+        feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
+    },
+    teacher: {
+        bidCushion: 3, minBidTricks: 0.8, widowTricks: 0, warStretch: 0, jumpGap: 20, jumpReserve: 5, partnerOverbidMargin: 15,
+        pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
+        feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
+    },
+    godrook: {
+        bidCushion: 3, minBidTricks: 0.8, widowTricks: 0, warStretch: 0, jumpGap: 20, jumpReserve: 5, partnerOverbidMargin: 15,
+        pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
+        feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
+    },
 };
 
 // ---------------------------------------------------------------------------

@@ -26,7 +26,7 @@ sys.path.insert(0, str(ML))
 from fastapi import FastAPI, HTTPException          # noqa: E402
 from pydantic import BaseModel                      # noqa: E402
 
-from rook.cards import PASS                         # noqa: E402
+from rook.cards import PASS, suit_of, num_of        # noqa: E402
 from rook.engine import (Game, BIDDING, WIDOW, TRUMP,        # noqa: E402
                          PLAYING)
 
@@ -57,13 +57,82 @@ def get_agent(style: str):
             prior_weight=2.0, min_trick=0,
             belief=BeliefOracle("runs/gen15/best_duel.pt", temp=0.5)))
     elif style == "godrook":
-        from alpharook.god import GodAgent
         net = load_qnet("models/gen21-cand1.pt")
-        agent = ("agent", net, GodAgent(net))
+        agent = ("agent", net, TimeboxedGod(net))
     else:
         raise HTTPException(400, f"unknown server style: {style}")
     _agents[style] = agent
     return agent
+
+
+class TimeboxedGod:
+    """AlphaGodRook under a wall-clock budget. The gauntlet's god took
+    minutes on opening-trick exact solves; a family table can't wait that
+    long (the client's local cover fires at 20s). Every play tries the
+    exact solver in a daemon thread; if the deadline passes, the move
+    falls back to the gen21 reflex — late-trick solves (where the crush
+    happens) finish in well under a second. Bids/widow/trump ride the net,
+    exactly like the measured god arms."""
+
+    def __init__(self, net, budget_s: float = 12.0):
+        self.net = net
+        self.budget = budget_s
+        self.last_search = None
+
+    def choose(self, env, seat, dtype, cands):
+        import threading
+        from alpharook.arena import model_choose
+        from alpharook.encoder import D_PLAY
+        from alpharook.god import position
+        from rook import solver as S
+        if dtype != D_PLAY or len(cands) <= 1:
+            return model_choose(self.net, "cpu", env, seat, dtype, cands)
+        p = position(env.g)          # snapshot in THIS thread, then solve
+        out: list = []
+
+        def run():
+            try:
+                card, _v = S.best_play(
+                    p["hands"], p["trump"], p["leader"], p["gd"],
+                    t0_tricks=p["t0_tricks"], tricks_done=p["tricks_done"],
+                    trick=p["trick"])
+                out.append(card)
+            except Exception:
+                pass
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        t.join(self.budget)
+        if out and out[0] in cands:
+            return out[0]
+        return model_choose(self.net, "cpu", env, seat, dtype, cands)
+
+
+def laydown_fastforward(g: Game, claimant: int) -> None:
+    """Mirror of engine.ts LAYDOWN: the claimant leads sortHand()[0]
+    (strongest first: trump suit, then longest/most-powerful, number desc;
+    suit groups in first-appearance order, stable ties) and everyone else
+    follows with their lowest legal card (number, then suit index). Both
+    engines keep hands in deal order, so first-appearance grouping agrees."""
+    while g.phase == PLAYING:
+        turn = g.turn
+        if turn == claimant:
+            hand = g.hands[turn]
+            groups: dict[int, list[int]] = {}
+            for c in hand:                       # first-appearance order
+                groups.setdefault(suit_of(c), []).append(c)
+            for cs in groups.values():
+                cs.sort(key=num_of, reverse=True)
+            def group_key(item):
+                s, cs = item
+                is_trump = 0 if (g.trump is not None and s == g.trump) else 1
+                power = sum(num_of(c) for c in cs)
+                return (is_trump, -len(cs), -power)
+            ordered = sorted(groups.items(), key=group_key)  # stable
+            card = ordered[0][1][0]
+        else:
+            card = min(g.legal_cards(turn),
+                       key=lambda c: (num_of(c), suit_of(c)))
+        g.play_card(turn, card)
 
 
 def replay(dealer: str, actions: list[dict]) -> Game:
@@ -84,8 +153,7 @@ def replay(dealer: str, actions: list[dict]) -> Game:
         elif t == "NEXT_HAND":
             g.next_hand()
         elif t == "LAYDOWN":
-            raise HTTPException(501, "laydown replay not modeled yet — "
-                                     "leave this game to client bots")
+            laydown_fastforward(g, SEAT_IDX[a["seat"]])
         # SIT / LEAVE_SEAT / SET_BOT / OPEN_SEAT / START_GAME / SET_ASSIST:
         # lobby + UI actions; no engine effect
     return g

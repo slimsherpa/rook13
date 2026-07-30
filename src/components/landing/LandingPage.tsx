@@ -165,7 +165,14 @@ export default function LandingPage() {
                     className="mt-6 text-blue-300/70 hover:text-blue-200 font-orbitron text-xs tracking-widest uppercase flex items-center gap-2 transition"
                 >
                     <span className="material-symbols-outlined text-base">shopping_bag</span>
-                    Get the Rook tee
+                    Get the Rook t-shirt
+                </a>
+                <a
+                    href="/about"
+                    className="mt-3 text-blue-300/70 hover:text-blue-200 font-orbitron text-xs tracking-widest uppercase flex items-center gap-2 transition"
+                >
+                    <span className="material-symbols-outlined text-base">auto_stories</span>
+                    The AlphaRook story
                 </a>
 
                 {/* Cyberpunk decorative elements */}

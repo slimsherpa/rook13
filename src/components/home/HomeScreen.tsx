@@ -8,7 +8,9 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { GameDoc, teamOf, Seat, SEATS } from '@/lib/game/types';
 import { createGame, findGameByCode, listActiveGames, listMyGames, listOpenGames } from '@/lib/firebase/gameService';
 import { subscribeMyInvites, clearInvite, InviteDoc } from '@/lib/firebase/inviteService';
+import { touchPresence, removePresence, PRESENCE_HEARTBEAT_MS } from '@/lib/firebase/presenceService';
 import JayCupModal from './JayCupModal';
+import LobbyPanel from './LobbyPanel';
 import RookBird from '@/components/ui/RookBird';
 
 export default function HomeScreen() {
@@ -29,6 +31,27 @@ export default function HomeScreen() {
     useEffect(() => {
         if (!user) return;
         return subscribeMyInvites(user.uid, setInvites);
+    }, [user]);
+
+    // lobby presence heartbeat: I'm here, hoping for a game
+    useEffect(() => {
+        if (!user) return;
+        const me = {
+            uid: user.uid,
+            name: user.displayName || 'Player',
+            ...(user.photoURL ? { photoURL: user.photoURL } : {}),
+        };
+        touchPresence(me);
+        const beat = setInterval(() => {
+            if (document.visibilityState === 'visible') touchPresence(me);
+        }, PRESENCE_HEARTBEAT_MS);
+        const onVisible = () => { if (document.visibilityState === 'visible') touchPresence(me); };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            clearInterval(beat);
+            document.removeEventListener('visibilitychange', onVisible);
+            removePresence(user.uid);
+        };
     }, [user]);
 
     useEffect(() => {
@@ -172,6 +195,12 @@ export default function HomeScreen() {
                                         <span className="material-symbols-outlined text-base">shopping_bag</span> Shop
                                     </button>
                                     <button
+                                        onClick={() => router.push('/about')}
+                                        className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-white/10 flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-base">auto_stories</span> About Rook13
+                                    </button>
+                                    <button
                                         onClick={signOut}
                                         className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-white/10 flex items-center gap-2"
                                     >
@@ -248,6 +277,9 @@ export default function HomeScreen() {
                     </button>
                 </div>
                 {joinError && <p className="text-red-300 text-xs font-orbitron mt-2 text-center">{joinError}</p>}
+
+                {/* THE LOBBY — presence, ranks, and the family group chat */}
+                <LobbyPanel myUid={user.uid} myName={user.displayName || 'Player'} />
 
                 {/* my games */}
                 {myGames.length > 0 && (
@@ -326,7 +358,7 @@ export default function HomeScreen() {
                 >
                     <span className="material-symbols-outlined text-sky-400 text-4xl">shopping_bag</span>
                     <div className="text-left">
-                        <div className="font-orbitron text-white font-bold">THE ROOK TEE</div>
+                        <div className="font-orbitron text-white font-bold">THE ROOK T-SHIRT</div>
                         <div className="text-white/60 text-xs">Wear the bird · from $36</div>
                     </div>
                 </button>

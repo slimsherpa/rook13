@@ -6,7 +6,7 @@
 // the score header, and the last-trick panel. Device-local and self-timed —
 // it fades itself out; tapping skips it.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GameDoc } from '@/lib/game/types';
 import { paced } from '@/lib/settings';
 
@@ -14,11 +14,16 @@ const HOLD_MS = 2600;
 
 export default function TeamIntro({ game, onDone }: { game: GameDoc; onDone: () => void }) {
     const [go, setGo] = useState(false);
+    // latch the callback: parents pass a fresh arrow every render, and any
+    // steady re-render source (the turn clock ticks once a second) would
+    // otherwise reset these timers forever — the intro would never fade
+    const onDoneRef = useRef(onDone);
+    onDoneRef.current = onDone;
     useEffect(() => {
         const t1 = setTimeout(() => setGo(true), paced(1400));
-        const t2 = setTimeout(onDone, paced(HOLD_MS));
+        const t2 = setTimeout(() => onDoneRef.current(), paced(HOLD_MS));
         return () => { clearTimeout(t1); clearTimeout(t2); };
-    }, [onDone]);
+    }, []);
 
     const first = (seat: 'A1' | 'A2' | 'B1' | 'B2') => game.seats[seat].name.split(' ')[0];
 

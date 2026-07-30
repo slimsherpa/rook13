@@ -293,6 +293,25 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
         </div>
     );
 
+    // the trick where each team banked the +20 majority bonus (5th trick won)
+    const bonusAt: Partial<Record<Team, number>> = {};
+    {
+        const won: Record<Team, number> = { A: 0, B: 0 };
+        tricks.forEach((t, i) => {
+            const tm = teamOf(t.winner);
+            won[tm] += 1;
+            if (won[tm] === 5 && bonusAt[tm] === undefined) bonusAt[tm] = i;
+        });
+    }
+    const bonusBanner = (tm: Team) => (
+        <div key={`bonus-${tm}`} className="flex items-center justify-center gap-2 my-1 py-1.5 px-3 rounded-xl bg-emerald-900/40 border border-emerald-400/40">
+            <span className="text-base leading-none">🏅</span>
+            <span className="font-orbitron text-emerald-200 text-xs font-bold text-center">
+                {teamNames(seats, tm)} take their 5th trick — +20 banked
+            </span>
+        </div>
+    );
+
     const numW = compact ? 'w-6 text-lg' : 'w-7 text-2xl';
     return (
         <div className={compact ? 'space-y-3' : 'space-y-4'}>
@@ -301,8 +320,13 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
                 <div key={idx}>
                     {laydown && laydown.trick === idx && idx > 0 && laydownBanner}
                     <div className="flex items-center gap-2">
-                        <div className={`${numW} flex-shrink-0 text-white/40 font-orbitron font-bold text-center`}>
-                            {idx + 1}
+                        <div className={`${numW} flex-shrink-0 text-center`}>
+                            <div className="text-white/40 font-orbitron font-bold">{idx + 1}</div>
+                            {trick.points > 0 && (
+                                <div className={`font-orbitron text-[10px] font-bold ${teamOf(trick.winner) === 'A' ? 'text-sky-300' : 'text-orange-300'}`}>
+                                    +{trick.points}
+                                </div>
+                            )}
                         </div>
                         <div className="grid grid-cols-4 gap-1.5 flex-1">
                             {trick.plays.map(({ seat, card }) => {
@@ -330,6 +354,7 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
                             })}
                         </div>
                     </div>
+                    {(Object.keys(bonusAt) as Team[]).filter((tm) => bonusAt[tm] === idx).map(bonusBanner)}
                     {idx === sealed && setBanner()}
                 </div>
             ))}

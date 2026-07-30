@@ -10,15 +10,16 @@ background is fine (the avatar is clipped to a circle).
 The camp ranks the agents weakest → strongest: Stomper (the rookie) up to
 Cosmo (the grandmaster). Listed here strongest first:
 
-| File               | Agent   | Brain  | Camp rank | Art |
-|--------------------|---------|--------|-----------|-----|
-| `07-Cosmo.jpg`     | Cosmo   | gen16  | grandmaster (default) | BYU space cougar w/ glasses |
-| `06-Cougar.jpg`    | Cougar  | gen13  | #2        | tan cougar (purple bg) |
-| `05-Puma.jpg`      | Puma    | gen11  | #3        | black panther (blue bg) |
-| `04-Cub.jpg`       | Cub     | gen10  | #4        | lion cub (green bg) |
-| `03-Bobcat.jpg`    | Bobcat  | gen9   | #5        | bobcat / lynx (yellow bg) |
-| `02-Kitten.jpg`    | Kitten  | gen8   | #6        | tabby kitten (pink bg) |
-| `01-Stomper.jpg`   | Stomper | gen7   | rookie    | teal triceratops (pink bg) |
+| File                    | Agent       | Brain            | Camp rank | Art |
+|-------------------------|-------------|------------------|-----------|-----|
+| `00-AlphaGodRook.jpg`   | AlphaGodRook| godrook (solver) | secret unlock | (art wanted: all-seeing rook) |
+| `07-Cosmo.jpg`          | Cosmo       | teacher (gen21+t0, Cloud Run) | grandmaster (default) | BYU space cougar w/ glasses |
+| `06-Cougar.jpg`         | Cougar      | gen19            | #2        | tan cougar (purple bg) |
+| `05-Puma.jpg`           | Puma        | gen16            | #3        | black panther (blue bg) |
+| `04-Cub.jpg`            | Cub         | gen13            | #4        | lion cub (green bg) |
+| `03-Bobcat.jpg`         | Bobcat      | gen11            | #5        | bobcat / lynx (yellow bg) |
+| `02-Kitten.jpg`         | Kitten      | gen10            | #6        | tabby kitten (pink bg) |
+| `01-Stomper.jpg`        | Stomper     | gen9             | rookie    | teal triceratops (pink bg) |
 
 The exact filename each agent looks for is set in `BOT_PERSONAS`
 (`src/lib/game/types.ts`); change it there if you rename a file.

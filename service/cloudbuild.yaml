@@ -1,0 +1,14 @@
+# Build the bot-service image (Dockerfile lives in service/, context = repo
+# root so it can COPY ml/ and src/lib). Submit from the repo root:
+#   gcloud builds submit --config service/cloudbuild.yaml .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - service/Dockerfile
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/rook13/bots:latest
+      - .
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/rook13/bots:latest

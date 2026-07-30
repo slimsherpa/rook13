@@ -12,6 +12,7 @@ import { listPlayers, UserProfile } from '@/lib/firebase/userService';
 import { listMyGames } from '@/lib/firebase/gameService';
 import { sendInvite } from '@/lib/firebase/inviteService';
 import { GameDoc } from '@/lib/game/types';
+import { rankFor } from '@/lib/game/rank';
 import LoadingPage from '@/components/LoadingPage';
 
 export default function PlayersPage() {
@@ -77,6 +78,7 @@ export default function PlayersPage() {
                     {players.map((p) => {
                         const isMe = p.uid === user.uid;
                         const s = p.stats;
+                        const rank = s ? rankFor(s) : null;
                         return (
                             <div key={p.uid} className="rounded-xl bg-navy-950/50 border border-white/15 p-3 flex items-center gap-3">
                                 <button
@@ -104,6 +106,11 @@ export default function PlayersPage() {
                                             )}
                                         </span>
                                         <span className="block text-white/50 text-[11px]">
+                                            {rank && (
+                                                <span className={`font-orbitron font-bold ${rank.tier.color}`}>
+                                                    {rank.tier.emoji} {rank.tier.name} ·{' '}
+                                                </span>
+                                            )}
                                             {s?.gamesPlayed ?? 0} games · {s?.gamesWon ?? 0} wins
                                             {(s?.gamesPlayed ?? 0) > 0 ? ` · ${Math.round(((s?.gamesWon ?? 0) / s!.gamesPlayed) * 100)}%` : ''}
                                         </span>

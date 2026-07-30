@@ -1,0 +1,25 @@
+# Cloud Build context for the bot service — ship ONLY what
+# service/Dockerfile COPYs. Everything else (node_modules, out/, the 4GB+
+# ml/runs corpus) stays home. gitignore semantics: re-include each parent
+# directory before its children.
+/*
+!/service
+!/src
+/src/*
+!/src/lib
+!/ml
+/ml/*
+!/ml/rook
+!/ml/alpharook
+!/ml/models
+/ml/models/*
+!/ml/models/gen21-cand1.pt
+!/ml/models/gen23-cand1.pt
+!/ml/runs
+/ml/runs/*
+!/ml/runs/gen15
+/ml/runs/gen15/*
+!/ml/runs/gen15/best_duel.pt
+__pycache__/
+node_modules/
+.DS_Store

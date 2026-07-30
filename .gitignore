@@ -47,3 +47,7 @@ __pycache__/
 # ...but frozen champion models ship with the repo
 !/ml/models/*.pt
 !/ml/models/*.onnx
+
+# corpus archives live in GCS (gs://rook13-corpus), never in git
+ml/history/*/t0corpus-full.tar.zst
+service/driver/node_modules/

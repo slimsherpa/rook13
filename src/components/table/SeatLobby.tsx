@@ -3,10 +3,16 @@
 // Pre-game table: share the join code, pick seats/teams, fill with bots.
 // Teams are fixed by seat: A1+A2 vs B1+B2.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GameDoc, Seat, SeatInfo, GameAction, BotStyle, BOT_STYLE_LABELS, PLAYABLE_BOT_STYLES, DEFAULT_BOT_STYLE, personaFor } from '@/lib/game/types';
+import { GameDoc, Seat, SeatInfo, GameAction, BotStyle, BOT_STYLE_LABELS, PLAYABLE_BOT_STYLES, DEFAULT_BOT_STYLE, SECRET_BOT_STYLE, personaFor } from '@/lib/game/types';
 import BotAvatar from './BotAvatar';
+
+// AlphaGodRook stays off the picker until someone triple-taps the quiet
+// line under START GAME. The unlock is per-device and survives reloads.
+const GODROOK_KEY = 'rook13.godrook.unlocked';
+const godrookUnlocked = () =>
+    typeof window !== 'undefined' && window.localStorage.getItem(GODROOK_KEY) === '1';
 
 interface SeatLobbyProps {
     game: GameDoc;
@@ -26,6 +32,22 @@ const TEAM_SEATS: { team: 'A' | 'B'; seats: Seat[]; color: string; text: string 
 export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act, actionError }: SeatLobbyProps) {
     const router = useRouter();
     const [copied, setCopied] = useState(false);
+    const [godUnlocked, setGodUnlocked] = useState(godrookUnlocked);
+    const [godFlash, setGodFlash] = useState(false);
+    const godTaps = useRef<{ count: number; last: number }>({ count: 0, last: 0 });
+
+    const secretTap = () => {
+        const now = Date.now();
+        godTaps.current = now - godTaps.current.last < 1200
+            ? { count: godTaps.current.count + 1, last: now }
+            : { count: 1, last: now };
+        if (godTaps.current.count >= 3 && !godUnlocked) {
+            window.localStorage.setItem(GODROOK_KEY, '1');
+            setGodUnlocked(true);
+            setGodFlash(true);
+            setTimeout(() => setGodFlash(false), 4000);
+        }
+    };
 
     const mySeat = (Object.keys(game.seats) as Seat[]).find(
         (s) => game.seats[s].kind === 'human' && game.seats[s].uid === myUid,
@@ -75,9 +97,10 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     {/* bot mode picker (host only) — the trained AlphaRook brains */}
                     {isHost && info.kind === 'bot' && (() => {
                         const current = info.botStyle ?? 'basic';
-                        const styles = PLAYABLE_BOT_STYLES.includes(current)
-                            ? PLAYABLE_BOT_STYLES
-                            : [...PLAYABLE_BOT_STYLES, current]; // legacy doc: keep its style selectable
+                        const roster = godUnlocked ? [SECRET_BOT_STYLE, ...PLAYABLE_BOT_STYLES] : PLAYABLE_BOT_STYLES;
+                        const styles = roster.includes(current)
+                            ? roster
+                            : [...roster, current]; // legacy doc: keep its style selectable
                         return (
                             <select
                                 value={current}
@@ -91,7 +114,9 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                             >
                                 {styles.map((s) => {
                                     const p = personaFor(s);
-                                    const rank = /^gen(\d+)$/.test(s) ? ` (AI·${s.slice(3)})` : '';
+                                    const rank = /^gen(\d+)$/.test(s) ? ` (AI·${s.slice(3)})` :
+                                        s === 'teacher' ? ' (AI·21+t0)' :
+                                        s === 'godrook' ? ' (∞)' : '';
                                     return <option key={s} value={s}>{p.emoji} {p.name}{rank}</option>;
                                 })}
                             </select>
@@ -195,9 +220,17 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                             >
                                 START GAME
                             </button>
-                            <p className="text-center text-white/50 text-[11px] font-orbitron mt-2">
+                            <p
+                                onClick={secretTap}
+                                className="text-center text-white/50 text-[11px] font-orbitron mt-2 select-none cursor-default"
+                            >
                                 Empty seats are filled with bots automatically.
                             </p>
+                            {godFlash && (
+                                <p className="text-center text-yellow-300 text-xs font-orbitron mt-2 animate-pulse">
+                                    👁️ AlphaGodRook has entered the camp.
+                                </p>
+                            )}
                         </>
                     ) : (
                         <p className="text-center text-white/70 font-orbitron text-sm animate-pulse">

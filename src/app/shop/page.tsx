@@ -48,7 +48,7 @@ export default function ShopPage() {
                         <div className="flex items-start justify-between gap-3">
                             <div>
                                 <h2 className="text-white font-orbitron font-bold text-lg leading-tight">
-                                    The Rook Tee
+                                    The Rook T-Shirt
                                 </h2>
                                 <p className="text-white/50 text-xs mt-1">
                                     Unisex tri-blend · vintage-soft, pre-shrunk

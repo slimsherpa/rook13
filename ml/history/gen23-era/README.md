@@ -101,9 +101,17 @@ against god.** Not one. Not even by the teacher.
 
 ## Where the irreplaceable data lives
 
-- **The 60M-row teacher corpus** (raw, re-millable, ~2.5GB):
-  hub `runs/t0shards/` + partial copies on boxes 2-5 and the MBP.
-  **PULL TO LOCAL BEFORE DELETING THE FLEET** — it can train every
-  future student and is the single most expensive artifact of the era.
+- **The teacher corpus — RESCUED 2026-07-30, fleet-independent.** The
+  final consolidated set (fuller than the hub's own copy: every box was
+  pulled at its true final size, plus the MBP's live shards) lives in
+  THREE places:
+  1. `ml/runs/t0shards/` on the MBP — 50 shards, 2.7GB raw,
+     63,740 games / 2.72M hands (34,328 marathon + 29,412 std), with
+     `CHECKSUMS.md5` alongside.
+  2. `ml/history/gen23-era/t0corpus-full.tar.zst` — the same set,
+     zstd-compressed to 261MB (gitignored; JSON compresses 10:1).
+  3. `gs://rook13-corpus/gen23-era/t0corpus-full.tar.zst` — off-site,
+     Coldline class (~$0.001/mo), project rook13-01. Restore with
+     `gcloud storage cp gs://rook13-corpus/gen23-era/t0corpus-full.tar.zst - | zstd -d | tar -x`.
 - Gauntlet + god dumps: this folder (`raw-dumps.tgz`) — safe.
 - Checkpoints: `models/gen23-cand1.pt` (repo + all machines).

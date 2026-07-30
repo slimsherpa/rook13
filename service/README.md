@@ -20,18 +20,24 @@ A server process can reconstruct exact state with zero new plumbing —
 and the Python lab engine is already golden-trace parity-proven against
 the TS engine.
 
-## Architecture
+## Architecture (SHIPPED 2026-07-30, nudge-based)
 
 Two layers in one Cloud Run container:
 
-1. **driver/ (Node/TS)** — the only writer. Firestore listener (admin
-   SDK) over active games; when `game.turn` is a bot seat whose
-   `botStyle` is in `SERVER_STYLES`, it asks the brain for a decision,
+1. **driver/ (Node/TS)** — the only writer. NOT a standing Firestore
+   listener (that needs `--no-cpu-throttling` ≈ $46/mo): instead clients
+   POST `/nudge {gameId}` whenever they see a SERVER_STYLES bot's turn
+   (`src/lib/botService.ts`, fire-and-forget from useGame). The driver
+   re-reads the truth from Firestore, asks the brain for the decision,
    applies it with the app's own `applyAction` (the SAME engine.ts the
    clients run — zero doc-shape parity risk), and writes via the same
-   `expectedActionCount` transaction as `submitAction`. Client bot
-   runners skip SERVER_STYLES seats (see `src/lib/game/types.ts`), and
-   the transaction makes server/client coexistence safe regardless.
+   `expectedActionCount` transaction as `submitAction`. Request-based
+   billing + 1 warm min-instance ≈ $10/mo, ~$0.001/game of think time.
+   Client bot runners skip SERVER_STYLES thinking turns but still handle
+   DEAL/ACK_REDEAL shuffles, and cover with local gen19 if the service
+   stays silent 20s (useGame.ts) — an outage degrades, never hangs.
+   `GET /status` reports driver + brain health (`/healthz` is intercepted
+   by Google's frontend on run.app — don't use it).
 
 2. **brain/ (Python, FastAPI, localhost only)** — stateless decision
    oracle. POST /decide with the game's action log + seat + style; it
@@ -53,24 +59,29 @@ Two layers in one Cloud Run container:
   time budget (see ml/alpharook/god.py notes; calibration duels will pin
   the config).
 
-## Deploy prerequisites (Riley)
+## Deploy / operate
 
-1. `gcloud auth login` + `gcloud config set project rook13-<id>` (one
-   time; Claude can't complete browser auth).
-2. Enable APIs: Cloud Run, Artifact Registry, (Eventarc if we later move
-   off the listener).  `gcloud services enable run.googleapis.com
-   artifactregistry.googleapis.com`
-3. A service account with Firestore access (default compute SA works;
-   admin SDK bypasses security rules — no rules change needed).
-4. `gcloud run deploy rook13-bots --source service/ --min-instances 1`
-   (min 1 keeps the listener warm ≈ $8–14/mo for the smallest instance;
-   scale-to-zero variant possible later via Eventarc triggers).
+Deployed 2026-07-30: service `rook13-bots`, region us-central1, project
+rook13-01, image `us-central1-docker.pkg.dev/rook13-01/rook13/bots`.
 
-## Known gaps (v1)
+- URL: https://rook13-bots-3ytxfwifyq-uc.a.run.app (also in
+  `src/lib/botService.ts`; override with NEXT_PUBLIC_BOT_SERVICE_URL)
+- Rebuild + redeploy (repo root):
+  `gcloud builds submit --config service/cloudbuild.yaml .` then
+  `gcloud run deploy rook13-bots --image us-central1-docker.pkg.dev/rook13-01/rook13/bots:latest --region us-central1 --min-instances 1 --max-instances 3 --memory 1Gi --cpu 1 --concurrency 8 --timeout 60`
+- ONE-TIME (Riley, permission-gated for Claude): make it publicly
+  invokable so family clients can nudge it —
+  `gcloud run services add-iam-policy-binding rook13-bots --region us-central1 --project rook13-01 --member=allUsers --role=roles/run.invoker`
+  Until then nudges 404 and every table quietly plays the local gen19
+  cover instead of the teacher.
 
-- Games containing a LAYDOWN action: the Python replayer doesn't model
-  laydown yet — brain returns 501 and the driver leaves those games to
-  client bots (rare; browser fallback still works for classic styles).
+## v1 notes
+
+- LAYDOWN is now replayed exactly (laydown_fastforward in brain/main.py
+  mirrors engine.ts's deterministic expansion).
+- godrook runs under a 12s wall-clock budget per play (TimeboxedGod):
+  exact solver when it finishes, gen21 reflex when it doesn't — early
+  tricks on hard hands fall back, the late-trick crush is always exact.
 - `SET_ASSIST`, seating actions etc. are replay no-ops for the brain.
 - Card int encoding is shared (TS trace encoding == python ints 0..39);
   the driver asserts this against fixtures at startup.
