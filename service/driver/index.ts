@@ -186,11 +186,14 @@ const runAuditQueued = (gameId: string, hand: number): Promise<Record<string, un
     return next;
 };
 
+const AUDIT_ENGINE = 'godrook-solver-v2';
+
 const runAudit = async (gameId: string, hand: number): Promise<Record<string, unknown>> => {
     const ref = db.collection('games').doc(gameId);
     const auditRef = ref.collection('audits').doc(String(hand));
     const existing = await auditRef.get();
-    if (existing.exists) return existing.data()!;
+    // verdicts from older engines get re-tried, not served forever
+    if (existing.exists && existing.data()!.engine === AUDIT_ENGINE) return existing.data()!;
 
     const key = `${gameId}:${hand}`;
     if (auditInflight.has(key)) return { status: 'busy' };
@@ -228,7 +231,7 @@ const runAudit = async (gameId: string, hand: number): Promise<Record<string, un
             bidWinner: verdict.bidWinner ?? null,
             analyzed: verdict.analyzed,
             skipped: verdict.skipped,
-            engine: 'godrook-solver-v2',
+            engine: AUDIT_ENGINE,
             at: Date.now(),
         };
         await auditRef.set(doc);
