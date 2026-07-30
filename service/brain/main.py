@@ -191,7 +191,9 @@ def audit(req: AuditReq):
     from rook.cards import CARD_POINTS, team_of
 
     PER_SOLVE_S = 3.5
-    GLOBAL_BUDGET_S = 25.0
+    GLOBAL_BUDGET_S = 30.0
+    PAR_SOLVE_S = 10.0
+    LEAK_FLOOR = 10   # deltas this size feed the per-player leak totals
     CHEAP_FROM_TRICK = 5  # 5+ tricks done => ~20 cards left, solves are instant
     MIN_DELTA = 20        # below this, not worth the family's attention
 
@@ -199,6 +201,8 @@ def audit(req: AuditReq):
     g = Game(dealer=SEAT_IDX[req.dealer])
     hand_no = 1
     snaps: list[dict] = []
+    par_bid = None
+    par_winner = None
     for a in req.actions:
         t = a["type"]
         if t in ("DEAL", "ACK_REDEAL"):
@@ -210,6 +214,9 @@ def audit(req: AuditReq):
             g.select_go_down(SEAT_IDX[a["seat"]], a["cards"])
         elif t == "SELECT_TRUMP":
             g.select_trump(SEAT_IDX[a["seat"]], a["suit"])
+            if hand_no == req.hand:
+                par_bid = g.high_bid
+                par_winner = g.bid_winner
         elif t == "PLAY_CARD":
             seat = SEAT_IDX[a["seat"]]
             card = a["card"]
@@ -220,7 +227,8 @@ def audit(req: AuditReq):
                     gd=sum(CARD_POINTS[c] for c in g.go_down),
                     trick=tuple(g.trick_plays),
                     tricks_done=len(g.completed_tricks),
-                    t0=g.tricks_won[0], seat=seat, card=card))
+                    t0=g.tricks_won[0], banked0=g.points_taken[0],
+                    seat=seat, card=card))
             g.play_card(seat, card)
         elif t == "LAYDOWN":
             # deterministic claim — nothing to audit
@@ -256,6 +264,8 @@ def audit(req: AuditReq):
 
     started = _time.time()
     found: list[dict] = []
+    leaks: dict[str, int] = {}
+    earliest: dict | None = None   # earliest-solved position, for par-from-k
     analyzed = skipped = 0
     for s in snaps:
         if _time.time() - started >= GLOBAL_BUDGET_S:
@@ -270,9 +280,17 @@ def audit(req: AuditReq):
         if team_of(seat) == 0:
             best = max(vals, key=lambda c: vals[c])
             delta = vals[best] - vals.get(card, vals[best])
+            pos_v0 = vals[best]
         else:
             best = min(vals, key=lambda c: vals[c])
             delta = vals.get(card, vals[best]) - vals[best]
+            pos_v0 = vals[best]
+        if earliest is None or s["tricks_done"] < earliest["tricks_done"]:
+            earliest = {"tricks_done": s["tricks_done"],
+                        "v0": s["banked0"] + pos_v0}
+        if delta >= LEAK_FLOOR:
+            name = SEAT_NAME[seat]
+            leaks[name] = leaks.get(name, 0) + int(delta)
         if delta >= MIN_DELTA and best != card:
             found.append({
                 "trick": s["tricks_done"],
@@ -282,9 +300,45 @@ def audit(req: AuditReq):
                 "delta": int(delta),
             })
 
+    # Par: what the DECLARER'S team takes at perfect play by everyone.
+    # Exact from trick 1 when the solver makes the deadline; otherwise the
+    # earliest solved position stands in ("par from trick k") — still
+    # enough to say whether the contract was gone early.
+    par = None
+    par_from = None
+    if par_winner is not None and snaps:
+        # the opening lead's position = the true par point (snaps are
+        # cheap-first sorted by now, so search, don't index)
+        first = next((s for s in snaps
+                      if s["tricks_done"] == 0 and not s["trick"]), None)
+        exact = None
+        if first is not None:
+            out: list = []
+
+            def run_par():
+                try:
+                    out.append(S.solve(
+                        first["hands"], first["trump"], first["leader"],
+                        first["gd"], t0_tricks=first["t0"],
+                        tricks_done=0, trick=first["trick"]))
+                except Exception:
+                    pass
+            th = threading.Thread(target=run_par, daemon=True)
+            th.start()
+            th.join(PAR_SOLVE_S)
+            if out:
+                exact = first["banked0"] + out[0]
+        v0 = exact if exact is not None else (earliest["v0"] if earliest else None)
+        if v0 is not None:
+            par = int(v0 if team_of(par_winner) == 0 else 120 - v0)
+            par_from = 0 if exact is not None else earliest["tricks_done"]
+
     # the two worst moments only — a recap, not a lecture
     found.sort(key=lambda b: -b["delta"])
-    return {"hand": req.hand, "blunders": found[:2],
+    return {"hand": req.hand, "blunders": found[:2], "leaks": leaks,
+            "par": par, "parFrom": par_from,
+            "bid": par_bid,
+            "bidWinner": SEAT_NAME[par_winner] if par_winner is not None else None,
             "analyzed": analyzed, "skipped": skipped}
 
 

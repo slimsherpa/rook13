@@ -421,14 +421,55 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
             {/* the blunder detector — opt-in per hand, so compute is only
                 spent when somebody actually wants the verdict */}
             {audit ? (
-                audit.blunders.length === 0 && (
-                    <div className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-emerald-900/25 border border-emerald-400/25">
-                        <span className="text-sm leading-none">✅</span>
-                        <span className="font-orbitron text-emerald-200/90 text-[11px] text-center">
-                            Clean hand — nobody left points on the table.
-                        </span>
-                    </div>
-                )
+                (() => {
+                    // the full verdict: the bid, the leaks, then the plays
+                    const strips: React.ReactNode[] = [];
+                    if (audit.par != null && audit.bid != null && h.wentSet && audit.par < audit.bid) {
+                        strips.push(
+                            <div key="par" className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-rose-950/50 border border-rose-400/30">
+                                <span className="text-sm leading-none">🎯</span>
+                                <span className="font-orbitron text-rose-200 text-[11px] text-center leading-snug">
+                                    {audit.parFrom === 0
+                                        ? `The ${audit.bid} bid was the blunder — perfect play only takes ~${audit.par}.`
+                                        : `Even perfect play from trick ${(audit.parFrom ?? 0) + 1} on only takes ~${audit.par} — the ${audit.bid} was already gone.`}
+                                </span>
+                            </div>,
+                        );
+                    } else if (audit.par != null && audit.bid != null && h.wentSet) {
+                        strips.push(
+                            <div key="par" className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-white/5 border border-white/10">
+                                <span className="text-sm leading-none">🎯</span>
+                                <span className="font-orbitron text-white/60 text-[11px] text-center leading-snug">
+                                    The {audit.bid} was makeable (~{audit.par} at perfect play{audit.parFrom ? ` from trick ${audit.parFrom + 1}` : ''}) — the set happened in the play.
+                                </span>
+                            </div>,
+                        );
+                    }
+                    const topLeak = Object.entries(audit.leaks ?? {}).sort((a, b) => b[1] - a[1])[0];
+                    if (topLeak && topLeak[1] >= 20) {
+                        strips.push(
+                            <div key="leak" className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-amber-950/40 border border-amber-400/25">
+                                <span className="text-sm leading-none">💸</span>
+                                <span className="font-orbitron text-amber-200/90 text-[11px] text-center leading-snug">
+                                    {firstName(seats, topLeak[0] as Seat)} left ~{topLeak[1]} pts on the table across the hand.
+                                </span>
+                            </div>,
+                        );
+                    }
+                    if (audit.blunders.length === 0 && strips.length === 0) {
+                        strips.push(
+                            <div key="clean" className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-emerald-900/25 border border-emerald-400/25">
+                                <span className="text-sm leading-none">✅</span>
+                                <span className="font-orbitron text-emerald-200/90 text-[11px] text-center">
+                                    {audit.skipped > 0
+                                        ? `No blunders in the ${audit.analyzed} plays checked (${audit.skipped} ran too deep to solve).`
+                                        : 'Clean hand — nobody left points on the table.'}
+                                </span>
+                            </div>,
+                        );
+                    }
+                    return <>{strips}</>;
+                })()
             ) : auditPending ? (
                 <div className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-white/5 border border-white/10 animate-pulse">
                     <span className="text-sm leading-none">🔍</span>

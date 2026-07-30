@@ -221,9 +221,14 @@ const runAudit = async (gameId: string, hand: number): Promise<Record<string, un
                 better: intToCard(b.better),
                 delta: b.delta,
             })),
+            leaks: verdict.leaks ?? {},
+            par: verdict.par ?? null,
+            parFrom: verdict.parFrom ?? null,
+            bid: verdict.bid ?? null,
+            bidWinner: verdict.bidWinner ?? null,
             analyzed: verdict.analyzed,
             skipped: verdict.skipped,
-            engine: 'godrook-solver-v1',
+            engine: 'godrook-solver-v2',
             at: Date.now(),
         };
         await auditRef.set(doc);

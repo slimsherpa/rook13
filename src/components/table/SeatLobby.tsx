@@ -110,7 +110,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                                     // table name (the engine preserves it)
                                     act({ type: 'SET_BOT', seat, botStyle: style });
                                 }}
-                                className="mt-1.5 w-full max-w-[11rem] rounded-md bg-navy-950 border border-white/15 text-white text-xs px-2 py-1 focus:outline-none focus:border-sky-400"
+                                className="mt-1.5 w-full rounded-md bg-navy-950 border border-white/15 text-white text-xs px-2 py-1.5 focus:outline-none focus:border-sky-400"
                             >
                                 {styles.map((s) => {
                                     const p = personaFor(s);
@@ -123,11 +123,13 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                         );
                     })()}
                 </div>
-                <div className="flex gap-1.5">
+                {/* actions stack vertically so the seat's info (and the bot
+                    picker) keep the row's width */}
+                <div className="flex flex-col gap-1.5 items-stretch flex-shrink-0">
                     {info.kind !== 'human' && !isMe && (
                         <button
                             onClick={() => act({ type: 'SIT', seat, player: { uid: myUid, name: myName, ...(myPhotoURL ? { photoURL: myPhotoURL } : {}) } })}
-                            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-orbitron whitespace-nowrap"
+                            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-orbitron whitespace-nowrap text-center"
                         >
                             Sit Here
                         </button>
@@ -135,7 +137,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     {isMe && (
                         <button
                             onClick={() => act({ type: 'LEAVE_SEAT', seat, uid: myUid })}
-                            className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-xs font-orbitron"
+                            className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-xs font-orbitron text-center"
                         >
                             Stand
                         </button>
@@ -143,7 +145,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     {isHost && info.kind === 'open' && (
                         <button
                             onClick={() => act({ type: 'SET_BOT', seat, botStyle: DEFAULT_BOT_STYLE })}
-                            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-orbitron flex items-center gap-1 whitespace-nowrap"
+                            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-orbitron flex items-center justify-center gap-1 whitespace-nowrap"
                         >
                             <span className="material-symbols-outlined text-sm">smart_toy</span>
                             Add Bot
@@ -152,7 +154,7 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     {isHost && info.kind === 'bot' && (
                         <button
                             onClick={() => act({ type: 'OPEN_SEAT', seat })}
-                            className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-xs font-orbitron whitespace-nowrap"
+                            className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-xs font-orbitron whitespace-nowrap text-center"
                         >
                             Remove
                         </button>

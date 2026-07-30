@@ -22,6 +22,15 @@ export interface AuditBlunder {
 export interface HandAudit {
     hand: number;
     blunders: AuditBlunder[];
+    /** total points each seat leaked across the hand (small slips add up) */
+    leaks?: Record<string, number>;
+    /** what the declaring team takes at PERFECT play by everyone, or null
+     *  when even the solver couldn't crack the opening in time */
+    par?: number | null;
+    /** 0 = par is exact from the opening lead; k>0 = par measured from trick k+1 */
+    parFrom?: number | null;
+    bid?: number | null;
+    bidWinner?: Seat | null;
     analyzed: number;
     skipped: number;
 }
