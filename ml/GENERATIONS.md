@@ -469,3 +469,36 @@ Open road, when the itch returns: gen24 = the bid gym (the evidence
 converged from two directions and now the blunder detector generates
 live family evidence too); a Riley-and-brother marathon vs the teacher;
 audit-the-go-down; and whatever the ladder looks like from above 90%.
+
+---
+
+# gen24 — THE BID GYM (opened 2026-07-30, running locally)
+
+The itch returned the same day the fleet died. Full design doc:
+`history/gen24-bidgym/README.md`.
+
+The inversion: every previous gym evolved neural weights and banked
+mirages; this one evolves **15 named genes** (`alpharook/bidgenes.py`) so
+the equilibrium bidder can simply be read. Card play never varies — every
+seat plays gen23 reflex; fitness is pure bidding. Games are the family
+-250/+500, the format where one set is a cliff. At default genes the
+genome IS the family calibrated bidder, byte-exact vs
+`choose_bid("basic")` (tested) — every evolved delta is a legible delta
+from the family's own calibration. Four poker genes the family bidder
+doesn't have: `deficit_slope`, `desperation`, `protection`, `cliff_fear`.
+
+Four cities on Riley's MBP (`alpharook.bidcity`): provo (balanced), orem
+(hot), logan (cold start from random genomes — can bidding be
+rediscovered?), moab (conservative control). 10 evolvers + 2 immortal
+anchors (family, gen23-native-bids) per league; duplicate-deck
+round-robin seasons, cull-and-breed; ~60+ seasons/city/hour at ~0.1
+s/game. `alpharook.bidcup` is the cross-city championship on fresh decks
+(law 2 lives there); `alpharook.bidprobe` is the curiosity instrument —
+same hand × 7 auction scenarios × 9 score states, every bot's exact bid
+recorded. `scripts/gen24_status.py` for the 10am/10pm check-in.
+
+The questions this gym exists to answer: does aggression win? crawl or
+jump? does the equilibrium bidder stretch when behind late (and how
+much)? does anyone learn to fear the -250 cliff? — and does any of it
+beat gen23's own auction, which was never the part of gen23 anyone
+trained on purpose.
