@@ -109,13 +109,14 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                     Blunder Detector
                 </div>
                 <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
-                    The instant a hand ends, AlphaGodRook&apos;s solver replays it with all the cards
-                    face up. The recap marks the (at most two) plays that truly cost points — and
-                    what should have been played. If a hand was doomed anyway, it stays quiet.
+                    Adds an &quot;Ask AI to review this hand&quot; button to every hand recap. On
+                    request, the solver replays the hand with all the cards face up and marks the
+                    (at most two) plays that truly cost points — and what should have been played.
+                    If a hand was doomed anyway, it stays quiet.
                 </p>
                 <div className="space-y-1.5">
                     {option(blunders, 'search_insights', blunders ? 'Detector on' : 'Detector off',
-                        blunders ? 'Hindsight verdicts show in recaps' : 'Recaps stay judgment-free',
+                        blunders ? 'The review button shows in recaps' : 'Recaps stay judgment-free',
                         () => setBlunders(!blunders))}
                 </div>
 

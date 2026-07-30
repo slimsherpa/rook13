@@ -7,7 +7,7 @@
 // in v1. The Next Hand button stays pinned at the bottom no matter how far
 // you scroll. Any player can start the next hand.
 
-import { Card, GameDoc, Seat, Suit, Team, HandSummary, TrickRecord, teamOf, nextSeat, getCardPoints } from '@/lib/game/types';
+import { Card, GameDoc, Seat, Suit, Team, HandSummary, TrickRecord, TRICKS_PER_HAND, teamOf, nextSeat, getCardPoints } from '@/lib/game/types';
 import { HandAudit } from '@/lib/firebase/auditService';
 import { rainbowNumbersFor } from '@/lib/game/stats';
 import { setSealedTrick } from '@/lib/game/setPoint';
@@ -28,6 +28,8 @@ interface HandRecapModalProps {
     audit?: HandAudit | null;
     /** the solver is still working on this hand */
     auditPending?: boolean;
+    /** offered when no review has run — the "Ask AI" button's action */
+    onRequestAudit?: () => void;
 }
 
 interface TrophyMoment {
@@ -260,7 +262,7 @@ const teamNames = (seats: Seats, t: Team) =>
 /** Trick-by-trick replay, with the "…got SET!" beat dropped in exactly where
  *  the set became inevitable — and the "laid them down" beat where a player
  *  claimed the rest. Shared by the live recap and the review page. */
-export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown, audit, auditPending }: {
+export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown, goDown, audit, auditPending, onRequestAudit }: {
     seats: Seats;
     tricks: TrickRecord[];
     trump: Suit | null;
@@ -269,10 +271,14 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
     compact?: boolean;
     /** who laid their hand down, and before which trick (0-indexed) */
     laydown?: { seat: Seat; trick: number } | null;
-    /** hindsight verdict from AlphaGodRook's solver (auditService) */
+    /** the go-down, shown after trick 9 with who captured it */
+    goDown?: Card[];
+    /** hindsight verdict from the blunder detector (auditService) */
     audit?: HandAudit | null;
-    /** the solver is still replaying — show the ticker instead of silence */
+    /** a review was requested and the solver is still working */
     auditPending?: boolean;
+    /** offered when no review has run yet — the tap that spends the compute */
+    onRequestAudit?: () => void;
 }) {
     // blunder-report mode: when armed, every played card becomes flaggable
     const blunder = useBlunderMode();
@@ -329,25 +335,9 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
     const cardName = (c: Card) => `${c.suit} ${c.number}`;
 
     const numW = compact ? 'w-6 text-lg' : 'w-7 text-2xl';
+    const lastWinner = tricks.length === TRICKS_PER_HAND ? tricks[tricks.length - 1].winner : null;
     return (
         <div className={compact ? 'space-y-3' : 'space-y-4'}>
-            {/* the referee's status: never leave silence to be misread */}
-            {auditPending && !audit && (
-                <div className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-white/5 border border-white/10 animate-pulse">
-                    <span className="text-sm leading-none">👁️</span>
-                    <span className="font-orbitron text-white/60 text-[11px] text-center">
-                        AlphaGodRook is replaying the hand…
-                    </span>
-                </div>
-            )}
-            {audit && audit.blunders.length === 0 && (
-                <div className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-emerald-900/25 border border-emerald-400/25">
-                    <span className="text-sm leading-none">✅</span>
-                    <span className="font-orbitron text-emerald-200/90 text-[11px] text-center">
-                        Clean hand — nobody left points on the table.
-                    </span>
-                </div>
-            )}
             {laydown && laydown.trick === 0 && laydownBanner}
             {tricks.map((trick, idx) => (
                 <div key={idx}>
@@ -405,11 +395,63 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
                     {idx === sealed && setBanner()}
                 </div>
             ))}
+
+            {/* after the last trick: the go-down, and who scooped it */}
+            {goDown && goDown.length > 0 && lastWinner && (
+                <div className="flex items-center gap-2">
+                    <div className={`${compact ? 'w-6' : 'w-7'} flex-shrink-0 text-white/40 font-orbitron font-bold text-[8px] leading-tight text-center`}>
+                        GO<br />DOWN
+                    </div>
+                    <div className="flex-1 flex items-center gap-2 flex-wrap">
+                        <div className="flex gap-1.5">
+                            {goDown.map((c, i) => (
+                                <PlayingCard key={`gd-${i}`} card={c} trump={trump} size="sm" />
+                            ))}
+                        </div>
+                        <span className="font-orbitron text-[11px] text-white/60 leading-snug">
+                            {firstName(seats, lastWinner)} takes it with the last trick
+                            {h.goDownPoints > 0 && (
+                                <span className={`font-bold ${teamOf(lastWinner) === 'A' ? 'text-sky-300' : 'text-orange-300'}`}> +{h.goDownPoints}</span>
+                            )}
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            {/* the blunder detector — opt-in per hand, so compute is only
+                spent when somebody actually wants the verdict */}
+            {audit ? (
+                audit.blunders.length === 0 && (
+                    <div className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-emerald-900/25 border border-emerald-400/25">
+                        <span className="text-sm leading-none">✅</span>
+                        <span className="font-orbitron text-emerald-200/90 text-[11px] text-center">
+                            Clean hand — nobody left points on the table.
+                        </span>
+                    </div>
+                )
+            ) : auditPending ? (
+                <div className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-white/5 border border-white/10 animate-pulse">
+                    <span className="text-sm leading-none">🔍</span>
+                    <span className="font-orbitron text-white/60 text-[11px] text-center">
+                        Blunder detector is reviewing the hand…
+                    </span>
+                </div>
+            ) : onRequestAudit ? (
+                <button
+                    onClick={onRequestAudit}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-white/5 border border-white/15 hover:border-sky-400/60 transition"
+                >
+                    <span className="text-sm leading-none">🔍</span>
+                    <span className="font-orbitron text-white/70 text-[11px]">
+                        Ask AI to review this hand for blunders
+                    </span>
+                </button>
+            ) : null}
         </div>
     );
 }
 
-export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores, audit, auditPending }: HandRecapModalProps) {
+export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores, audit, auditPending, onRequestAudit }: HandRecapModalProps) {
     const h = game.handHistory[game.handHistory.length - 1];
     if (!h) return null;
 
@@ -504,8 +546,10 @@ export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores,
                             laydown={game.laydownSeat != null && game.laydownTrick != null
                                 ? { seat: game.laydownSeat, trick: game.laydownTrick }
                                 : null}
+                            goDown={game.goDown}
                             audit={audit}
                             auditPending={auditPending}
+                            onRequestAudit={onRequestAudit}
                         />
 
                         {/* the experts' door: flag a bad decision for the AI

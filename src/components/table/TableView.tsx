@@ -54,18 +54,17 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     const [showWatchers, setShowWatchers] = useState(false);
     const watchers = useWatchers(game.id, mySeat === null);
     const theme = themeFor(game.trump);
-    // hindsight blunder audits: request the instant a hand is done, hear the
-    // verdict through Firestore (the solver writes exactly one doc per hand)
+    // hindsight blunder audits: opt-in per hand — the recap's "Ask AI" button
+    // spends the compute; the verdict comes back through Firestore and is
+    // stored forever, so a hand is only ever solved once
     const [blunderDetector] = useBlunderDetector();
     const [audits, setAudits] = useState<Map<number, HandAudit>>(new Map());
+    const [auditsAsked, setAuditsAsked] = useState<Set<number>>(new Set());
     useEffect(() => subscribeAudits(game.id, setAudits), [game.id]);
-    useEffect(() => {
-        if (!blunderDetector) return;
-        if (game.phase !== 'hand_done' && game.status !== 'completed') return;
-        const hand = game.handHistory.length;
-        if (hand > 0 && !audits.has(hand)) requestHandAudit(game.id, hand);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [game.phase, game.status, game.handHistory.length, blunderDetector, game.id]);
+    const askForAudit = (hand: number) => {
+        setAuditsAsked((s) => new Set(s).add(hand));
+        requestHandAudit(game.id, hand);
+    };
 
     // cloud-bot transparency: a header chip while the service is unreachable,
     // and a toast whenever this device's browser backup plays a cloud seat
@@ -576,7 +575,8 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                     onNextHand={() => act({ type: 'NEXT_HAND' })}
                     onShowScores={() => setShowScores(true)}
                     audit={blunderDetector ? audits.get(game.handHistory.length) ?? null : null}
-                    auditPending={blunderDetector && !audits.has(game.handHistory.length)}
+                    auditPending={blunderDetector && auditsAsked.has(game.handHistory.length) && !audits.has(game.handHistory.length)}
+                    onRequestAudit={blunderDetector ? () => askForAudit(game.handHistory.length) : undefined}
                 />
             )}
             {game.phase === 'game_over' && recapReady && !showScores && (

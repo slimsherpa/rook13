@@ -108,9 +108,11 @@ export const useAiAssist = (): [boolean, (on: boolean) => void] => {
 };
 
 // ---------------------------------------------------------------------------
-// Blunder detector: the instant a hand ends, AlphaGodRook's solver replays it
-// in hindsight and the recap marks the (at most two) cards that truly cost
-// points — with what should have been played. ON by default; device-local.
+// Blunder detector: every hand recap offers an "Ask AI to review this hand"
+// button; on request the solver replays it in hindsight and marks the (at
+// most two) cards that truly cost points — with what should have been
+// played. Opt-in per hand so compute is only spent when someone asks; this
+// toggle just shows/hides the feature. ON by default; device-local.
 // ---------------------------------------------------------------------------
 
 const BLUNDER_KEY = 'rook13-blunder-detector';
