@@ -397,3 +397,29 @@ held-out games.
   screen_*.jsonl dumps). Corpus streams retired first — final bank
   ~2.5M hands / ~60M teacher rows / ~4.3M needles, raw and re-millable
   forever.
+- **SCREEN + FULL GAUNTLET VERDICT (2026-07-30): gen23 = new champion
+  reflex, MINTED models/gen23-cand1.pt (= latest.pt).** best.pt (the
+  early ovr-bank) = 49.6% sprint AND marathon — pure parity; the quiz's
+  favorite is not the player, the calibration tail is. latest.pt swept
+  the ladder (18 arms, fresh seeds, duplicate decks): sprints — teacher
+  39.6%(n=700) / gen21 52.2%(n=1500, +screen 53.0% n=1500) / Cosmo
+  51.2% / Cougar 53.2% / Puma 57.1% / Cub 58.0% / Bobcat 60.7% /
+  Kitten 61.8% / Stomper 62.1%; marathons — teacher 31.0%(n=200) /
+  gen21 56.3%(n=1000 replication; screen 58.1% n=800 — REPLICATED, not
+  mirage #11) / Cosmo 55.5% / Cougar 57.5% / Puma 66.2%(n=600) / Cub
+  67.0% / Bobcat 70.0% / Kitten 72.8% / Stomper 72.2%. Perfect
+  monotone staircase, marathon edge > sprint edge everywhere (the
+  compounding signature), zero non-transitivity. A PURE REFLEX at
+  parity-or-better with every production search stack, losing only to
+  its own teacher. Artifact ("gen23 runs the gauntlet", 18 sketch-style
+  cards per Riley's hand-drawn spec) published; dumps in hub
+  runs/gauntlet/. NOTE for future dumps: seed/flip ride only with
+  --dump-actions; sweeps from plain dumps = pair consecutive lines.
+- **Riley's calibration challenge (the "should beat gen8 99%" debate):**
+  resolved by the luck floor — the teacher itself only manages 63.7%
+  sprints vs gen21; ~74-80% of hands are deal-decided, so sprint
+  ceilings are luck-bounded, not skill-bounded. Calibration arms queued:
+  ALPHAGODROOK (god.py, --god-a/b: exact-solver omniscient card play,
+  net bids — legitimate truth-conditioning, referee-with-a-chair) and
+  gen23/gen8-vs-Standard-heuristic. God timing: ~1 min/hand — overnight
+  single-box arms only until a budgeted config exists.
