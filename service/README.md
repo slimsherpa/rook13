@@ -68,7 +68,12 @@ rook13-01, image `us-central1-docker.pkg.dev/rook13-01/rook13/bots`.
   `src/lib/botService.ts`; override with NEXT_PUBLIC_BOT_SERVICE_URL)
 - Rebuild + redeploy (repo root):
   `gcloud builds submit --config service/cloudbuild.yaml .` then
-  `gcloud run deploy rook13-bots --image us-central1-docker.pkg.dev/rook13-01/rook13/bots:latest --region us-central1 --min-instances 1 --max-instances 3 --memory 1Gi --cpu 1 --concurrency 8 --timeout 60`
+  `gcloud run deploy rook13-bots --image us-central1-docker.pkg.dev/rook13-01/rook13/bots:latest --region us-central1 --min-instances 1 --max-instances 5 --memory 2Gi --cpu 2 --concurrency 6 --timeout 90`
+  NEVER pass --[no-]allow-unauthenticated on redeploys — it RESETS the
+  allUsers invoker grant (learned the hard way; omitting auth flags
+  leaves IAM untouched). Sized 2026-07-30 after family-night saturation
+  (429s + GIL-starved audits): 2 brain workers, audits serialized in the
+  driver, ~$15-20/mo warm.
 - ONE-TIME (Riley, permission-gated for Claude): make it publicly
   invokable so family clients can nudge it —
   `gcloud run services add-iam-policy-binding rook13-bots --region us-central1 --project rook13-01 --member=allUsers --role=roles/run.invoker`

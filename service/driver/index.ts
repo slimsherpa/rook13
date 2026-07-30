@@ -176,6 +176,15 @@ const maybeAct = async (gameId: string): Promise<string> => {
 // phones ask.
 // ---------------------------------------------------------------------------
 const auditInflight = new Set<string>();
+// audits run ONE at a time per instance — a queue of 50s solver jobs must
+// never crowd live game decisions out of the brain
+let auditQueue: Promise<unknown> = Promise.resolve();
+const runAuditQueued = (gameId: string, hand: number): Promise<Record<string, unknown>> => {
+    const next = auditQueue.catch(() => { /* prior failure is its own report */ })
+        .then(() => runAudit(gameId, hand));
+    auditQueue = next;
+    return next;
+};
 
 const runAudit = async (gameId: string, hand: number): Promise<Record<string, unknown>> => {
     const ref = db.collection('games').doc(gameId);
@@ -264,7 +273,7 @@ const server = http.createServer(async (req, res) => {
                 // for the whole think (request-based billing)
                 const payload = url.pathname === '/nudge'
                     ? { outcome: await maybeAct(gameId) }
-                    : await runAudit(gameId, Number(hand));
+                    : await runAuditQueued(gameId, Number(hand));
                 res.writeHead(200, { 'content-type': 'application/json' });
                 res.end(JSON.stringify(payload));
             } catch (e: any) {

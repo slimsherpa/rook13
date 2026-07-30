@@ -32,13 +32,21 @@ const markUnhealthy = () => {
 export const nudgeBotService = (gameId: string, actionCount: number): void => {
     if (nudged.get(gameId) === actionCount) return;
     nudged.set(gameId, actionCount);
-    fetch(`${BOT_SERVICE_URL}/nudge`, {
+    const attempt = () => fetch(`${BOT_SERVICE_URL}/nudge`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ gameId }),
         keepalive: true,
-    }).then((res) => {
-        if (!res.ok) markUnhealthy();
-        else if (unhealthyUntil !== 0) { unhealthyUntil = 0; notifyHealth(); }
-    }).catch(markUnhealthy);
+    });
+    const ok = () => { if (unhealthyUntil !== 0) { unhealthyUntil = 0; notifyHealth(); } };
+    // one 429 during a busy moment shouldn't demote the cloud for a minute —
+    // retry once before declaring it down
+    attempt().then((res) => {
+        if (res.ok) return ok();
+        throw new Error(String(res.status));
+    }).catch(() => {
+        setTimeout(() => {
+            attempt().then((res) => (res.ok ? ok() : markUnhealthy())).catch(markUnhealthy);
+        }, 1200);
+    });
 };
