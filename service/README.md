@@ -80,6 +80,32 @@ rook13-01, image `us-central1-docker.pkg.dev/rook13-01/rook13/bots`.
   Until then nudges 404 and every table quietly plays the local gen19
   cover instead of the teacher.
 
+## The blunder detector (POST /audit)
+
+The solver moonlights as the family referee. `POST /audit {gameId, hand}`
+replays a finished hand and judges it in the TRUE world:
+
+- **Per-play deltas**: every card play with >1 legal option is compared
+  to the exact double-dummy best (back-to-front: late tricks are ~ms and
+  always covered; leftover budget goes to early tricks). Plays that cost
+  >=20 pts become the (at most two) headline blunders.
+- **Par**: what the declaring team takes at perfect play — exact from
+  the opening lead when the solver cracks it inside 10s, else measured
+  from the earliest solved trick (`parFrom`). par < bid on a set hand =
+  "the bid was the blunder" (the family's biggest measured leak; the
+  oracle says 28% of contracts are unmakeable at par).
+- **Leaks**: per-player totals of every >=10-pt slip — catches death by
+  paper cuts that never cross the per-play bar.
+- **Honesty**: `analyzed`/`skipped` ship in the verdict; the UI never
+  claims "clean" over partial coverage.
+
+Verdicts are stored once at `games/{id}/audits/{hand}` (service-only
+writes; the `engine` field version-gates the cache so old verdicts
+re-solve after an upgrade), cost ~0.2 cents, and only run when someone
+taps "Ask AI to review this hand" in a recap — nobody watching, nothing
+spent. Audits queue one-at-a-time per instance so they never crowd live
+game decisions out of the brain.
+
 ## v1 notes
 
 - LAYDOWN is now replayed exactly (laydown_fastforward in brain/main.py

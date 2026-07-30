@@ -115,3 +115,12 @@ against god.** Not one. Not even by the teacher.
      `gcloud storage cp gs://rook13-corpus/gen23-era/t0corpus-full.tar.zst - | zstd -d | tar -x`.
 - Gauntlet + god dumps: this folder (`raw-dumps.tgz`) — safe.
 - Checkpoints: `models/gen23-cand1.pt` (repo + all machines).
+- Final sweeps of everything else small on the fleet (t1/t3 bake-off
+  dumps, the status board): `hub-final-sweep/`.
+
+**FLEET DELETED by Riley 2026-07-30** (all 5 Hetzner servers: hub
+5.78.115.122 + .130.139 / .128.203 / .135.83 / .145.180). Nothing was
+lost; the ~$25/day ended. The era's production afterlife (Cosmo=teacher
+on Cloud Run, AlphaGodRook's secret unlock, the solver-as-referee
+blunder detector) is documented in `service/README.md` and the
+GENERATIONS.md epilogue.

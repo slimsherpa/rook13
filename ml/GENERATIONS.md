@@ -437,3 +437,35 @@ held-out games.
   Full data + compressed dumps + era summary: history/gen23-era/.
   Method note: per-hand stats (pts/hand, make-at-same-bid) sharpen ~10x
   faster than game win% — they made 40-game arms readable overnight.
+
+---
+
+## Epilogue — the era ships (2026-07-30)
+
+The gen23 era ended the only way an era should: everything worth keeping
+made permanent, everything it built handed to the family, and the
+machines that did the work deleted.
+
+- **The corpus is immortal**: the fullest-ever consolidation (63,740
+  games / 2.72M hands — bigger than the training headline; the hub's own
+  copy was 13% stale) lives in `runs/t0shards/` (checksummed), zstd 10:1
+  in `history/gen23-era/`, and off-site at `gs://rook13-corpus/`
+  (Coldline, ~$0.001/mo). It can train every future student.
+- **The teacher became Cosmo**: gen21+t0 (K24, trick 0) serves the
+  family from Cloud Run (`service/` — nudge-based, ~$15-20/mo, browser
+  gen19 as the outage cover). The roster cascaded a rung; gen8 retired.
+- **AlphaGodRook sits behind a triple-tap secret unlock**, timeboxed to
+  12s/solve — a god-lite in production, the full god in the ledger.
+- **The solver became the referee**: the blunder detector replays any
+  finished hand on request — per-play deltas, per-player leak totals,
+  and PAR vs the bid ("the 100 was never makeable — perfect play takes
+  ~90"), attacking the bidding leak the oracle measured. First live
+  verdicts confirmed by Riley at the table.
+- **The fleet is gone** (Riley deleted all 5 servers, 2026-07-30) —
+  $25/day → $0. Total era compute bill: ~$50 of rented CPU for the
+  corpus, the crown, and the ceiling.
+
+Open road, when the itch returns: gen24 = the bid gym (the evidence
+converged from two directions and now the blunder detector generates
+live family evidence too); a Riley-and-brother marathon vs the teacher;
+audit-the-go-down; and whatever the ladder looks like from above 90%.
