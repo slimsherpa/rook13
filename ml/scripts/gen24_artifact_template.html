@@ -1,0 +1,498 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Bid Gym — Rook13 gen24</title>
+<style>
+:root{
+  --paper:#f6f0e3; --paper2:#efe6d2; --card:#fbf7ec; --line:#d8cdb4;
+  --ink:#26211b; --ink2:#5c5347; --ink3:#8a7f6d;
+  --provo:#c0392b; --moab:#3f4fa8; --orem:#b3820a; --logan:#0f8158;
+  --accent:#c0392b; --accent-ink:#7c2318;
+  --heat0:#f0e2d2; --heat1:#ecc9a8; --heat2:#e3a67e; --heat3:#d67d55;
+  --heat4:#c05233; --heat5:#992f19; --heat-ink-hi:#fff;
+  --good:#0f8158; --bad:#a03222;
+}
+@media (prefers-color-scheme: dark){:root{
+  --paper:#16211c; --paper2:#121b17; --card:#1d2a24; --line:#31413a;
+  --ink:#e8e2d4; --ink2:#a8a294; --ink3:#77716a;
+  --provo:#e0603f; --moab:#6d87d6; --orem:#b58e1d; --logan:#2fa376;
+  --accent:#e0603f; --accent-ink:#f0876a;
+  --heat0:#243129; --heat1:#4a3527; --heat2:#6e4128; --heat3:#96502b;
+  --heat4:#c46335; --heat5:#ef8253; --heat-ink-hi:#1a120c;
+  --good:#2fa376; --bad:#e0603f;
+}}
+:root[data-theme="light"]{
+  --paper:#f6f0e3; --paper2:#efe6d2; --card:#fbf7ec; --line:#d8cdb4;
+  --ink:#26211b; --ink2:#5c5347; --ink3:#8a7f6d;
+  --provo:#c0392b; --moab:#3f4fa8; --orem:#b3820a; --logan:#0f8158;
+  --accent:#c0392b; --accent-ink:#7c2318;
+  --heat0:#f0e2d2; --heat1:#ecc9a8; --heat2:#e3a67e; --heat3:#d67d55;
+  --heat4:#c05233; --heat5:#992f19; --heat-ink-hi:#fff;
+  --good:#0f8158; --bad:#a03222;
+}
+:root[data-theme="dark"]{
+  --paper:#16211c; --paper2:#121b17; --card:#1d2a24; --line:#31413a;
+  --ink:#e8e2d4; --ink2:#a8a294; --ink3:#77716a;
+  --provo:#e0603f; --moab:#6d87d6; --orem:#b58e1d; --logan:#2fa376;
+  --accent:#e0603f; --accent-ink:#f0876a;
+  --heat0:#243129; --heat1:#4a3527; --heat2:#6e4128; --heat3:#96502b;
+  --heat4:#c46335; --heat5:#ef8253; --heat-ink-hi:#1a120c;
+  --good:#2fa376; --bad:#e0603f;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px 80px}
+.serif{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  font-variant-numeric:tabular-nums}
+.eyebrow{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--ink3)}
+header{padding:56px 0 22px;border-bottom:3px double var(--line)}
+header h1{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  font-size:clamp(40px,7vw,64px);line-height:1.02;margin:10px 0 14px;
+  font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+header .dek{max-width:62ch;color:var(--ink2);font-size:17px;margin:0}
+.statstrip{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--line);
+  margin-bottom:8px}
+.stat{flex:1 1 130px;padding:16px 18px 14px;border-left:1px solid var(--line)}
+.stat:first-child{border-left:none;padding-left:0}
+.stat b{display:block;font-size:26px;font-weight:600;
+  font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase}
+section{margin-top:52px}
+section>h2{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  font-size:28px;margin:0 0 4px;font-weight:600;text-wrap:balance}
+section>.sub{color:var(--ink2);margin:0 0 20px;max-width:66ch;font-size:15px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:18px}
+@media(max-width:520px){.grid2{grid-template-columns:1fr}}
+.citycard{background:var(--card);border:1px solid var(--line);border-radius:6px;
+  padding:18px 18px 14px}
+.cityhead{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
+.cityhead .chip{width:12px;height:12px;border-radius:3px;flex:none;align-self:center}
+.cityhead h3{margin:0;font-size:20px;
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif}
+.cityhead .cul{color:var(--ink3);font-size:13px}
+.cityhead .ssn{margin-left:auto;color:var(--ink2);font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);
+  text-align:left;font-weight:600;padding:7px 8px 5px;border-bottom:1px solid var(--line)}
+td{padding:6px 8px;border-bottom:1px solid color-mix(in srgb,var(--line) 45%,transparent)}
+td.num,th.num{text-align:right;font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  font-variant-numeric:tabular-nums}
+tr.anchor td{color:var(--ink2);font-style:italic}
+tr.champrow td:first-child{font-weight:650}
+.tblwrap{overflow-x:auto}
+.genefp{margin-top:14px}
+.genefp .glabel{font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink3);margin-bottom:6px}
+.generow{display:grid;grid-template-columns:110px 1fr 64px;align-items:center;
+  gap:8px;font-size:12.5px;padding:2px 0}
+.generow .gname{color:var(--ink2);font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  font-size:11.5px}
+.generow .gval{text-align:right;font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  font-variant-numeric:tabular-nums;color:var(--ink2);font-size:11.5px}
+.gbar{position:relative;height:12px}
+.gbar .axis{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;
+  background:var(--line)}
+.gbar .bar{position:absolute;top:2px;height:8px;border-radius:2px}
+.scoreline{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);
+  font-size:13px;color:var(--ink2)}
+.scoreline b{font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  font-variant-numeric:tabular-nums;color:var(--ink);font-weight:600}
+figure{margin:0;background:var(--card);border:1px solid var(--line);
+  border-radius:6px;padding:16px}
+figcaption{font-size:13px;color:var(--ink2);margin-top:8px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--ink2);
+  margin:2px 0 10px}
+.legend i{display:inline-block;width:14px;height:4px;border-radius:2px;
+  margin-right:5px;vertical-align:middle}
+svg text{font-family:ui-monospace,"SF Mono",Menlo,monospace;fill:var(--ink2)}
+.small-mults{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.botpick{display:flex;flex-wrap:wrap;gap:6px}
+.botpick button{border:1px solid var(--line);background:var(--card);color:var(--ink2);
+  border-radius:99px;padding:5px 13px;font-size:13px;cursor:pointer;font-family:inherit}
+.botpick button:hover{border-color:var(--ink3)}
+.botpick button.on{background:var(--ink);color:var(--paper);border-color:var(--ink);
+  font-weight:600}
+.botpick button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+select{border:1px solid var(--line);background:var(--card);color:var(--ink);
+  border-radius:4px;padding:6px 8px;font-size:13px;font-family:inherit;max-width:340px}
+.handview{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 16px;align-items:center}
+.cardchip{width:34px;height:46px;border-radius:5px;display:flex;align-items:center;
+  justify-content:center;font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  font-weight:700;font-size:15px;color:#fff;border:1px solid rgba(0,0,0,.25);
+  box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.cardchip.pts::after{content:"•";font-size:9px;position:relative;top:-13px;left:-2px}
+.handmeta{font-size:13px;color:var(--ink2);margin-left:8px}
+.heatwrap{overflow-x:auto}
+.heat{border-collapse:separate;border-spacing:2px;min-width:760px}
+.heat th{border:none;padding:4px 6px}
+.heat td{border:none;border-radius:3px;text-align:center;
+  font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums;
+  font-size:13px;padding:9px 4px;min-width:64px}
+.heat td.pass{color:var(--ink3);background:var(--paper2)}
+.heat .rowlab{text-align:left;font-size:12.5px;color:var(--ink2);background:none;
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;min-width:150px}
+.aggnote{font-size:13.5px;color:var(--ink2);margin-top:12px;max-width:70ch}
+.aggnote b{font-family:ui-monospace,"SF Mono",Menlo,monospace;color:var(--ink)}
+.h2hwrap{overflow-x:auto}
+footer{margin-top:64px;padding-top:18px;border-top:3px double var(--line);
+  font-size:13px;color:var(--ink3)}
+footer code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;
+  background:var(--card);border:1px solid var(--line);border-radius:3px;padding:1px 5px}
+#tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--paper);
+  font-size:12px;padding:5px 9px;border-radius:4px;opacity:0;transition:opacity .12s;
+  font-family:ui-monospace,"SF Mono",Menlo,monospace;z-index:9;max-width:260px}
+@media (prefers-reduced-motion: reduce){#tip{transition:none}}
+.empty{color:var(--ink3);font-style:italic;padding:20px 0}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Rook13 · Generation 24 · a live experiment on Riley's MacBook</div>
+  <h1>The Bid Gym</h1>
+  <p class="dek">Four cities of bidders who all play identical cards. gen23 plays
+  every trick, every go-down, every trump call — the only thing evolution can
+  touch is the <em>auction</em>. Family rules, −250/+500, where one bad contract
+  is a cliff. Rook is a bidding game; this page is the reading of its genes.</p>
+</header>
+
+<div class="statstrip" id="statstrip"></div>
+
+<section id="cities">
+  <h2>The four cities</h2>
+  <p class="sub">Each league: 10 evolving genomes and two immortal anchors —
+  <em>family</em> (the calibrated family bidder, score-blind) and <em>gen23</em>
+  (the net's own neural auction). Every season is a duplicate-deck round-robin;
+  the bottom of the table is culled and rebred from the top. The gene
+  fingerprint shows how far each champion has drifted from the family bidder.</p>
+  <div class="grid2" id="citygrid"></div>
+</section>
+
+<section id="drift">
+  <h2>Gene drift — what is evolution deciding?</h2>
+  <p class="sub">Champion gene values by season, one line per city; the dashed
+  line is the family default. Watch <em>logan</em> (cold start from random
+  genes): if it converges to the others, bidding wisdom is being rediscovered,
+  not inherited.</p>
+  <div class="legend" id="driftlegend"></div>
+  <div class="small-mults" id="driftcharts"></div>
+</section>
+
+<section id="poker">
+  <h2>The poker question — do they bid the score?</h2>
+  <p class="sub">Average winning bid when the bidder's team was behind vs
+  ahead at the deal, latest season. The family bidder cannot tell the
+  difference by construction — any gap it shows is deal noise; a champion
+  with a real gap has learned to bid the situation, not just the hand.</p>
+  <figure id="pokerfig"></figure>
+</section>
+
+<section id="cup">
+  <h2>World cup</h2>
+  <p class="sub">City champions on fresh salted decks nobody trained on, plus
+  both anchors. League standings are weather; this is climate.</p>
+  <div id="cupbody"></div>
+</section>
+
+<section id="probe">
+  <h2>Same hand, different situation</h2>
+  <p class="sub">The curiosity instrument: a fixed panel of dealt hands is
+  shown to every bidder under 7 auction scenarios × 9 score states, and the
+  exact bid is recorded. Pick a bidder and a hand — the grid is its complete
+  behavioral X-ray for that hand. Darker means a higher bid.</p>
+  <div id="probebody"></div>
+</section>
+
+<footer>
+  <p>gen24 bid gym · Rook13 · generated <span id="gendate"></span> · all games
+  −250/+500, all card play frozen gen23 reflex.
+  Regenerate: <code>python -m alpharook.bidprobe && python -m alpharook.bidcup
+  && python scripts/gen24_report.py</code>, then rebuild this page.
+  Design doc: <code>ml/history/gen24-bidgym/README.md</code></p>
+</footer>
+</div>
+<div id="tip" role="presentation"></div>
+
+<script>
+/*__DATA__*/
+
+const CITY_ORDER = ["provo","moab","orem","logan"];   // fixed series order (CVD-checked)
+const CITY_COL = {provo:"var(--provo)",moab:"var(--moab)",orem:"var(--orem)",logan:"var(--logan)"};
+const SUIT_COL = ["var(--provo)","var(--orem)","#3a3632","var(--logan)"]; // card chips: R Y B G
+const SUIT_COL_DARK_B = "#4a463f";
+const SCEN_LABEL = {opener:"You open the auction", after_opp_70:"Opponent opened 70",
+  after_opp_100:"Opponent jumped to 100", partner_opened_75:"Partner opened 75",
+  partner_holds_70:"Partner holds 70 — raise?", war_floor_85:"Bidding war · floor 85",
+  squeeze_95:"Opponent's 95 hammer"};
+const SCORE_LABEL = {fresh_0_0:"0·0", mid_250_250:"250·250", ahead_430_270:"430·270 ahead",
+  behind_270_430:"270·430 behind", race_460_460:"460·460 race", "cliff_-180_150":"−180·150 cliff",
+  "opp_cliff_150_-180":"150·−180", "desperate_-200_430":"−200·430 desperate",
+  "coast_430_-200":"430·−200 coast"};
+const BIN_LABEL = ["junk","thin","decent","monster"];
+const $ = (s)=>document.querySelector(s);
+const esc = (s)=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = (x,d=1)=>x==null?"—":(+x).toFixed(d);
+const pct = (x)=>x==null?"—":Math.round(x*100)+"%";
+
+/* ---------- tooltip ---------- */
+const tip = $("#tip");
+document.addEventListener("mousemove",e=>{
+  tip.style.left = Math.min(e.clientX+14, innerWidth-270)+"px";
+  tip.style.top = (e.clientY+16)+"px";
+});
+function hoverable(el, text){ el.addEventListener("mouseenter",()=>{tip.textContent=text;tip.style.opacity=1});
+  el.addEventListener("mouseleave",()=>tip.style.opacity=0); }
+
+/* ---------- stat strip ---------- */
+(function(){
+  const cs = Object.values(DATA.cities||{});
+  const seasons = cs.reduce((a,c)=>a+c.season,0);
+  const games = cs.reduce((a,c)=>a+(c.games_played||0),0);
+  const items = [
+    [seasons.toLocaleString(), "league seasons"],
+    [games.toLocaleString(), "games played"],
+    [cs.length, "cities running"],
+    [DATA.probe ? DATA.probe.panel.length : 0, "hands on the probe panel"],
+    [DATA.cup ? "#"+DATA.cup.cup : "—", "latest world cup"],
+  ];
+  $("#statstrip").innerHTML = items.map(([b,s])=>`<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+  $("#gendate").textContent = new Date(DATA.generated*1000).toLocaleString();
+})();
+
+/* ---------- city cards ---------- */
+const HEADLINE_GENES = ["base","per_trick","war_stretch","jump_gap","deficit_slope","desperation","protection","cliff_fear"];
+function geneBar(g, val){
+  const s = DATA.gene_specs[g], span = s.hi - s.lo;
+  const d = (val - s.default) / span;                       // -1..1 -ish
+  const w = Math.min(48, Math.abs(d)*100);
+  const side = d >= 0 ? "left:50%" : `left:${50-w}%`;
+  const col = d >= 0 ? "var(--bad)" : "var(--moab)";
+  return `<div class="gbar"><div class="axis"></div>
+    <div class="bar" style="${side};width:${w}%;background:${col};opacity:.85"></div></div>`;
+}
+function cityCard(c){
+  const anchors = new Set(["family","gen23"]);
+  const champName = c.champ.name;
+  const top = c.table.slice(0,5);
+  for (const a of anchors) if (!top.some(r=>r.name===a)) top.push(c.table.find(r=>r.name===a));
+  const rows = top.filter(Boolean).map(r=>{
+    const rank = c.table.indexOf(r)+1;
+    const cls = anchors.has(r.name) ? "anchor" : (r.name===champName ? "champrow" : "");
+    return `<tr class="${cls}"><td class="num">${rank}</td><td>${esc(r.name)}</td>
+      <td class="num">${r.wins}–${r.games-r.wins}</td><td class="num">${fmt(r.avg_bid)}</td>
+      <td class="num">${pct(r.made_pct)}</td><td class="num">${pct(r.jump_rate)}</td></tr>`;
+  }).join("");
+  const genes = HEADLINE_GENES.map(g=>`<div class="generow"><span class="gname">${g}</span>
+      ${geneBar(g, c.champ.genome[g])}<span class="gval">${fmt(c.champ.genome[g],2)}</span></div>`).join("");
+  const cr = c.table.find(r=>r.name===champName) || {};
+  const b=cr.behind||{}, a=cr.ahead||{};
+  return `<div class="citycard">
+    <div class="cityhead"><span class="chip" style="background:${CITY_COL[c.city]}"></span>
+      <h3>${c.city}</h3><span class="cul">${esc(c.desc)}</span>
+      <span class="ssn mono">season ${c.season}</span></div>
+    <div class="tblwrap"><table><thead><tr><th class="num">#</th><th>bidder</th>
+      <th class="num">W–L</th><th class="num">avg bid</th><th class="num">made</th>
+      <th class="num">jump</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="genefp"><div class="glabel">champion ${esc(champName)} — drift from family</div>${genes}</div>
+    <div class="scoreline">bids <b>${fmt(b.avg_bid)}</b> behind (made ${pct(b.made_pct)})
+      · <b>${fmt(a.avg_bid)}</b> ahead (made ${pct(a.made_pct)})</div>
+  </div>`;
+}
+$("#citygrid").innerHTML = CITY_ORDER.filter(c=>DATA.cities[c]).map(c=>cityCard(DATA.cities[c])).join("");
+
+/* ---------- line chart helper ---------- */
+function lineChart({series, yDomain, yFmt, refY, w=340, h=170, pad={l:38,r:46,t:10,b:20}}){
+  const xs = series[0].x, xmax = Math.max(...xs), xmin = Math.min(...xs);
+  let ymin = yDomain ? yDomain[0] : Infinity, ymax = yDomain ? yDomain[1] : -Infinity;
+  if (!yDomain){ for (const s of series) for (const v of s.y) if (v!=null){ ymin=Math.min(ymin,v); ymax=Math.max(ymax,v);}
+    if (refY!=null){ ymin=Math.min(ymin,refY); ymax=Math.max(ymax,refY);}
+    const m=(ymax-ymin)*0.12||1; ymin-=m; ymax+=m; }
+  const X=v=>pad.l+(v-xmin)/(xmax-xmin||1)*(w-pad.l-pad.r);
+  const Y=v=>pad.t+(1-(v-ymin)/(ymax-ymin||1))*(h-pad.t-pad.b);
+  let out=`<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto" role="img">`;
+  for (let i=0;i<=2;i++){ const v=ymin+(ymax-ymin)*i/2, y=Y(v);
+    out+=`<line x1="${pad.l}" x2="${w-pad.r}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1" opacity=".55"/>
+      <text x="${pad.l-5}" y="${y+3.5}" font-size="9.5" text-anchor="end">${yFmt(v)}</text>`; }
+  out+=`<text x="${pad.l}" y="${h-6}" font-size="9.5">s${xmin}</text>
+    <text x="${w-pad.r}" y="${h-6}" font-size="9.5" text-anchor="end">s${xmax}</text>`;
+  if (refY!=null){ out+=`<line x1="${pad.l}" x2="${w-pad.r}" y1="${Y(refY)}" y2="${Y(refY)}"
+    stroke="var(--ink3)" stroke-width="1.2" stroke-dasharray="4 4"/>`; }
+  for (const s of series){
+    const pts=s.x.map((x,i)=>s.y[i]==null?null:`${X(x).toFixed(1)},${Y(s.y[i]).toFixed(1)}`);
+    const path=pts.filter(Boolean).join(" ");
+    out+=`<polyline points="${path}" fill="none" stroke="${s.col}" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round"${s.dash?` stroke-dasharray="${s.dash}"`:""}/>`;
+    const last=[...s.y].reverse().find(v=>v!=null);
+    if (last!=null && s.label) out+=`<text x="${w-pad.r+4}" y="${Y(last)+3.5}" font-size="9.5"
+      fill="${s.col}" style="fill:${s.col}">${s.label}</text>`;
+  }
+  return out+"</svg>";
+}
+
+/* ---------- gene drift ---------- */
+(function(){
+  const cs = CITY_ORDER.filter(c=>DATA.cities[c]);
+  if (!cs.length) return;
+  $("#driftlegend").innerHTML = cs.map(c=>`<span><i style="background:${CITY_COL[c]}"></i>${c}</span>`).join("")
+    + `<span><i style="background:var(--ink3);height:2px"></i>family default</span>`;
+  const genes = ["base","desperation","cliff_fear","deficit_slope","war_stretch","jump_gap"];
+  $("#driftcharts").innerHTML = genes.map(g=>{
+    const spec = DATA.gene_specs[g];
+    const series = cs.map(c=>({x:DATA.cities[c].traj.season, y:DATA.cities[c].gene_traj[g],
+      col:CITY_COL[c]}));
+    return `<figure>${lineChart({series, refY:spec.default, yFmt:v=>(+v).toFixed(g==="deficit_slope"?2:0)})}
+      <figcaption><b class="mono">${g}</b> — family ${spec.default}</figcaption></figure>`;
+  }).join("");
+})();
+
+/* ---------- the poker dumbbell ---------- */
+(function(){
+  const rows=[];
+  for (const c of CITY_ORDER.filter(c=>DATA.cities[c])){
+    const cc=DATA.cities[c], r=cc.table.find(t=>t.name===cc.champ.name);
+    if (r && r.behind.n>2 && r.ahead.n>2)
+      rows.push({name:`${c}·${cc.champ.name}`, col:CITY_COL[c], behind:r.behind.avg_bid, ahead:r.ahead.avg_bid});
+  }
+  for (const a of ["family","gen23"]){
+    let bn=0,bs=0,an=0,as=0;
+    for (const c of Object.values(DATA.cities)){ const r=c.table.find(t=>t.name===a);
+      if (r){ bn+=r.behind.n; bs+=r.behind.n*r.behind.avg_bid; an+=r.ahead.n; as+=r.ahead.n*r.ahead.avg_bid; } }
+    if (bn&&an) rows.push({name:a+" (anchor)", col:"var(--ink3)", behind:bs/bn, ahead:as/an, anchor:true});
+  }
+  if (!rows.length){ $("#pokerfig").innerHTML=`<div class="empty">waiting on first seasons…</div>`; return; }
+  rows.sort((x,y)=>(y.behind-y.ahead)-(x.behind-x.ahead));
+  const lo=Math.min(...rows.flatMap(r=>[r.behind,r.ahead]))-1.5,
+        hi=Math.max(...rows.flatMap(r=>[r.behind,r.ahead]))+1.5;
+  const w=680, rh=34, padL=190, padR=60, h=rows.length*rh+40;
+  const X=v=>padL+(v-lo)/(hi-lo)*(w-padL-padR);
+  let out=`<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto" role="img">`;
+  for (let v=Math.ceil(lo/2)*2; v<=hi; v+=2)
+    out+=`<line x1="${X(v)}" x2="${X(v)}" y1="18" y2="${h-22}" stroke="var(--line)" opacity=".45"/>
+      <text x="${X(v)}" y="${h-8}" font-size="9.5" text-anchor="middle">${v}</text>`;
+  rows.forEach((r,i)=>{ const y=30+i*rh;
+    out+=`<text x="${padL-10}" y="${y+4}" font-size="11" text-anchor="end">${esc(r.name)}</text>
+      <line x1="${X(Math.min(r.behind,r.ahead))}" x2="${X(Math.max(r.behind,r.ahead))}"
+        y1="${y}" y2="${y}" stroke="${r.col}" stroke-width="2" opacity=".6"/>
+      <circle cx="${X(r.ahead)}" cy="${y}" r="5" fill="var(--card)" stroke="${r.col}" stroke-width="2"/>
+      <circle cx="${X(r.behind)}" cy="${y}" r="5.5" fill="${r.col}"/>
+      <text x="${X(Math.max(r.behind,r.ahead))+10}" y="${y+4}" font-size="10"
+        fill="${r.behind>r.ahead?'var(--bad)':'var(--good)'}"
+        style="fill:${r.behind>r.ahead?'var(--bad)':'var(--good)'}">${(r.behind-r.ahead>=0?"+":"")}${(r.behind-r.ahead).toFixed(1)}</text>`;
+  });
+  out+="</svg>";
+  $("#pokerfig").innerHTML = out + `<figcaption><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--ink2);margin-right:4px"></span>avg winning bid when behind
+    &nbsp; <span style="display:inline-block;width:9px;height:9px;border-radius:50%;border:2px solid var(--ink2);margin-right:4px"></span>when ahead
+    &nbsp;·&nbsp; number = behind-minus-ahead stretch, latest season</figcaption>`;
+})();
+
+/* ---------- world cup ---------- */
+(function(){
+  const cup = DATA.cup;
+  if (!cup){ $("#cupbody").innerHTML=`<div class="empty">No world cup played yet —
+    <span class="mono">python -m alpharook.bidcup --pairs 40</span></div>`; return; }
+  const rows = cup.table.map((r,i)=>`<tr class="${["family","gen23"].includes(r.name)?"anchor":""}">
+    <td class="num">${i+1}</td><td>${esc(r.name)}</td>
+    <td class="num">${r.wins}/${r.games} (${pct(r.wins/Math.max(1,r.games))})</td>
+    <td class="num">${fmt(r.avg_bid)}</td><td class="num">${pct(r.made_pct)}</td>
+    <td class="num">${pct(r.pass_rate)}</td><td class="num">${pct(r.jump_rate)}</td></tr>`).join("");
+  const names = cup.table.map(r=>r.name);
+  const short = n=>n.replace(/^(provo|orem|logan|moab)·/,"$1·").split("·").pop().slice(0,8);
+  let h2h = `<table class="heat" style="min-width:520px"><thead><tr><th class="rowlab">wins →</th>`+
+    names.map(n=>`<th style="font-size:10px">${esc(short(n))}</th>`).join("")+`</tr></thead><tbody>`;
+  for (const a of names){ h2h+=`<tr><td class="rowlab">${esc(a)}</td>`;
+    for (const b of names){
+      if (a===b){ h2h+=`<td class="pass">·</td>`; continue; }
+      const w = (cup.h2h[a]||{})[b]; const tot = 2*cup.pairs;
+      const frac = w==null?null:w/tot;
+      const bg = frac==null?"var(--paper2)":`color-mix(in srgb, var(--heat4) ${Math.round(Math.max(0,(frac-0.25))*130)}%, var(--paper2))`;
+      h2h+=`<td style="background:${bg}" title="${esc(a)} ${w}–${tot-w} ${esc(b)}">${w==null?"—":w}</td>`;
+    } h2h+="</tr>"; }
+  h2h+="</tbody></table>";
+  $("#cupbody").innerHTML = `<div class="tblwrap"><table><thead><tr><th class="num">#</th>
+    <th>bidder</th><th class="num">wins</th><th class="num">avg bid</th><th class="num">made</th>
+    <th class="num">pass</th><th class="num">jump</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="aggnote">Head-to-head (games won of ${2*cup.pairs} per matchup):</p>
+    <div class="h2hwrap">${h2h}</div>`;
+})();
+
+/* ---------- probe explorer ---------- */
+(function(){
+  const P = DATA.probe;
+  if (!P){ $("#probebody").innerHTML=`<div class="empty">No probe recorded yet —
+    <span class="mono">python -m alpharook.bidprobe</span></div>`; return; }
+  const bots = Object.keys(P.results);
+  const nS = P.scores.length;
+  let curBot = bots.includes("family") ? bots[bots.length>2?2:0] : bots[0];
+  let curHand = P.panel.findIndex(p=>p.bin===2);
+  if (curHand<0) curHand = 0;
+
+  const controls = `<div class="controls">
+    <div class="botpick" id="botpick" role="group" aria-label="bidder">${bots.map(b=>
+      `<button data-b="${esc(b)}">${esc(b)}</button>`).join("")}</div>
+    <select id="handsel" aria-label="hand">${P.panel.map((p,i)=>
+      `<option value="${i}">hand ${i+1} — ${BIN_LABEL[p.bin]} (${p.tricks} tricks)</option>`).join("")}</select>
+  </div><div class="handview" id="handview"></div>
+  <figure><div class="heatwrap" id="heatwrap"></div>
+  <figcaption>rows: auction scenario · columns: score (us·them) at the deal ·
+  cell: this bidder's exact bid, <b>—</b> = pass</figcaption></figure>
+  <p class="aggnote" id="probeagg"></p>`;
+  $("#probebody").innerHTML = controls;
+
+  function heatColor(bid){
+    if (bid<=0) return null;
+    const t=(bid-65)/55; const steps=["--heat0","--heat1","--heat2","--heat3","--heat4","--heat5"];
+    return `var(${steps[Math.min(5,Math.floor(t*6))]})`;
+  }
+  function renderHand(){
+    const p=P.panel[curHand];
+    $("#handview").innerHTML = p.hand.map(c=>{
+      const s=Math.floor(c/10), n=c%10+5, ptsC=(n===5||n===10||n===13);
+      const bg = s===2 ? SUIT_COL_DARK_B : SUIT_COL[s];
+      return `<div class="cardchip${ptsC?" pts":""}" style="background:${bg}" title="${["Red","Yellow","Black","Green"][s]} ${n}">${n}</div>`;
+    }).join("") + `<span class="handmeta">${BIN_LABEL[p.bin]} — ${p.tricks} estimated tricks</span>`;
+  }
+  function render(){
+    document.querySelectorAll("#botpick button").forEach(b=>
+      b.classList.toggle("on", b.dataset.b===curBot));
+    renderHand();
+    const R = P.results[curBot][curHand];
+    let t=`<table class="heat"><thead><tr><th class="rowlab"></th>`+
+      P.scores.map(s=>`<th style="font-size:10px">${esc(SCORE_LABEL[s.label]||s.label)}</th>`).join("")+"</tr></thead><tbody>";
+    P.scenarios.forEach((sc,si)=>{
+      t+=`<tr><td class="rowlab">${esc(SCEN_LABEL[sc.name]||sc.name)}</td>`;
+      P.scores.forEach((s,ci)=>{
+        const v=R[si*nS+ci];
+        if (v<=0) t+=`<td class="pass">—</td>`;
+        else { const bg=heatColor(v); const hiInk=v>=100;
+          t+=`<td style="background:${bg};color:${hiInk?"var(--heat-ink-hi)":"var(--ink)"}">${v}</td>`; }
+      });
+      t+="</tr>";
+    });
+    $("#heatwrap").innerHTML = t+"</tbody></table>";
+    // aggregate: avg bid (when bidding) as opener across the whole panel, behind vs ahead states
+    const agg = (bot, scoreIdxs)=>{
+      let n=0,s=0,passes=0,tot=0;
+      for (const hand of P.results[bot]) for (const si of [0]) for (const ci of scoreIdxs){
+        const v=hand[si*nS+ci]; tot++;
+        if (v>0){n++;s+=v;} else passes++;
+      }
+      return {avg:n?s/n:null, pass:passes/tot};
+    };
+    const behindIdx=P.scores.map((s,i)=>s.my<s.opp?i:-1).filter(i=>i>=0);
+    const aheadIdx=P.scores.map((s,i)=>s.my>s.opp?i:-1).filter(i=>i>=0);
+    const b=agg(curBot,behindIdx), a=agg(curBot,aheadIdx);
+    const fb=agg("family",behindIdx), fa=agg("family",aheadIdx);
+    $("#probeagg").innerHTML = `Across the full ${P.panel.length}-hand panel as opener,
+      <b>${esc(curBot)}</b> bids <b>${fmt(b.avg)}</b> when behind vs <b>${fmt(a.avg)}</b> when ahead
+      (passes ${pct(b.pass)} / ${pct(a.pass)}). The score-blind family bidder: ${fmt(fb.avg)} / ${fmt(fa.avg)}
+      (passes ${pct(fb.pass)} / ${pct(fa.pass)}).`;
+  }
+  $("#botpick").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b) return; curBot=b.dataset.b; render(); });
+  $("#handsel").addEventListener("change",e=>{curHand=+e.target.value; render();});
+  $("#handsel").value = curHand;
+  render();
+})();
+</script>

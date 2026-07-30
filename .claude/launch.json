@@ -2,18 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "rook13-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000,
-      "autoPort": true
-    },
-    {
-      "name": "greencircle",
+      "name": "bidgym-report",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "5071", "-d", "/Users/rileyadamson/Documents/GitHub/greencircle/public"],
-      "port": 5071,
-      "autoPort": true
+      "runtimeArgs": ["-m", "http.server", "8477", "-d", "ml/runs/gen24"],
+      "port": 8477
     }
   ]
 }
