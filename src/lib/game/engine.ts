@@ -266,6 +266,15 @@ export const validateAction = (g: GameDoc, action: GameAction): string | null =>
             if (g.seats[action.seat].kind !== 'human') return 'Only a seated player can use the AI trainer';
             return null;
         }
+        case 'FORFEIT': {
+            // The turn clock (useForfeitClock) is the sole legitimate caller;
+            // the engine only checks the structural facts — the clock itself
+            // lives client-side like every other timing concern.
+            if (g.status !== 'active') return 'Game is not in progress';
+            if (g.turn !== action.seat) return 'Only the seat on the clock can forfeit';
+            if (g.seats[action.seat].kind !== 'human') return 'Bots never time out';
+            return null;
+        }
     }
 };
 
@@ -458,6 +467,14 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
                     : lowestLegalCard(next, turn);
                 playCardOnDraft(next, turn, card);
             }
+            return next;
+        }
+        case 'FORFEIT': {
+            next.forfeitSeat = action.seat;
+            next.winner = teamOf(action.seat) === 'A' ? 'B' : 'A';
+            next.phase = 'game_over';
+            next.status = 'completed';
+            next.turn = null;
             return next;
         }
         case 'NEXT_HAND': {

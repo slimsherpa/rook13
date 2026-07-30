@@ -43,7 +43,7 @@ export interface Card {
 //                (bots.ts PERSONALITIES); 'basic' is also the fallback brain
 //                for gen7/gen8 go-down/trump and for neural seats if weights
 //                fail to load
-export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen11' | 'gen13' | 'gen16' | 'gen19';
+export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen11' | 'gen13' | 'gen16' | 'gen19' | 'gen21' | 'gen23' | 'teacher' | 'godrook';
 
 export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     random: 'Easy',
@@ -59,10 +59,25 @@ export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     gen13: 'AlphaRook Gen13',
     gen16: 'AlphaRook Gen16',
     gen19: 'AlphaRook Gen19',
+    gen21: 'AlphaRook Gen21',
+    gen23: 'AlphaRook Gen23',
+    teacher: 'AlphaRook Gen21+t0',
+    godrook: 'AlphaGodRook',
 };
 
+// Styles whose thinking runs in the Cloud Run bot service (service/), not in
+// the browser: the teacher's K24 search and godrook's solver are too heavy
+// for a phone. Clients still handle their DEAL / ACK_REDEAL shuffles and
+// cover with a local brain if the service stays silent (useGame.ts).
+export const SERVER_STYLES: BotStyle[] = ['teacher', 'godrook', 'gen21', 'gen23'];
+export const isServerStyle = (s: BotStyle | undefined): boolean =>
+    !!s && SERVER_STYLES.includes(s);
+
 /** What the lobby's bot picker offers (strongest first); legacy styles live on only in old games. */
-export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen19', 'gen16', 'gen13', 'gen11', 'gen10', 'gen9', 'gen8'];
+export const PLAYABLE_BOT_STYLES: BotStyle[] = ['teacher', 'gen19', 'gen16', 'gen13', 'gen11', 'gen10', 'gen9'];
+
+/** The humbling machine rides along only after the secret unlock (SeatLobby). */
+export const SECRET_BOT_STYLE: BotStyle = 'godrook';
 
 /** Every new bot starts as the hottest brain we've shipped. */
 export const DEFAULT_BOT_STYLE: BotStyle = PLAYABLE_BOT_STYLES[0];
@@ -81,16 +96,19 @@ export interface BotPersona {
     tagline: string;
 }
 export const BOT_PERSONAS: Partial<Record<BotStyle, BotPersona>> = {
-    // 2026-07-22: gen19 (the trick-3 search gate) takes the throne and the
-    // whole camp cascades down one rung; gen7 retires from the roster
-    // (legacy docs still resolve it via personaFor's fallback)
-    gen19: { name: 'Cosmo', emoji: '🐾', img: '/bots/07-Cosmo.jpg', tagline: 'the grandmaster' },
-    gen16: { name: 'Cougar', emoji: '🐅', img: '/bots/06-Cougar.jpg', tagline: 'seasoned prowler' },
-    gen13: { name: 'Puma', emoji: '🐈‍⬛', img: '/bots/05-Puma.jpg', tagline: 'silent hunter' },
-    gen11: { name: 'Cub', emoji: '🦁', img: '/bots/04-Cub.jpg', tagline: 'young lion' },
-    gen10: { name: 'Bobcat', emoji: '🐆', img: '/bots/03-Bobcat.jpg', tagline: 'quick and cunning' },
-    gen9: { name: 'Kitten', emoji: '🐱', img: '/bots/02-Kitten.jpg', tagline: 'small but sharp' },
-    gen8: { name: 'Stomper', emoji: '🦖', img: '/bots/01-Stomper.jpg', tagline: 'the rookie' },
+    // 2026-07-30: the teacher (gen21 + K24 search from the opening lead,
+    // 78.5% vs gen21 — served from Cloud Run) takes the throne and the camp
+    // cascades down one rung; gen8 retires from the roster (legacy docs
+    // still resolve it via personaFor's fallback). AlphaGodRook is the
+    // omniscient solver — it only appears after the secret unlock.
+    teacher: { name: 'Cosmo', emoji: '🐾', img: '/bots/07-Cosmo.jpg', tagline: 'the grandmaster' },
+    gen19: { name: 'Cougar', emoji: '🐅', img: '/bots/06-Cougar.jpg', tagline: 'seasoned prowler' },
+    gen16: { name: 'Puma', emoji: '🐈‍⬛', img: '/bots/05-Puma.jpg', tagline: 'silent hunter' },
+    gen13: { name: 'Cub', emoji: '🦁', img: '/bots/04-Cub.jpg', tagline: 'young lion' },
+    gen11: { name: 'Bobcat', emoji: '🐆', img: '/bots/03-Bobcat.jpg', tagline: 'quick and cunning' },
+    gen10: { name: 'Kitten', emoji: '🐱', img: '/bots/02-Kitten.jpg', tagline: 'small but sharp' },
+    gen9: { name: 'Stomper', emoji: '🦖', img: '/bots/01-Stomper.jpg', tagline: 'the rookie' },
+    godrook: { name: 'AlphaGodRook', emoji: '👁️', img: '/bots/00-AlphaGodRook.jpg', tagline: 'sees every card' },
 };
 
 /** The camp persona for a style, or a plain fallback for the heuristic bots. */
@@ -233,6 +251,8 @@ export interface GameDoc {
     laydownSeat?: Seat | null;
     laydownTrick?: number | null;
     winner: Team | null;
+    /** set when the game ended by turn-clock forfeit (absent on older docs) */
+    forfeitSeat?: Seat | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -254,7 +274,10 @@ export type GameAction =
     | { type: 'PLAY_CARD'; seat: Seat; card: Card }
     | { type: 'LAYDOWN'; seat: Seat }     // every remaining card is a lock — claim the rest
     | { type: 'SET_ASSIST'; seat: Seat; on: boolean } // toggle the AI trainer (table-visible)
-    | { type: 'NEXT_HAND' };              // from hand_done -> dealing
+    | { type: 'NEXT_HAND' }               // from hand_done -> dealing
+    // competitive-lobby clock: a human who sits on their turn past the
+    // deadline (useForfeitClock) loses the game for their team
+    | { type: 'FORFEIT'; seat: Seat };
 
 export interface LoggedAction {
     index: number;

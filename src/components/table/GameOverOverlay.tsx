@@ -30,7 +30,9 @@ export default function GameOverOverlay({ game, mySeat, onShowScores }: GameOver
                 {mySeat === null ? `Team ${game.winner} wins!` : iWon ? 'VICTORY!' : 'Defeat…'}
             </h1>
             <p className="text-white/80 font-orbitron mt-2">
-                {winnerNames} take the game
+                {game.forfeitSeat
+                    ? `${game.seats[game.forfeitSeat].name.split(' ')[0]} ran out of time — ${winnerNames} win by forfeit`
+                    : `${winnerNames} take the game`}
             </p>
             <div className="flex items-center gap-6 mt-5 font-orbitron">
                 <div className={`text-3xl font-bold ${game.winner === 'A' ? 'text-yellow-400' : 'text-white/70'}`}>{game.scores.A}</div>

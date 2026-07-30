@@ -16,11 +16,12 @@
 // works strictly from confirmed server state, never the optimistic overlay.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GameDoc, GameAction, Seat, SEATS } from '../game/types';
+import { GameDoc, GameAction, Seat, SEATS, isServerStyle } from '../game/types';
 import { validateAction } from '../game/engine';
 import { nextAgentActionAsync, preloadNets } from '../alpharook/agent';
 import { overlayPending, sameAction, PendingAction } from '../game/optimistic';
 import { subscribeGame, submitAction, isExpectedRaceError, describeFirestoreError } from '../firebase/gameService';
+import { nudgeBotService, botServiceHealthy } from '../botService';
 import { recordGameStats } from '../firebase/userService';
 import { paced } from '../settings';
 import { useTableHold } from '../tableHold';
@@ -34,6 +35,10 @@ const BOT_REDEAL_PAUSE_MS = 6500;    // let the redeal celebration breathe
 // leading the next trick waits out the linger + capture sweep of the last one
 const BOT_TRICK_LEAD_DELAY_MS = 3200;
 const FALLBACK_EXTRA_MS = 2500;      // non-host clients wait longer before covering
+// SERVER_STYLES seats think in the Cloud Run bot service; the client only
+// covers (with the strongest local brain) if the service stays silent this
+// long. Deliberately unpaced — it's a failsafe, not theater.
+const SERVER_COVER_MS = 20000;
 
 export interface UseGameResult {
     game: GameDoc | null;
@@ -182,12 +187,30 @@ export const useGame = (gameId: string | null): UseGameResult => {
         // warm the neural-bot weight cache so the first bid doesn't wait on it
         preloadNets(serverGame);
 
+        // SERVER_STYLES thinking decisions belong to the Cloud Run driver;
+        // the client's only job is the failsafe cover below (their DEAL /
+        // ACK_REDEAL shuffles still run through the normal path — the server
+        // never deals). The substitute brain is gen19, the strongest local
+        // stack; submitAction's optimistic-concurrency check keeps a slow
+        // server answer and a cover from both landing.
+        const turnInfo = serverGame.turn ? serverGame.seats[serverGame.turn] : null;
+        const serverDriven = !!(turnInfo && turnInfo.kind === 'bot'
+            && isServerStyle(turnInfo.botStyle)
+            && ['bidding', 'widow', 'trump', 'playing'].includes(serverGame.phase));
+        const coverGame: GameDoc = serverDriven
+            ? {
+                ...serverGame,
+                seats: { ...serverGame.seats, [serverGame.turn!]: { ...turnInfo!, botStyle: 'gen19' as const } },
+            }
+            : serverGame;
+        if (serverDriven) nudgeBotService(gameId, serverGame.actionCount);
+
         // Computing the move may await weight loading (neural bots), so the
         // pacing timer is armed once the action is known; a newer snapshot
         // cancels both the wait and the timer.
         let cancelled = false;
         (async () => {
-            const action = await nextAgentActionAsync(serverGame);
+            const action = await nextAgentActionAsync(coverGame);
             if (cancelled || !action) return;
 
             const leadsNextTrick =
@@ -200,11 +223,15 @@ export const useGame = (gameId: string | null): UseGameResult => {
                 leadsNextTrick ? BOT_TRICK_LEAD_DELAY_MS :
                 BOT_BASE_DELAY_MS;
             const jitter = Math.random() * 400;
-            const delay = paced(baseDelay + jitter) + (isHost ? 0 : paced(FALLBACK_EXTRA_MS));
+            // a known-down service gets normal bot pacing, not the 20s grace
+            const delay = serverDriven && botServiceHealthy()
+                ? SERVER_COVER_MS + (isHost ? 0 : FALLBACK_EXTRA_MS)
+                : paced(baseDelay + jitter) + (isHost ? 0 : paced(FALLBACK_EXTRA_MS));
             const expected = serverGame.actionCount;
 
             botTimer.current = setTimeout(async () => {
                 try {
+                    if (serverDriven) console.warn(`⚠️ bot service silent for ${SERVER_COVER_MS}ms — local gen19 covers ${serverGame.turn}`);
                     await submitAction(gameId, action, 'bot', expected);
                 } catch (e) {
                     if (!isExpectedRaceError(e)) console.error('bot move failed', e);

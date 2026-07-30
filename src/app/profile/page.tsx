@@ -7,6 +7,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { getUserProfile, UserProfile, UserStats } from '@/lib/firebase/userService';
+import { rankFor } from '@/lib/game/rank';
 import LoadingPage from '@/components/LoadingPage';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
 
@@ -242,6 +243,19 @@ function ProfileInner() {
                                 </div>
                             )}
                             <h1 className="font-orbitron text-white text-xl font-bold mt-3">{name}</h1>
+                            {s && s.gamesPlayed > 0 && (() => {
+                                const rank = rankFor(s);
+                                return (
+                                    <div className={`font-orbitron text-sm font-bold mt-1 ${rank.tier.color}`}>
+                                        {rank.tier.emoji} {rank.tier.name}
+                                        {rank.next && (
+                                            <span className="text-white/40 font-normal text-[11px]">
+                                                {' '}· {rank.rating}/{rank.next.min} to {rank.next.name}
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                             <div className="flex items-center gap-1.5 text-yellow-400/90 font-orbitron text-[11px] uppercase tracking-widest mt-1">
                                 <span className="material-symbols-outlined text-sm">trophy</span>
                                 Trophy Case

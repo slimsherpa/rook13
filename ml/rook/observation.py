@@ -100,3 +100,16 @@ def hand_sizes(o: Observation) -> list[int]:
     played_this_trick = {s for s, _ in o.trick_plays}
     base = 9 - len(o.completed_tricks)
     return [base - (1 if s in played_this_trick else 0) for s in SEATS]
+
+
+def accounted_cards(o: Observation) -> set[int]:
+    """Every card this seat can place: its own hand, everything already
+    played, and its own go-down if it won the bid. The complement is what
+    an opponent might still hold."""
+    seen = set(o.hand)
+    for _leader, plays, _w, _p in o.completed_tricks:
+        seen.update(c for _s, c in plays)
+    seen.update(c for _s, c in o.trick_plays)
+    if o.my_go_down:
+        seen.update(o.my_go_down)
+    return seen

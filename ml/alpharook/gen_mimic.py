@@ -35,9 +35,13 @@ import random
 import time
 from pathlib import Path
 
+import numpy as np
 import torch
 
-from .arena import model_choose
+from rook.cards import distinct_plays
+from rook.observation import accounted_cards, observe
+
+from .encoder import D_PLAY, encode_action, encode_state_for
 from .duel import Side, deck_stream
 from .env import SelfPlayGame
 
@@ -58,33 +62,76 @@ def sample_start(rng: random.Random, curriculum: float) -> list[int]:
     return [b, a] if rng.random() < 0.5 else [a, b]
 
 
+def _reflex_and_margin(net, env, seat, dtype, opts):
+    """(argmax card, top1-top2 gap) in one forward pass. The gap is how
+    sure the reflex is; search is only worth buying where it is unsure."""
+    s = encode_state_for(net, observe(env.g, seat), env.picks, dtype,
+                         env.g, env.trump_intent)
+    S = torch.from_numpy(np.stack([s] * len(opts)))
+    A = torch.from_numpy(np.stack([encode_action(dtype, a) for a in opts]))
+    q = net(S, A).flatten()
+    if len(opts) < 2:
+        return opts[0], float("inf")
+    top = torch.topk(q, 2).values
+    return opts[int(q.argmax())], float(top[0] - top[1])
+
+
 @torch.no_grad()
 def play_game(side: Side, seed: int, start: list[int],
-              win: int = 500, lose: int = -250):
+              win: int = 500, lose: int = -250,
+              equiv: bool = True, margin_gate: float = 0.0):
+    """One recorded teacher game.
+
+    Two budget gates, both measured before they were switched on:
+
+    EQUIV (Riley's rule) — collapse candidates that are the same card
+    strategically (R7/R8 with nothing between them). 12% of legal options
+    are duplicates and 7.7% of searched decisions have only ONE real
+    choice, so those searches buy literally nothing.
+
+    MARGIN GATE — skip search where the reflex is already sure. Measured
+    on 21k searched decisions: the lowest-margin half of decisions carries
+    82% of all the moves search would overturn, so half the search budget
+    buys 18% of the needles.
+
+    The two interact, which is why equiv runs FIRST: duplicate cards score
+    almost identically, so an uncollapsed tie reads as "unsure" and would
+    soak up the gate's budget. Measured: 9.2% of the gate's picks were
+    these fake ties.
+    """
     env = SelfPlayGame(seed=seed, deck_fn=deck_stream(seed), dealer=seed % 4,
                        win_score=win, lose_score=lose)
     env.g.scores = list(start)
     agent, net = side.agent, side.net
     decs: list[list[int]] = []
-    n_srch = n_ovr = 0
+    n_srch = n_ovr = n_free = n_gated = 0
     while not env.done:
         seat, dtype, cands = env.decision()
-        if len(cands) == 1:
-            action = reflex = cands[0]
+        opts = cands
+        if equiv and dtype == D_PLAY and len(cands) > 1:
+            opts = distinct_plays(cands, accounted_cards(observe(env.g, seat)))
+        if len(opts) == 1:
+            action = reflex = opts[0]
             srch = 0
+            n_free += len(cands) > 1
         else:
-            action = agent.choose(env, seat, dtype, cands)
-            if agent.last_search is not None:
-                # what would bare gen13 have done here? (full cands, pre-prune)
-                reflex = model_choose(net, "cpu", env, seat, dtype, cands)
-                srch = 1
-                n_srch += 1
-                n_ovr += int(reflex != action)
+            # the reflex is needed either way (it is the override baseline),
+            # and its margin decides whether search is worth buying here
+            reflex, gap = _reflex_and_margin(net, env, seat, dtype, opts)
+            if dtype == D_PLAY and 0.0 < margin_gate and gap > margin_gate:
+                action, srch = reflex, 0
+                n_gated += 1
             else:
-                reflex, srch = action, 0
+                action = agent.choose(env, seat, dtype, opts)
+                if agent.last_search is not None:
+                    srch = 1
+                    n_srch += 1
+                    n_ovr += int(reflex != action)
+                else:
+                    reflex, srch = action, 0
         decs.append([seat, dtype, int(action), int(reflex), srch])
         env.apply(action)
-    return env, decs, n_srch, n_ovr
+    return env, decs, n_srch, n_ovr, n_free, n_gated
 
 
 def replay_check(rec: dict, win: int = 500, lose: int = -250) -> None:
@@ -117,6 +164,15 @@ def main() -> None:
     ap.add_argument("--worlds", type=int, default=24)
     ap.add_argument("--min-trick", type=int, default=3)
     ap.add_argument("--prior", type=float, default=2.0)
+    ap.add_argument("--no-equiv", action="store_true",
+                    help="disable equivalent-card collapsing (Riley's "
+                         "rule: R7 and R8 with nothing between them are "
+                         "ONE option, not two)")
+    ap.add_argument("--margin-gate", type=float, default=0.30,
+                    help="skip search where the reflex's top1-top2 Q gap "
+                         "exceeds this. 0.30 = search the unsure half of "
+                         "decisions, measured to carry 82%% of all the "
+                         "moves search would overturn. 0 disables.")
     ap.add_argument("--curriculum", type=float, default=0.4,
                     help="fraction of games starting at random score states")
     args = ap.parse_args()
@@ -139,12 +195,16 @@ def main() -> None:
                 continue
             seed = args.seed_base + i
             t0 = time.time()
-            env, decs, n_srch, n_ovr = play_game(side, seed, start)
+            env, decs, n_srch, n_ovr, n_free, n_gated = play_game(
+                side, seed, start, equiv=not args.no_equiv,
+                margin_gate=args.margin_gate)
             rec = {"seed": seed, "start": start,
                    "final": [int(s) for s in env.g.scores],
                    "hands": len(env.g.hand_history),
                    "sec": round(time.time() - t0, 1),
                    "n_dec": len(decs), "n_srch": n_srch, "n_ovr": n_ovr,
+                   "n_free": n_free, "n_gated": n_gated,
+                   "gate": args.margin_gate,
                    "d": decs}
             replay_check(rec)
             f.write(json.dumps(rec) + "\n")
@@ -152,6 +212,7 @@ def main() -> None:
             print(f"[{out.stem} g{i}] seed {seed} start {start} "
                   f"final {rec['final']} hands {rec['hands']} "
                   f"dec {rec['n_dec']} srch {n_srch} ovr {n_ovr} "
+                  f"free {n_free} gated {n_gated} "
                   f"{rec['sec']}s", flush=True)
 
 

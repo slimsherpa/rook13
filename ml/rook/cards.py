@@ -67,3 +67,35 @@ def split_deal(deck: list[int]) -> tuple[list[list[int]], list[int]]:
 def is_redeal_hand(hand: list[int]) -> bool:
     """All 6s-9s — the celebrated redeal."""
     return len(hand) > 0 and all(6 <= num_of(c) <= 9 for c in hand)
+
+
+def distinct_plays(cands: list[int], seen: set[int]) -> list[int]:
+    """Riley's rule: collapse cards that are the SAME CARD strategically.
+
+    Two cards of one suit worth the same points, with no card between them
+    that an opponent could still be holding, lose to exactly the same
+    cards and beat exactly the same cards — R7 and R8 with the R6 already
+    gone are one option, not two. Nothing downstream can tell them apart,
+    so evaluating both is pure waste.
+
+    `seen` is every card the acting seat can account for (its own hand,
+    everything played, its own go-down). A card between two candidates
+    only breaks the tie if it might still be in someone else's hand, so
+    this is computable from the seat's OWN information — no peeking.
+
+    Returns the highest card of each equivalence run, in the input's suit
+    grouping order.
+    """
+    by_suit: dict[int, list[int]] = {}
+    for c in cands:
+        by_suit.setdefault(suit_of(c), []).append(c)
+    keep = []
+    for s, cs in by_suit.items():
+        for c in sorted(cs, key=num_of, reverse=True):
+            if keep and suit_of(keep[-1]) == s and \
+                    CARD_POINTS[c] == CARD_POINTS[keep[-1]] and \
+                    all(make_card(s, n) in seen
+                        for n in range(num_of(c) + 1, num_of(keep[-1]))):
+                continue          # same run as the card we already kept
+            keep.append(c)
+    return keep

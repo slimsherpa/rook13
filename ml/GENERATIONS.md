@@ -196,10 +196,244 @@ cloning of the champion stack.**
   guardsim endgame-bid battery, role-split audit, TS ship (engine.ts
   bid_history + encoder v4 + parity fixtures), formal minting.
 
-### The loop forward (gen22+)
-Wrap search+belief around the crowned gen21 → that stack becomes the new
-teacher (it starts from a Cosmo-parity reflex, so it should exceed the
-62.6% teacher) → regenerate raw corpus on the fleet → warm-start clone →
-examine. Riley's "world cup": league-style selection across cities can
-ride on top, seeded by mimic generations — with S5's exam fixes (seed
-salting, pooled verdicts, 1000-game promotion bars).
+### gen22 — THE DARWIN GYM (2026-07-25, branch alpharook12) — IN PROGRESS
+**Riley's design: evolution on top of gen21, fed a contested-deal
+curriculum.** The goal: a fighter that beats frozen gen21 60%+, then
+production. Three genuinely new ingredients vs the eight failed reflex
+attacks: (1) marathon training games (−1000..2000, luck compressed 4x);
+(2) the contested-deal curriculum — `contested.py` dithers gen21 (softmax
+temp 0.2, ~11% deviation) K=8 times per deal and scores contestability by
+swing spread + winner-flip rate; a third of deals are dither-proof
+(the true slam dunks) and get downweighted, attacking law 3's root cause
+(outcome noise from rows no decision could change) at the DATA level;
+(3) selection hygiene from S5 done right — banked-best cloning, salted
+held-out exams, so gradient churn gets culled instead of compounding.
+- **`evo.py`**: per city, 6 learners (born = gen21 byte-copies) + 2 frozen
+  gen21 anchor seats (Riley's rule; law 5/8 gravity). Elo matchmaking,
+  shaped sugar rows (S1's delivered-contracts rule), selection every 2h:
+  everyone sits the same salted exam (24 mirrored marathon pairs vs frozen
+  gen21 on held-out contested decks), bank bests, clone top-2 over
+  bottom-2, pedigree names (`B.c450.c1231`). Exams log Riley's skill-share
+  per contest tier (of skill-decided hands, the fighter's take — gen21's
+  own edge was 53-54%).
+- **Four cultures**: provo = Riley mix (15/35/50 calm/mid/contested),
+  orem = hard-contest (2/18/80), logan = hot (lr 1e-4, eps 0.12,
+  hand-heavy sugar), moab = **CONTROL on random decks** — if curation is
+  the active ingredient, moab must fall behind; that isolates the
+  variable law 3 says matters.
+- **`worldcup.py`** (hub, daily 14:30 UTC): round-robin of city champions
+  + frozen gen21 on salted held-out contested decks; ≥55% vs gen21
+  auto-triggers the random-deck promotion battery (150 sprint + 70
+  marathon pairs — curated skill must transfer to the true deal
+  distribution before anyone is crowned).
+- **Dashboard**: `scripts/evo_status.py` → http://5.78.115.122:8080/ —
+  goal bar, per-city sparklines, pedigrees, skill-shares, cup history.
+- Fleet: 4 boxes self-assemble via `scripts/evo_keeper.sh` (library build
+  ~9 min → gym; nightly +12k-deal refill to 120k). mimic1-c stopped and
+  archived at its 50k-step checkpoint (graduated, parity with gen21 —
+  its verdict was already banked).
+- **Launch-night findings (2026-07-25/26), all fixed same night:**
+  (1) engine redeals fire AT DEAL TIME — a single-deck deck_fn spun
+  _advance forever (~1/6k deals), froze all four library builds;
+  (2) "reshuffle until anchors apart" matchmaking = infinite loop once
+  the never-exploring anchors' Elo ran ~450 clear of the eps-noised
+  field — all four cities froze at rd ~100 simultaneously; separation
+  must be deterministic; (3) **S3's law re-confirmed on gen21**: launch
+  sugar (bid .10/pts .15/hand .25/game .50) redefined Q's currency and
+  collapsed all learners to 0-7% vs gen21 in ONE 2h cycle — fingerprint
+  was make-rate 41% vs 75% at IDENTICAL auction behavior (mispriced
+  hands, not mis-bid counts). Fix: native proven target only
+  (hand .5 / game .5, zero bid/pts sugar) + **the ratchet floor** —
+  every founder's bank is seeded with pristine champion weights at
+  its mirror-true 50%, so the cull pulls wrecked fighters back to
+  fresh gen21 clones; the population can never do worse than restart
+  from the champion. logan's lr also 1e-4 → 5e-5 (1e-4 is twice-proven
+  fatal to champion inits).
+- **(4) THE REAL DISEASE, then the cure (v2, same night): gen21 is a
+  BEHAVIOR CLONE — its outputs are CE logits (measured −111..+52), not
+  values (gen13: ±1). NO value-regression channel can touch it: even the
+  native proven target re-scaled the function to 0-3% within one cycle
+  (gen6's "MSE rescales BC logits", at gym speed). And plain CE
+  self-imitation on marathon mirrors ALSO decayed — by mid-game the two
+  mirror games sit at different scores, so "you outscored the mirror"
+  credits context, not play.** v2 = THE MIRRORED-HAND FARM: training
+  unit is a single-hand duplicate pair vs frozen gen21 (learner
+  eps-dithered, champion argmax, same curated deal + same gen_mimic
+  score-start both chairs); adv = d1−d2 is zero-sum-clean; adv>0 →
+  CE-clone the learner's lines (weight |adv|/200 cap 1), adv<0 →
+  CE-clone the CHAMPION's lines back into the learner (self-stabilizing
+  pull). Marathon contested exams unchanged. First smoke selection:
+  fitness centered ~60% (75/67/58/42 at 6-pair noise) vs the value
+  build's 0-3% — channel validated, fleet redeployed on it.
+- **Day-1 verdict of the farm channel (2026-07-26 am): SAFE, at PARITY,
+  not yet a rung.** Overnight: populations 48-54%, pos_rate (beats-champ
+  hand rate) climbed 22→38%, 3-generation pedigrees formed. First world
+  cup: gen21 finished LAST of 5 (orem 58%, moab 55%, logan 54%, provo
+  50% vs gen21 on fresh contested marathons; pooled 54.2%/400g) and
+  orem's 55% auto-triggered the random-deck battery: sprint 50.3%/300g,
+  marathon 55.7%/140g — but the independent 500-game marathon confirm
+  said **exactly 50.0%** (49 sweeps each): banking-mirage sighting #6;
+  the 57-62% banked highs were max-over-noisy-exams froth on an honest
+  50% population. SHARPENERS deployed, fleet restarted fresh: (a)
+  needle-weighted CE — every learner decision is checked against frozen
+  gen21's choice in that state; verified-win rows that DISAGREE train at
+  4x (the mimic override lesson: the deviations carry the signal); (b)
+  confirm-before-banking — bank overwrites must repeat on a second
+  salted paper and record the confirm value (smoke: a raw 62.5% was
+  confirmed at 50% and refused). RILEY'S RECHECK (his skepticism,
+  validated): the cup's drama did not replicate — orem's champ on the
+  CUP'S OWN contested decks at 5x scale = 52.4%/500g (skill-share
+  48-49% in every tier), plus 50.0%/500g on random decks ⇒ parity
+  everywhere; "gen21 finished last" was three compounding illusions
+  (100-game pairings ±5pp, someone-must-finish-last in a round-robin
+  of equals, winner's-curse entrants). Mirage sighting #7 — at CUP
+  level; confirm-before-banking now guards every surface. Open
+  question the next days answer: ANSWERED 2026-07-26 pm — FLAT. The
+  48h verdict at full guardrails: needle-4x measurably harmful (44.6%
+  pooled, reverted); then the double-gate's first two survivors (orem
+  54.7% confirmed; moab 58.7% confirmed with ALL SIX fighters 53-59%)
+  both died on 1,300-game replication batteries (orem 49.0/50.6/51.7;
+  moab 48.6/48.4/51.7) — mirages #8 and #9 — and provo's sel-3 57.3%
+  confirmed bank followed (50.6/49.0/46.3): #10. All three cities'
+  gate-survivors replication-killed; verdict triple-sealed. NEW LESSON for law 8:
+  six near-identical fighters sharing one exam paper are ONE correlated
+  draw, not six confirmations (S5's deal-correlation trap, within-city
+  edition) — population-wide "agreement" on shared papers proves
+  nothing. VERDICT: the mirrored-hand farm preserves perfectly and
+  discovers nothing at this budget — eps-scale deviations that beat the
+  champion's line are too rare/shallow to compound. Gym archived
+  resumable; pivot per the pre-agreed rule to the mimic loop (gen23:
+  teacher = gen21 x search x belief, ceiling measurement launched).
+  Old open question, retired:
+  does concentrated needle signal + honest selection produce a real
+  climb, and does moab (control) lag? If flat by ~48h, the proven
+  fallback is the mimic loop (gen21×search teacher → gen23).
+
+### The other loop forward (gen23+, parked)
+Wrap search+belief around gen21 → new teacher (starts from Cosmo-parity,
+should exceed the 62.6% teacher) → regenerate raw corpus → warm-start
+clone → examine. If the Darwin gym plateaus, this is the proven channel.
+
+### gen23 — THE T0 CORPUS (2026-07-27/29, branch alpharook12) — IN PROGRESS
+**The mimic loop, activated. Teacher = gen21 × gen15-belief(0.5) × K24
+PIMC from the OPENING LEAD (t0), the strongest player this project has
+ever measured.**
+
+**Teacher selection (the three-arm bake-off, all marathon duplicate-deck):**
+- t3 stack 74.7% vs bare gen21 (n=810); t1 74.9% (n=466) — t1 beats t3
+  head-to-head 53.9% (p=0.007) but buys NOTHING where it counts and costs
+  1.47x per needle. Closed.
+- **t0 = 78.5% vs gen21 at n=10,046 (±1.0pp)** — the only gate that
+  searches the opening lead, and law 9's gate finally moved: belief
+  posteriors make trick-0/1/2 worlds true enough to profit (gen16-era
+  uniform worlds measurably LOST below t3).
+- Hand-level mechanism (hand_analysis.py, 51k hands): t0 wins only ~54%
+  of hands (+11 pts of ~120) — but it CONVERTS luck-hands into
+  skill-hands (22.8% of hands skill-decided vs t3's 19.6%, p<1e-5) and
+  its make-rate edge GROWS with contract difficulty (+5pp at bid 95 →
+  +12pp at 110). Small per-hand edge × 68 hands = 79% of marathons.
+
+**Corpus design (duel-dump format, duel.py --dump-actions):**
+- Measurement runs double as teacher corpus: teacher (side 0) vs bare
+  gen21, every game replay-verified before it is trusted, BOTH sides'
+  decisions kept (replayability) with a side flag — only teacher rows
+  train; the opponent's lines are what the warm-started student already
+  is. Records stamp win/lose so the miller never guesses the format.
+- Teacher-vs-gen21 chosen over teacher-vs-teacher: same teacher rows per
+  compute-hour, 2x the deal diversity, and the duel doubles as the
+  measurement.
+- **Format mix: ~85% marathon (2000/−1000) + ~15% standard (500/−250).**
+  Measured justification: 69% of marathon teacher rows sit AT the
+  encoder's hand_number cap vs 3% in standard games (the OOD risk);
+  near-threshold score coverage is fine in both (~18%) because score
+  features are fraction-of-target by design.
+- Conversion (measured): marathon game ≈ 69 hands ≈ 1,500 teacher rows
+  ≈ 107 needles; standard game ≈ 13 hands ≈ 300 rows ≈ 22 needles.
+  Needle density 7% of teacher decisions — 2x the gen21 corpus (t0
+  searches the early tricks, where reflex disagreement lives).
+- Fleet: 5 Hetzner boxes × 4 streams + Riley's MBP × 3 streams (the MBP
+  out-produced every box ~2x per core). ~21-27M rows/day, ~$25/day.
+- **Sizing ladder** (anchored to gen21's proven 30M-row/1.1M-needle
+  recipe): Good 18M / Great 30M / Excellent 45M (train here) / Ideal 75M
+  (past which steps, not data, bind). **45M rows + 3.2M needles banked
+  in ~48h — 3x gen21's needle budget off a 2.5x-steeper teacher.**
+
+**Engineering laws earned this round:**
+- **Streams must be resume-safe** (duel.py completed_pairs): a killed
+  stream otherwise replays its whole seed space at full search cost.
+  Keeper relaunches + OOM kills + laptop sleep all made this real within
+  the first day. The miller dedups on (seed, flip) for half-pairs.
+- **pkill of a duel parent orphans its spawn-pool workers** — they run
+  forever at full CPU with PPID 1. Two-day-old orphans were found eating
+  3 cores. Always sweep `ps -eo pid,ppid ... $2==1` after any stream kill.
+- **A write-time field filter eats your new fields silently**: the
+  win/lose stamp was added to the record but the corpus writer's
+  explicit key list dropped it — caught only by auditing actual rows an
+  hour into production. Audit the artifact, not the code.
+- Incremental byte-offset counters (corpus_count.py) or the status board
+  re-reads GB shards every 2 min by day two. macOS crontab HANGS from
+  non-interactive shells (TCC) — LaunchAgents instead.
+
+**The clone (gen23-mimic1, trained 2026-07-29 on the hub):** warm-start
+from gen21-cand1 (--hidden 512,512,256, lr 5e-5, override ×4 — the
+draft-2 recipe verbatim), 120k steps ≈ 61M rows at ~4,000 rows/s ≈ 4.5h
+wall on 8 CPX41 cores. Quiz val = 494k rows / 42.9k overrides from 400
+held-out games.
+- **The curve's shape IS the lesson: the leap is immediate, the rest is
+  calibration.** Needle-match jumped 1.1% → 20.9% inside the first 2,000
+  steps (~1M rows, 2% of the corpus), then plateaued 19–21% for the
+  remaining 118k steps while val loss kept falling (0.95 → 0.46) and bid
+  fidelity recovered 96.2 → 97.9%. Reading: a warm-started student
+  absorbs the teacher's *learnable* tendencies almost instantly; the
+  ~80% of needles it never matches are heavily search-noise near-ties
+  (Green 6 vs Green 8 with 24 sampled worlds tipping a hair) that no
+  reflex can or should memorize. The long tail of training buys
+  confidence calibration, not argmax changes.
+- **Two candidates, picked by duel not quiz** (the banking rule starred
+  step-2k best.pt at ovr 20.9%; latest.pt at 120k has equal ovr, better
+  bids and best val loss — the gen9-era "latest often wins after stable
+  runs" note applies): 4-arm fresh-seed screen vs gen21 launched on
+  boxes 2-5 (sprint 750 pairs + marathon 400 pairs per candidate,
+  screen_*.jsonl dumps). Corpus streams retired first — final bank
+  ~2.5M hands / ~60M teacher rows / ~4.3M needles, raw and re-millable
+  forever.
+- **SCREEN + FULL GAUNTLET VERDICT (2026-07-30): gen23 = new champion
+  reflex, MINTED models/gen23-cand1.pt (= latest.pt).** best.pt (the
+  early ovr-bank) = 49.6% sprint AND marathon — pure parity; the quiz's
+  favorite is not the player, the calibration tail is. latest.pt swept
+  the ladder (18 arms, fresh seeds, duplicate decks): sprints — teacher
+  39.6%(n=700) / gen21 52.2%(n=1500, +screen 53.0% n=1500) / Cosmo
+  51.2% / Cougar 53.2% / Puma 57.1% / Cub 58.0% / Bobcat 60.7% /
+  Kitten 61.8% / Stomper 62.1%; marathons — teacher 31.0%(n=200) /
+  gen21 56.3%(n=1000 replication; screen 58.1% n=800 — REPLICATED, not
+  mirage #11) / Cosmo 55.5% / Cougar 57.5% / Puma 66.2%(n=600) / Cub
+  67.0% / Bobcat 70.0% / Kitten 72.8% / Stomper 72.2%. Perfect
+  monotone staircase, marathon edge > sprint edge everywhere (the
+  compounding signature), zero non-transitivity. A PURE REFLEX at
+  parity-or-better with every production search stack, losing only to
+  its own teacher. Artifact ("gen23 runs the gauntlet", 18 sketch-style
+  cards per Riley's hand-drawn spec) published; dumps in hub
+  runs/gauntlet/. NOTE for future dumps: seed/flip ride only with
+  --dump-actions; sweeps from plain dumps = pair consecutive lines.
+- **THE ALPHAGODROOK GAUNTLET (2026-07-30 overnight) — the ceiling,
+  measured, and a law revised.** god.py (--god-a/b): exact-solver
+  omniscient card play, gen21 bids — the one legitimate use of
+  truth-conditioning (a referee with a chair; its games are training
+  poison, law 9). ~2 min/hand; 12 arms, 6 machines, ~950 games.
+  RESULTS (sprint win% / pts-per-hand / make%): teacher 92.0/+38/77,
+  gen23 91.0/+40/80, gen21 89.0/+37/78, Cosmo 93.0/+44/80, Cougar
+  95.0/+45/76, Puma 95.8/+45/83, Cub 91.0/+42/82, Bobcat 97.1/+51/86,
+  Kitten 92.0/+47/80, Stomper 97.9/+53/85; marathons vs gen21 and
+  gen23: 100%. **Across 460 duplicate-deck pairs: ZERO pairs swept
+  against god — not one, by anyone, including the teacher.**
+  **LAW REVISED — hidden information, not deal luck, is the wall.**
+  The luck-floor argument ("the teacher only wins 63.7% of sprints, so
+  99% is impossible") holds only between information-equal players; an
+  omniscient +40-of-120 per-hand edge steamrolls sprint variance.
+  Riley's "99% vs gen8" intuition was right ABOUT THE CEILING (god:
+  97.9% and counting); every mortal sits far below it. Corollary: the
+  space above the teacher is enormous, and the preventable/irreducible
+  split (ceiling.py) is the map to how much of it mortals can claim.
+  Full data + compressed dumps + era summary: history/gen23-era/.
+  Method note: per-hand stats (pts/hand, make-at-same-bid) sharpen ~10x
+  faster than game win% — they made 40-game arms readable overnight.

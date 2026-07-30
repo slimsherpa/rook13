@@ -38,6 +38,17 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if signedIn() && resource.data.reporter.uid == request.auth.uid;
       }
+
+      // Table talk: short bubbles, append-only FOREVER — the permanent log
+      // is the anti-signaling audit trail (chatService.ts caps length).
+      match /chat/{msgId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 80;
+        allow update, delete: if false;
+      }
     }
 
     // Table invites: created by the sender, retired (accepted/declined) by
@@ -48,6 +59,23 @@ service cloud.firestore {
       allow create, update: if signedIn() && request.resource.data.fromUid == request.auth.uid;
       allow delete: if signedIn()
         && (resource.data.toUid == request.auth.uid || resource.data.fromUid == request.auth.uid);
+    }
+
+    // Lobby presence heartbeats: one doc per player, owner-only writes.
+    match /presence/{uid} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // The lobby group chat: append-only forever, same audit rationale as
+    // table chat, roomier cap (chatService.ts).
+    match /lobbyChat/{msgId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 200;
+      allow update, delete: if false;
     }
 
     // Profiles: readable by any signed-in user, writable only by the owner.

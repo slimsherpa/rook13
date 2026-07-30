@@ -4,11 +4,15 @@
     {
       "name": "rook13-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev"
-      ],
+      "runtimeArgs": ["run", "dev"],
       "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "greencircle",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "5071", "-d", "/Users/rileyadamson/Documents/GitHub/greencircle/public"],
+      "port": 5071,
       "autoPort": true
     }
   ]

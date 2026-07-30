@@ -879,3 +879,45 @@ describe('bid log (the auction blow-by-blow)', () => {
         expect(g.bidLog).toEqual([]);
     });
 });
+
+describe('forfeit (the turn clock)', () => {
+    /** started game with the host seated at A1 and bidding under way */
+    const inBidding = (): GameDoc => {
+        const g = startedGame();
+        return applyAction(g, { type: 'DEAL', deck: blockDeck() });
+    };
+
+    it('rejects a forfeit for anyone but the seat on the clock', () => {
+        const g = inBidding();
+        const notTurn = SEATS.find((s) => s !== g.turn)!;
+        expect(validateAction(g, { type: 'FORFEIT', seat: notTurn }))
+            .toBe('Only the seat on the clock can forfeit');
+    });
+
+    it('bots never time out', () => {
+        let g = inBidding();
+        // walk the auction until a bot seat is on the clock
+        while (g.seats[g.turn!].kind === 'human') {
+            g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        }
+        expect(validateAction(g, { type: 'FORFEIT', seat: g.turn! }))
+            .toBe('Bots never time out');
+    });
+
+    it('a human timing out hands the game to the other team', () => {
+        let g = inBidding();
+        // host (A1) opens the bidding in startedGame's deterministic setup?
+        // walk to the human's turn instead of assuming
+        while (g.seats[g.turn!].kind !== 'human') {
+            g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        }
+        const seat = g.turn!;
+        expect(validateAction(g, { type: 'FORFEIT', seat })).toBeNull();
+        g = applyAction(g, { type: 'FORFEIT', seat });
+        expect(g.status).toBe('completed');
+        expect(g.phase).toBe('game_over');
+        expect(g.winner).toBe(teamOf(seat) === 'A' ? 'B' : 'A');
+        expect(g.forfeitSeat).toBe(seat);
+        expect(g.turn).toBeNull();
+    });
+});

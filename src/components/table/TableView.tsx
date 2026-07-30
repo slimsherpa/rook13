@@ -21,7 +21,9 @@ import LastTrickPanel from './LastTrickPanel';
 import TeamIntro from './TeamIntro';
 import PlayingCard from '@/components/ui/PlayingCard';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
+import TableChat from './TableChat';
 import { useWatchers } from '@/lib/hooks/useWatchers';
+import { useForfeitClock, CLOCK_SHOW_S, CLOCK_PANIC_S } from '@/lib/hooks/useForfeitClock';
 import { paced, useTablePace, useAiAssist } from '@/lib/settings';
 import { armTableHold, releaseTableHold, useTableHold } from '@/lib/tableHold';
 import { useModelAdvice } from '@/lib/hooks/useModelAdvice';
@@ -50,6 +52,10 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     const [showWatchers, setShowWatchers] = useState(false);
     const watchers = useWatchers(game.id, mySeat === null);
     const theme = themeFor(game.trump);
+    // competitive turn clock: a human who stalls a full minute forfeits
+    const clock = useForfeitClock(game, game.id);
+    const clockName = clock.seat ? game.seats[clock.seat].name.split(' ')[0] : '';
+    const clockMine = clock.seat !== null && clock.seat === mySeat;
 
     // team intro: "Team A vs Team B — Go!", once per game per device. Shown
     // on the very first hand only; a rejoin mid-game skips it.
@@ -302,6 +308,31 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
 
                 <TrickArea game={game} bottomSeat={bottomSeat} trump={game.trump} message={centerMessage} />
 
+                {/* the turn clock — visible countdown once someone's stalling */}
+                {clock.seat && clock.remaining <= CLOCK_SHOW_S && !(clockMine && clock.remaining <= CLOCK_PANIC_S) && (
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                        <span className={`px-3 py-1 rounded-full font-orbitron text-xs font-bold border shadow-lg bg-black/70 ${
+                            clock.remaining <= CLOCK_PANIC_S
+                                ? 'text-red-300 border-red-400/80 animate-pulse'
+                                : 'text-yellow-300 border-yellow-400/60'
+                        }`}>
+                            ⏰ {clockMine ? 'YOU' : clockName} · 0:{String(clock.remaining).padStart(2, '0')}
+                        </span>
+                    </div>
+                )}
+                {/* it's YOUR clock and it's nearly gone — the big scare */}
+                {clockMine && clock.remaining <= CLOCK_PANIC_S && (
+                    <div className="absolute top-14 inset-x-0 z-30 flex justify-center pointer-events-none">
+                        <div className="animate-announce-shake flex items-center gap-3 px-5 py-3 rounded-2xl border-2 border-red-400/90 bg-black/85 text-red-300 font-orbitron font-bold shadow-[0_0_30px_rgba(248,113,113,0.4)]">
+                            <span className="text-3xl leading-none">⏰</span>
+                            <span className="text-base leading-snug">
+                                PLAY NOW OR FORFEIT<br />
+                                <span className="text-2xl">0:{String(clock.remaining).padStart(2, '0')}</span>
+                            </span>
+                        </div>
+                    </div>
+                )}
+
                 {/* hand-points ticker: the running count of captured points,
                     binging up on the team that just scooped a counter. Tapping
                     it opens the last-trick recap (once there's a trick to show). */}
@@ -432,6 +463,9 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                 ) : (
                     <div className="absolute bottom-2 left-3 hidden sm:block">{badge(pos.bottom, true)}</div>
                 )}
+
+                {/* table talk: bubbles + quick-message tray */}
+                <TableChat game={game} mySeat={mySeat} bottomSeat={bottomSeat} />
             </main>
 
             {/* dock + hand (spectators have neither) */}
