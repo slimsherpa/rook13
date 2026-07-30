@@ -26,6 +26,8 @@ interface HandRecapModalProps {
     onShowScores: () => void;
     /** hindsight verdict for the hand being recapped, once the solver's done */
     audit?: HandAudit | null;
+    /** the solver is still working on this hand */
+    auditPending?: boolean;
 }
 
 interface TrophyMoment {
@@ -258,7 +260,7 @@ const teamNames = (seats: Seats, t: Team) =>
 /** Trick-by-trick replay, with the "…got SET!" beat dropped in exactly where
  *  the set became inevitable — and the "laid them down" beat where a player
  *  claimed the rest. Shared by the live recap and the review page. */
-export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown, audit }: {
+export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown, audit, auditPending }: {
     seats: Seats;
     tricks: TrickRecord[];
     trump: Suit | null;
@@ -269,6 +271,8 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
     laydown?: { seat: Seat; trick: number } | null;
     /** hindsight verdict from AlphaGodRook's solver (auditService) */
     audit?: HandAudit | null;
+    /** the solver is still replaying — show the ticker instead of silence */
+    auditPending?: boolean;
 }) {
     // blunder-report mode: when armed, every played card becomes flaggable
     const blunder = useBlunderMode();
@@ -327,6 +331,23 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
     const numW = compact ? 'w-6 text-lg' : 'w-7 text-2xl';
     return (
         <div className={compact ? 'space-y-3' : 'space-y-4'}>
+            {/* the referee's status: never leave silence to be misread */}
+            {auditPending && !audit && (
+                <div className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-white/5 border border-white/10 animate-pulse">
+                    <span className="text-sm leading-none">👁️</span>
+                    <span className="font-orbitron text-white/60 text-[11px] text-center">
+                        AlphaGodRook is replaying the hand…
+                    </span>
+                </div>
+            )}
+            {audit && audit.blunders.length === 0 && (
+                <div className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-emerald-900/25 border border-emerald-400/25">
+                    <span className="text-sm leading-none">✅</span>
+                    <span className="font-orbitron text-emerald-200/90 text-[11px] text-center">
+                        Clean hand — nobody left points on the table.
+                    </span>
+                </div>
+            )}
             {laydown && laydown.trick === 0 && laydownBanner}
             {tricks.map((trick, idx) => (
                 <div key={idx}>
@@ -388,7 +409,7 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
     );
 }
 
-export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores, audit }: HandRecapModalProps) {
+export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores, audit, auditPending }: HandRecapModalProps) {
     const h = game.handHistory[game.handHistory.length - 1];
     if (!h) return null;
 
@@ -484,6 +505,7 @@ export default function HandRecapModal({ game, mySeat, onNextHand, onShowScores,
                                 ? { seat: game.laydownSeat, trick: game.laydownTrick }
                                 : null}
                             audit={audit}
+                            auditPending={auditPending}
                         />
 
                         {/* the experts' door: flag a bad decision for the AI

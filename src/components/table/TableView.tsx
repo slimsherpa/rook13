@@ -576,6 +576,7 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                     onNextHand={() => act({ type: 'NEXT_HAND' })}
                     onShowScores={() => setShowScores(true)}
                     audit={blunderDetector ? audits.get(game.handHistory.length) ?? null : null}
+                    auditPending={blunderDetector && !audits.has(game.handHistory.length)}
                 />
             )}
             {game.phase === 'game_over' && recapReady && !showScores && (

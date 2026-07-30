@@ -178,46 +178,27 @@ def audit(req: AuditReq):
     brain) what each legal card was worth IN THE TRUE WORLD. A blunder =
     points the acting team left on the table vs the best card. Decisions
     where every card scores the same (doomed anyway) score delta 0 and
-    are never reported. Per-decision solves are timeboxed; a global
-    budget keeps the request inside Cloud Run's timeout."""
+    are never reported.
+
+    Budgeting is BACK-TO-FRONT: late-trick solves cost milliseconds, so
+    they all get done first (guaranteed endgame coverage), then whatever
+    budget remains goes to the expensive early tricks, latest-first (the
+    most solvable hard ones before the least). Total budget is sized so
+    the verdict lands while the family is still reading the recap."""
     import threading
     import time as _time
     from rook import solver as S
     from rook.cards import CARD_POINTS, team_of
 
-    PER_SOLVE_S = 4.0
-    GLOBAL_BUDGET_S = 50.0
+    PER_SOLVE_S = 3.5
+    GLOBAL_BUDGET_S = 25.0
+    CHEAP_FROM_TRICK = 5  # 5+ tricks done => ~20 cards left, solves are instant
     MIN_DELTA = 20        # below this, not worth the family's attention
 
+    # ---- pass 1: replay, snapshotting every real decision in the hand ----
     g = Game(dealer=SEAT_IDX[req.dealer])
     hand_no = 1
-    found: list[dict] = []
-    analyzed = skipped = 0
-    started = _time.time()
-
-    def solve_values(pos_g):
-        """play_values with a deadline; None on timeout."""
-        hands = [list(h) for h in pos_g.hands]
-        trump = pos_g.trump
-        leader = pos_g.trick_leader
-        gd = sum(CARD_POINTS[c] for c in pos_g.go_down)
-        trick = tuple((s, c) for s, c in pos_g.trick_plays)
-        tricks_done = len(pos_g.completed_tricks)
-        t0 = pos_g.tricks_won[0]
-        out: list = []
-
-        def run():
-            try:
-                out.append(S.play_values(
-                    hands, trump, leader, gd, t0_tricks=t0,
-                    tricks_done=tricks_done, trick=trick))
-            except Exception:
-                pass
-        t = threading.Thread(target=run, daemon=True)
-        t.start()
-        t.join(PER_SOLVE_S)
-        return out[0] if out else None
-
+    snaps: list[dict] = []
     for a in req.actions:
         t = a["type"]
         if t in ("DEAL", "ACK_REDEAL"):
@@ -232,30 +213,14 @@ def audit(req: AuditReq):
         elif t == "PLAY_CARD":
             seat = SEAT_IDX[a["seat"]]
             card = a["card"]
-            if hand_no == req.hand:
-                legal = g.legal_cards(seat)
-                if len(legal) > 1 and _time.time() - started < GLOBAL_BUDGET_S:
-                    vals = solve_values(g)
-                    if vals is None:
-                        skipped += 1
-                    else:
-                        analyzed += 1
-                        if team_of(seat) == 0:
-                            best = max(vals, key=lambda c: vals[c])
-                            delta = vals[best] - vals.get(card, vals[best])
-                        else:
-                            best = min(vals, key=lambda c: vals[c])
-                            delta = vals.get(card, vals[best]) - vals[best]
-                        if delta >= MIN_DELTA and best != card:
-                            found.append({
-                                "trick": len(g.completed_tricks),
-                                "seat": SEAT_NAME[seat],
-                                "card": card,
-                                "better": best,
-                                "delta": int(delta),
-                            })
-                elif len(legal) > 1:
-                    skipped += 1
+            if hand_no == req.hand and len(g.legal_cards(seat)) > 1:
+                snaps.append(dict(
+                    hands=[list(h) for h in g.hands], trump=g.trump,
+                    leader=g.trick_leader,
+                    gd=sum(CARD_POINTS[c] for c in g.go_down),
+                    trick=tuple(g.trick_plays),
+                    tricks_done=len(g.completed_tricks),
+                    t0=g.tricks_won[0], seat=seat, card=card))
             g.play_card(seat, card)
         elif t == "LAYDOWN":
             # deterministic claim — nothing to audit
@@ -265,6 +230,57 @@ def audit(req: AuditReq):
             hand_no += 1
         if hand_no > req.hand:
             break
+
+    # ---- pass 2: solve cheap-first, then hard tricks latest-first ----
+    def order_key(s):
+        cheap = s["tricks_done"] >= CHEAP_FROM_TRICK
+        return (0, s["tricks_done"]) if cheap else (1, -s["tricks_done"])
+    snaps.sort(key=order_key)
+
+    def solve_values(s):
+        """play_values with a deadline; None on timeout."""
+        out: list = []
+
+        def run():
+            try:
+                out.append(S.play_values(
+                    s["hands"], s["trump"], s["leader"], s["gd"],
+                    t0_tricks=s["t0"], tricks_done=s["tricks_done"],
+                    trick=s["trick"]))
+            except Exception:
+                pass
+        th = threading.Thread(target=run, daemon=True)
+        th.start()
+        th.join(PER_SOLVE_S)
+        return out[0] if out else None
+
+    started = _time.time()
+    found: list[dict] = []
+    analyzed = skipped = 0
+    for s in snaps:
+        if _time.time() - started >= GLOBAL_BUDGET_S:
+            skipped += 1
+            continue
+        vals = solve_values(s)
+        if vals is None:
+            skipped += 1
+            continue
+        analyzed += 1
+        seat, card = s["seat"], s["card"]
+        if team_of(seat) == 0:
+            best = max(vals, key=lambda c: vals[c])
+            delta = vals[best] - vals.get(card, vals[best])
+        else:
+            best = min(vals, key=lambda c: vals[c])
+            delta = vals.get(card, vals[best]) - vals[best]
+        if delta >= MIN_DELTA and best != card:
+            found.append({
+                "trick": s["tricks_done"],
+                "seat": SEAT_NAME[seat],
+                "card": card,
+                "better": best,
+                "delta": int(delta),
+            })
 
     # the two worst moments only — a recap, not a lecture
     found.sort(key=lambda b: -b["delta"])

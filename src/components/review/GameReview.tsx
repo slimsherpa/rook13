@@ -137,6 +137,7 @@ export default function GameReview({ gameId }: { gameId: string }) {
                                 : game.seats.B2.uid === user?.uid ? 'B2' : null}
                             compact
                             audit={blunderDetector ? audits.get(s.handNumber) ?? null : null}
+                            auditPending={blunderDetector && !audits.has(s.handNumber)}
                         />
 
                         {/* the experts' door: flag a bad decision for AI training */}
