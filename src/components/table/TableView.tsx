@@ -63,7 +63,10 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     useEffect(() => subscribeAudits(game.id, setAudits), [game.id]);
     const askForAudit = (hand: number) => {
         setAuditsAsked((s) => new Set(s).add(hand));
-        requestHandAudit(game.id, hand);
+        requestHandAudit(game.id, hand).then((ok) => {
+            // failed request: put the button back instead of pulsing forever
+            if (!ok) setAuditsAsked((s) => { const n = new Set(s); n.delete(hand); return n; });
+        });
     };
 
     // cloud-bot transparency: a header chip while the service is unreachable,

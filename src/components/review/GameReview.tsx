@@ -36,7 +36,10 @@ export default function GameReview({ gameId }: { gameId: string }) {
     // stored forever, so a hand is only ever solved once
     const askForAudit = (hand: number) => {
         setAuditsAsked((s) => new Set(s).add(hand));
-        requestHandAudit(gameId, hand);
+        requestHandAudit(gameId, hand).then((ok) => {
+            // failed request: put the button back instead of pulsing forever
+            if (!ok) setAuditsAsked((s) => { const n = new Set(s); n.delete(hand); return n; });
+        });
     };
 
     useEffect(() => {

@@ -307,43 +307,43 @@ def decide(req: DecideReq):
     assert s2 == seat, "env/turn disagreement"
 
     spec = get_agent(req.style)
-    if spec[0] == "reflex":
-        from alpharook.arena import model_choose
-        choice = int(model_choose(spec[1], "cpu", env, seat, dtype, cands))
-        picks = None
-    else:
-        _, net, agent = spec
-        if dtype == D_DISCARD:
-            # go-down arrives as 4 sequential picks in the lab env; the
-            # production action wants all 4 at once
-            picks = []
-            for _ in range(4):
-                s2, d2, cands = env.decision()
-                c = int(agent.choose(env, seat, d2, cands))
-                picks.append(c)
-                env.apply(c)
-            choice = None
-        else:
-            choice = int(agent.choose(env, seat, dtype, cands))
-            picks = None
+    from alpharook.arena import model_choose
 
+    def choose(d, c):
+        if spec[0] == "reflex":
+            return int(model_choose(spec[1], "cpu", env, seat, d, c))
+        return int(spec[2].choose(env, seat, d, c))
+
+    def collect_go_down():
+        """4 sequential discard picks -> production's one SELECT_GODOWN."""
+        picks = []
+        for _ in range(4):
+            _s, d2, c2 = env.decision()
+            pick = choose(d2, c2)
+            picks.append(pick)
+            env.apply(pick)
+        return {"action": {"type": "SELECT_GODOWN", "seat": sname,
+                           "cards": picks}}
+
+    # The lab env is trump-INTENT-first: at widow start it wants the trump
+    # suit declared (privately, no engine transition), THEN the 4 discards
+    # shaped around it. Production wants only the SELECT_GODOWN here — the
+    # intent is re-derived at the trump phase (same net, same kept hand,
+    # same answer). Mapping D_TRUMP-at-widow straight to SELECT_TRUMP was
+    # the "Not selecting trump now" stuck-loop bug.
+    if dtype == D_TRUMP and g.phase == WIDOW:
+        env.apply(choose(dtype, cands))       # the private intent
+        return collect_go_down()
+    if dtype == D_DISCARD:
+        return collect_go_down()
+
+    choice = choose(dtype, cands)
     if dtype == D_BID:
         return {"action": {"type": "BID", "seat": sname,
                            "bid": "pass" if choice == PASS else choice}}
     if dtype == D_TRUMP:
         return {"action": {"type": "SELECT_TRUMP", "seat": sname,
                            "suit": choice}}
-    if dtype == D_DISCARD:
-        if picks is None:       # reflex path: collect 4 picks the same way
-            from alpharook.arena import model_choose
-            picks = []
-            for _ in range(4):
-                s2, d2, cands = env.decision()
-                c = int(model_choose(spec[1], "cpu", env, seat, d2, cands))
-                picks.append(c)
-                env.apply(c)
-        return {"action": {"type": "SELECT_GODOWN", "seat": sname,
-                           "cards": picks}}
     return {"action": {"type": "PLAY_CARD", "seat": sname, "card": choice}}
 
 

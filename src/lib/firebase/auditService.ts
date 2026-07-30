@@ -28,18 +28,27 @@ export interface HandAudit {
 
 const requested = new Set<string>(); // gameId:hand this tab already asked for
 
-/** Fire-and-forget: ask the service to solve a finished hand (idempotent
- *  server-side — one solve per hand no matter how many phones ask). */
-export const requestHandAudit = (gameId: string, hand: number): void => {
+/** Ask the service to solve a finished hand (idempotent server-side — one
+ *  solve per hand no matter how many phones ask). Resolves false when the
+ *  request failed, so the caller can put the button back instead of
+ *  pulsing forever. */
+export const requestHandAudit = async (gameId: string, hand: number): Promise<boolean> => {
     const key = `${gameId}:${hand}`;
-    if (requested.has(key)) return;
+    if (requested.has(key)) return true;
     requested.add(key);
-    fetch(`${BOT_SERVICE_URL}/audit`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ gameId, hand }),
-        keepalive: true,
-    }).catch(() => requested.delete(key)); // retry allowed if it never landed
+    try {
+        const res = await fetch(`${BOT_SERVICE_URL}/audit`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ gameId, hand }),
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        return true;
+    } catch (e) {
+        console.warn(`audit request for hand ${hand} failed`, e);
+        requested.delete(key); // allow a retry
+        return false;
+    }
 };
 
 export const subscribeAudits = (
