@@ -549,3 +549,12 @@ either a better hand evaluator than estimate_tricks (learned, not
 tuned), search with far deeper world budgets than a laptop's, or a
 convention system bold enough to escape the crawl basin — the open_gain
 genes were too timid to bend argmax where Q-gaps are wide.
+
+**gen24 validation comp (2026-07-31, Riley's call):** 2,000 games,
+champion pair vs the gen23&gen23 house, family format only. Verdict:
+**50.8% ± 1.1% — parity, not an edge.** Breadth on two other dynasties:
+50.0% and 50.3% (n=300 each). The morning's 52.7% ± 3.6 (n=300) was the
+upper lip of noise — law 2 extended: *even 150 pairs can flatter; crown
+nothing under 1,000.* After ~850 seasons the pairs hold gen23's level
+exactly (which no formula bidder could) but no measurable game-win edge
+in -250/+500. The house remains unbeaten by every attacker class tried.
