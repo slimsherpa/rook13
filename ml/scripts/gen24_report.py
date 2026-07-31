@@ -78,6 +78,7 @@ ORACLE_ARMS = [
     dict(arm="D", cfg="K32 · listen · thin margin", rate=0.475, ci=0.104, n=80),
     dict(arm="E", cfg="K48 · listen", rate=0.388, ci=0.088, n=80),
     dict(arm="F", cfg="K64 · listen", rate=0.488, ci=0.088, n=80),
+    dict(arm="G", cfg="adaptive K24/96 · listen", rate=0.450, ci=0.079, n=120),
 ]
 
 

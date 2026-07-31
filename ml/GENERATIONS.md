@@ -502,3 +502,50 @@ jump? does the equilibrium bidder stretch when behind late (and how
 much)? does anyone learn to fear the -250 cliff? — and does any of it
 beat gen23's own auction, which was never the part of gen23 anyone
 trained on purpose.
+
+## gen24, night one (2026-07-31) — three attacks on the auction, one standing champion
+
+The bid gym's opening night, run end-to-end while Riley slept. Verdict:
+**gen23's auction is startlingly robust.** Three independent attackers,
+three results at or just under parity:
+
+1. **Gene cities (Act I, retired at 1,068 seasons)**: interpretable
+   formula bidders cap at ~35% vs gen23's auction — two wildly different
+   evolved strategies lost identically, so the wall was the family hand
+   evaluator, not the policy around it. Diagnosis that reshaped the night:
+   deterministic games + 4 decks/season made league fitness r=0.24-0.49
+   season-over-season (champions churned 81-93% of seasons) — selection
+   amplified deck lottery. Their 1.36M banked score-states became
+   `winprob24` — the P(win | score) currency everything now prices in.
+2. **AlphaBid oracle (Act II)**: sample worlds consistent with the bids,
+   roll out with frozen gen23, argmax win-probability. Seven arms:
+   deaf 31% -> listen 36% (+5pp: LISTENING IS REAL), K16->K64 +12pp,
+   adaptive K24/96 45.0%±7.9 (n=120 pairs). Best arms 47-49%: the
+   rollout oracle plateaus just UNDER the distilled equilibrium at
+   laptop-feasible K. gen11's winner's-curse law, now measured: EV gaps
+   between bids (~0.02 wp) sit at sampling-noise scale, and a mostly-
+   raise option menu turns noise into overbuying. Fold-unless-clearly-+EV
+   margins and empirical evidence models tame but don't beat it.
+   Byproduct: **the dialect table** (19,852 seat-hands) — gen23's 65-95
+   bids are one mute class (2.93±1.20 tricks); willing-to-100 = 3.12,
+   105 = 4.02, 110 = 4.78, pass = 1.78.
+3. **Partnership league (Act III, running)**: locked pairs modulate
+   gen23's own Q-values (13 genes/partner; all-zero = byte-identical to
+   the house, invariant-tested), mirrored-deck EMA fitness, gauntlet vs
+   locked gen23&gen23 every 8 seasons. 271 seasons / 34 gauntlets:
+   best oscillates 48-57%, median 47-53% — pairs live AT parity, never
+   pull away. **No opening language emerged**: ladder steepness
+   (monster-minus-junk opening level) median 1.3 bid-points — everyone
+   inherited the house's mute ~99 crawl. What DID persist across
+   champion generations: pass_bias +1, war_bias -2, partner_high -2,
+   cliff_pass +2.7 — a calmer, cliff-fearing, war-avoiding gen23.
+
+Law for the ledger: **a behavior-cloned equilibrium defends itself.**
+The auction meta that looks "funky" from the outside — mute crawling,
+buying at ~99, 100 as the price of everything — held off a formula
+evolution, a Bayes-and-rollouts oracle, and 271 seasons of Q-nudged
+population play, all on the same night. Whatever beats it will need
+either a better hand evaluator than estimate_tricks (learned, not
+tuned), search with far deeper world budgets than a laptop's, or a
+convention system bold enough to escape the crawl basin — the open_gain
+genes were too timid to bend argmax where Q-gaps are wide.
