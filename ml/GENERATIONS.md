@@ -558,3 +558,19 @@ upper lip of noise — law 2 extended: *even 150 pairs can flatter; crown
 nothing under 1,000.* After ~850 seasons the pairs hold gen23's level
 exactly (which no formula bidder could) but no measurable game-win edge
 in -250/+500. The house remains unbeaten by every attacker class tried.
+
+**BidBrain v1 gate (2026-07-31, the 6-hour build):** 33.0% ± 1.9
+(n=2,000, family format) — does not beat the house. The arc inside six
+hours: v0 2% (confounding: "bidding 120 is what winners do" — the
+correlation/causation trap, cured by weighting the causal deviation
+rows ×20) -> v0.5 27% -> v1 32.5-33.0% on 152k games / 7.7M rows. The
+flattening curve is the lesson: single-game win/loss labels resolve
+catastrophic bid effects (~30pp) instantly and 1-2pp crawl-vs-pass
+effects never — and the ordinary auction is decided by 1-2pp effects.
+v1 over-passes (64%) and cedes 20k contracts at 95-100 to the house's
+3.6k... the distribution chart IS the diagnosis. Next (designed,
+documented in history/gen24-bidgym/BIDBRAIN.md): corpus v3 = TWIN
+GAMES — same deck played with and without one deviation, label = the
+outcome DIFFERENCE. Common-random-numbers counterfactuals; one
+baseline serves all 12 candidates; a full near-noiseless advantage
+curve per sampled state. The variance kill, not a bigger pile.
