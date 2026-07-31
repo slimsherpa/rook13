@@ -142,18 +142,24 @@ def harvest_game(net, seed: int):
     return rows
 
 
-def worker(worker_id: int, args):
+def worker(worker_id: int, args, run_tag: str):
     torch.set_num_threads(1)
     net = load_qnet(args.net)
     os.makedirs(args.out, exist_ok=True)
-    existing = len(glob.glob(os.path.join(args.out,
-                                          f"w{worker_id}_*.jsonl")))
-    shard_n = existing
+    # run_tag makes shard names unique per LAUNCH: a pkill'd parent leaves
+    # orphan workers behind (spawn children don't match the parent's
+    # cmdline), and two runs sharing filenames silently corrupt each
+    # other — the 2026-07-31 stage-2 lesson (15k polluted rows purged).
+    shard_n = 0
     t_end = time.time() + args.minutes * 60
-    seed = args.seed_base + worker_id * 10_000_000 + existing * 5_000
+    seed = args.seed_base + worker_id * 10_000_000
     contracts = 0
+    parent = os.getppid()
     while time.time() < t_end:
-        path = os.path.join(args.out, f"w{worker_id}_{shard_n:04d}.jsonl")
+        if os.getppid() != parent:      # orphaned: parent was killed
+            return
+        path = os.path.join(args.out,
+                            f"{run_tag}_w{worker_id}_{shard_n:04d}.jsonl")
         tmp = path + ".tmp"
         n_in_shard = 0
         with open(tmp, "w") as f:
@@ -177,10 +183,14 @@ def main():
     ap.add_argument("--net", default="models/gen23-cand1.pt")
     ap.add_argument("--out", default=OUT_DIR)
     ap.add_argument("--seed-base", type=int, default=3_000_000_000)
+    ap.add_argument("--run-tag", default=None,
+                    help="unique shard-name prefix; default derives from "
+                         "seed-base (pass a distinct seed-base per run)")
     args = ap.parse_args()
+    run_tag = args.run_tag or f"r{args.seed_base % 1_000_000:06d}"
     import multiprocessing as mp
     ctx = mp.get_context("spawn")
-    procs = [ctx.Process(target=worker, args=(w, args))
+    procs = [ctx.Process(target=worker, args=(w, args, run_tag))
              for w in range(args.workers)]
     for p in procs:
         p.start()
