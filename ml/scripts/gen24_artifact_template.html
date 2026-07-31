@@ -162,6 +162,36 @@ footer code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;
 
 <div class="statstrip" id="statstrip"></div>
 
+<section id="bidbrain">
+  <h2>Act IV — BidBrain, the best-response bidder</h2>
+  <p class="sub">gen23's auction is a frozen, known policy — frozen policies
+  always have a best response. BidBrain learns it from experience:
+  hundreds of thousands of real −250/+500 games against the house, with
+  exactly <em>one</em> random exploration bid per game, then one network
+  that answers <b>"if I bid this here, how often does my team win the
+  game?"</b> It bids the answer's maximum. Five factor blocks, straight
+  from Riley's spec: the scorecard, position, my hand (raw cards — no
+  formula), the table talk, and the wager itself.</p>
+  <div class="citycard" style="margin-bottom:16px">
+    <div class="cityhead"><h3 style="font-size:17px">The 7th-grade version</h3></div>
+    <p class="aggnote" style="max-width:75ch">Imagine playing a million hands
+    of Rook against the same four bots, and after every single game writing
+    one line in a notebook: <em>what my cards were, what everyone had bid,
+    what the score was, what I bid, and whether my team ended up winning
+    the whole game</em>. Sometimes — once per game — you bid something
+    totally random on purpose, just to see what happens: a crazy 120, a
+    chicken pass with a monster. After a million lines, you don't need
+    anyone's bidding advice. You just look up: "hands like this, table like
+    this, score like this — when I bid 90 we won 61% of the time, when I
+    bid 100 we won 55%, when I passed we won 48%." Then you always pick
+    the best number. That lookup table (squeezed into a small neural
+    network) <b>is</b> BidBrain. If bluffing wins games, the notebook says
+    so and it bluffs. Nobody ever tells it the rules of good bidding — the
+    notebook is the rules.</p>
+  </div>
+  <div id="bidbrainbody"></div>
+</section>
+
 <section id="pairs">
   <h2>Act III — the partnership league</h2>
   <p class="sub">Locked pairs for life. Each partner carries 13 interpretable
@@ -282,6 +312,63 @@ function hoverable(el, text){ el.addEventListener("mouseenter",()=>{tip.textCont
   ];
   $("#statstrip").innerHTML = items.map(([b,s])=>`<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
   $("#gendate").textContent = new Date(DATA.generated*1000).toLocaleString();
+})();
+
+/* ---------- Act IV: BidBrain first read ---------- */
+(function(){
+  const B = DATA.bidbrain;
+  const el = $("#bidbrainbody");
+  if (!B){ el.innerHTML = `<div class="empty">first test pending — corpus still soaking</div>`; return; }
+  const LEVELS = [65,70,75,80,85,90,95,100,105,110,115,120];
+  const verdictCol = B.rate - B.ci95 > 0.5 ? "var(--good)" :
+                     B.rate + B.ci95 < 0.5 ? "var(--bad)" : "var(--ink2)";
+  const groupBars = (dists, title, note)=>{
+    const w=660, h=210, pad={l:40,r:14,t:16,b:30};
+    const tot = [0,1].map(s=>Math.max(1, LEVELS.reduce((a,l)=>a+(dists[s][l]||0),0)));
+    const vmax = Math.max(...[0,1].flatMap(s=>LEVELS.map(l=>(dists[s][l]||0)/tot[s])))*1.15;
+    const bw=(w-pad.l-pad.r)/LEVELS.length;
+    let out=`<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto" role="img">`;
+    for (let i=0;i<=2;i++){ const v=vmax*i/2, y=pad.t+(1-v/vmax)*(h-pad.t-pad.b);
+      out+=`<line x1="${pad.l}" x2="${w-pad.r}" y1="${y}" y2="${y}" stroke="var(--line)" opacity=".5"/>
+        <text x="${pad.l-5}" y="${y+3}" font-size="9" text-anchor="end">${Math.round(v*100)}%</text>`;}
+    LEVELS.forEach((l,i)=>{
+      const x0=pad.l+i*bw;
+      [0,1].forEach(s=>{
+        const frac=(dists[s][l]||0)/tot[s];
+        const bh=frac/vmax*(h-pad.t-pad.b);
+        const col = s===0 ? "var(--provo)" : "var(--ink3)";
+        out+=`<rect x="${x0+(s===0?3:bw/2+1)}" y="${h-pad.b-bh}" width="${bw/2-4}"
+          height="${Math.max(0.5,bh)}" rx="2" fill="${col}"
+          opacity="${s===0?0.95:0.7}"><title>${s===0?"brain":"house"} ${l}: ${Math.round(frac*100)}%</title></rect>`;
+      });
+      out+=`<text x="${x0+bw/2}" y="${h-pad.b+13}" font-size="9" text-anchor="middle">${l}</text>`;
+    });
+    out+="</svg>";
+    return `<figure>${out}<figcaption><b>${title}</b> — ${note}
+      &nbsp;<i style="background:var(--provo);width:10px;height:10px;display:inline-block;border-radius:2px"></i> BidBrain
+      &nbsp;<i style="background:var(--ink3);width:10px;height:10px;display:inline-block;border-radius:2px;opacity:.7"></i> gen23 house</figcaption></figure>`;
+  };
+  const madeRows = LEVELS.filter(l=>(B.made_by[0][l]||[0])[0]+( (B.made_by[1][l]||[0])[0] )>0).map(l=>{
+    const m0=B.made_by[0][l]||[0,0], m1=B.made_by[1][l]||[0,0];
+    return `<tr><td class="num">${l}</td>
+      <td class="num">${m0[0]? Math.round(100*m0[1]/m0[0])+"% ("+m0[0]+")":"—"}</td>
+      <td class="num">${m1[0]? Math.round(100*m1[1]/m1[0])+"% ("+m1[0]+")":"—"}</td></tr>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="statstrip" style="margin-bottom:16px">
+      <div class="stat"><b style="color:${verdictCol}">${(B.rate*100).toFixed(1)}%</b>
+        <span>vs the house ± ${(B.ci95*100).toFixed(1)} · ${B.games} games (${B.tag}, preliminary)</span></div>
+      <div class="stat"><b>${Math.round(B.pass_rate[0]*100)}% / ${Math.round(B.pass_rate[1]*100)}%</b>
+        <span>pass rate: brain / house</span></div>
+      <div class="stat"><b>${Object.values(B.win_bids[0]).reduce((a,x)=>a+x,0)}
+        vs ${Object.values(B.win_bids[1]).reduce((a,x)=>a+x,0)}</b>
+        <span>contracts bought</span></div>
+    </div>
+    ${groupBars(B.all_bids, "Every raise, by level", "share of each side's raise turns")}
+    ${groupBars(B.win_bids, "Contracts WON, by level", "the price each side actually pays")}
+    <div class="tblwrap" style="margin-top:14px"><table style="max-width:430px">
+      <thead><tr><th class="num">bid</th><th class="num">brain made (n)</th>
+      <th class="num">house made (n)</th></tr></thead><tbody>${madeRows}</tbody></table></div>`;
 })();
 
 /* ---------- Act III: the partnership league ---------- */

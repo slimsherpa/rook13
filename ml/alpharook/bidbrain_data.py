@@ -47,22 +47,31 @@ GAMES_PER_SHARD = 1000
 
 
 @torch.no_grad()
-def play_explore_game(net, seed: int, explorer_team: int, eps: float,
+def play_explore_game(net, seed: int, explorer_team: int, hazard: float,
                       rng: random.Random,
                       win_score: int = 500, lose_score: int = -250):
+    """SINGLE-DEVIATION exploration (v2 — the v1 eps=0.3 chaos corpus is
+    quarantined in shards_chaos_eps30/): at most ONE bid decision per game
+    is uniformly random; every other decision by both teams is pure house.
+    Each game therefore measures exactly "deviate here, then play like the
+    house" — one-step best-response credit with no chaos pollution. The
+    per-decision hazard is geometric, biasing deviations toward EARLY
+    auction states (floor 65-95), which the v1 audit showed were starved."""
     env = SelfPlayGame(seed=seed, deck_fn=deck_stream(seed),
                        dealer=seed % 4,
                        win_score=win_score, lose_score=lose_score)
     rows = []
+    deviated = False
     while not env.done:
         seat, dtype, cands = env.decision()
         if dtype == D_BID:
             g = env.g
             was_random = 0
             if team_of(seat) == explorer_team and len(cands) > 1 \
-                    and rng.random() < eps:
+                    and not deviated and rng.random() < hazard:
                 action = rng.choice(cands)
                 was_random = 1
+                deviated = True
             else:
                 action = model_choose(net, "cpu", env, seat, dtype, cands)
             rows.append(dict(
@@ -98,7 +107,7 @@ def worker(worker_id: int, args):
             for i in range(GAMES_PER_SHARD):
                 seed = seed_base + games
                 rec = play_explore_game(net, seed, explorer_team=seed % 2,
-                                        eps=args.eps, rng=rng)
+                                        hazard=args.hazard, rng=rng)
                 f.write(json.dumps(rec) + "\n")
                 games += 1
                 if time.time() > t_end:
@@ -114,7 +123,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--hours", type=float, default=4.0)
     ap.add_argument("--workers", type=int, default=8)
-    ap.add_argument("--eps", type=float, default=0.3)
+    ap.add_argument("--hazard", type=float, default=0.12,
+                    help="per-decision deviation hazard; at most one "
+                         "deviation per game")
     ap.add_argument("--net", default="models/gen23-cand1.pt")
     ap.add_argument("--out", default=OUT_DIR)
     ap.add_argument("--seed-base", type=int, default=1_000_000_000)
@@ -125,8 +136,8 @@ def main():
              for w in range(args.workers)]
     for p in procs:
         p.start()
-    print(f"bidbrain corpus: {args.workers} workers, eps={args.eps}, "
-          f"{args.hours}h -> {args.out}", flush=True)
+    print(f"bidbrain corpus v2 (single-deviation): {args.workers} workers, "
+          f"hazard={args.hazard}, {args.hours}h -> {args.out}", flush=True)
     for p in procs:
         p.join()
     print("CORPUS RUN DONE", flush=True)

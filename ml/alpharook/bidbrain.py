@@ -205,8 +205,15 @@ def load_brain(path: str = MODEL_PATH) -> BidBrainNet:
 # ---------------------------------------------------------------------------
 
 
-def _shard_arrays(path: str):
-    X, Y = [], []
+def _shard_arrays(path: str, dev_weight: float = 20.0):
+    """X, y, sample-weights. Deviation rows are upweighted hard: house
+    rows are CONFOUNDED for the action-effect (gen23 bids 120 only with
+    monsters, so 'bid 120' correlates with winning without causing it) —
+    the v0peek net bought 736 contracts at 120 and won 2% of games by
+    learning exactly that correlation. The uniformly-random deviation rows
+    are the only causal support for off-policy bids; at ~4% of rows they
+    need ~20x weight to shape the candidate-conditional."""
+    X, Y, W = [], [], []
     with open(path) as f:
         for line in f:
             try:
@@ -220,7 +227,9 @@ def _shard_arrays(path: str):
                 X.append(featurize(r["h"], r["bh"], r["d"], r["s"],
                                    my, opp, r["hn"], r["a"]))
                 Y.append(1.0 if w == t else 0.0)
-    return np.stack(X), np.array(Y, dtype=np.float32)
+                W.append(dev_weight if r.get("r") else 1.0)
+    return (np.stack(X), np.array(Y, dtype=np.float32),
+            np.array(W, dtype=np.float32))
 
 
 def train(args):
@@ -232,13 +241,16 @@ def train(args):
 
     dev = ("mps" if torch.backends.mps.is_available() else "cpu")
     net = BidBrainNet().to(dev)
-    opt = torch.optim.Adam(net.parameters(), lr=args.lr)
-    lossf = nn.BCEWithLogitsLoss()
+    opt = torch.optim.Adam(net.parameters(), lr=args.lr,
+                           weight_decay=1e-5)
+    lossf = nn.BCEWithLogitsLoss(reduction="none")
 
-    Xv, Yv = zip(*[_shard_arrays(p) for p in val_shards])
-    Xv = torch.from_numpy(np.concatenate(Xv)).to(dev)
-    Yv = torch.from_numpy(np.concatenate(Yv)).to(dev)
-    print(f"val rows: {len(Yv):,}", flush=True)
+    vparts = [_shard_arrays(p, args.dev_weight) for p in val_shards]
+    Xv = torch.from_numpy(np.concatenate([v[0] for v in vparts])).to(dev)
+    Yv = torch.from_numpy(np.concatenate([v[1] for v in vparts])).to(dev)
+    Mv = torch.from_numpy(np.concatenate([v[2] for v in vparts])).to(dev) > 1
+    print(f"val rows: {len(Yv):,} ({int(Mv.sum())} deviation rows)",
+          flush=True)
 
     step = 0
     t0 = time.time()
@@ -247,29 +259,35 @@ def train(args):
         order = list(tr_shards)
         rng.shuffle(order)
         for sp in order:
-            X, Y = _shard_arrays(sp)
+            X, Y, W = _shard_arrays(sp, args.dev_weight)
             idx = np.random.permutation(len(Y))
-            X, Y = X[idx], Y[idx]
+            X, Y, W = X[idx], Y[idx], W[idx]
             for k in range(0, len(Y), args.batch):
                 xb = torch.from_numpy(X[k:k + args.batch]).to(dev)
                 yb = torch.from_numpy(Y[k:k + args.batch]).to(dev)
+                wb = torch.from_numpy(W[k:k + args.batch]).to(dev)
                 opt.zero_grad()
-                loss = lossf(net(xb), yb)
+                loss = (lossf(net(xb), yb) * wb).sum() / wb.sum()
                 loss.backward()
                 opt.step()
                 step += 1
             if step % 200 < len(Y) // args.batch + 1:
                 with torch.no_grad():
-                    vl = lossf(net(Xv), Yv).item()
-                    acc = (((net(Xv) > 0) == (Yv > 0.5)).float().mean()
-                           .item())
+                    p = net(Xv)
+                    vl = lossf(p, Yv).mean().item()
+                    # the number that matters: loss on CAUSAL rows only
+                    dl = lossf(p[Mv], Yv[Mv]).mean().item()
                 print(f"  epoch {epoch} step {step}: val logloss {vl:.4f} "
-                      f"acc {acc:.3f} ({time.time() - t0:.0f}s)", flush=True)
+                      f"| deviation-row logloss {dl:.4f} "
+                      f"({time.time() - t0:.0f}s)", flush=True)
                 torch.save(net.state_dict(), args.out)
     with torch.no_grad():
-        vl = lossf(net(Xv), Yv).item()
+        p = net(Xv)
+        vl = lossf(p, Yv).mean().item()
+        dl = lossf(p[Mv], Yv[Mv]).mean().item()
     torch.save(net.state_dict(), args.out)
-    print(f"final val logloss {vl:.4f} -> {args.out}", flush=True)
+    print(f"final val logloss {vl:.4f} (deviation rows {dl:.4f}) "
+          f"-> {args.out}", flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +383,8 @@ def main():
     tp.add_argument("--epochs", type=int, default=2)
     tp.add_argument("--batch", type=int, default=8192)
     tp.add_argument("--lr", type=float, default=1e-3)
+    tp.add_argument("--dev-weight", type=float, default=20.0,
+                    help="loss weight on causal (deviation) rows")
     gp = sub.add_parser("gate")
     gp.add_argument("--pairs", type=int, default=1000)
     gp.add_argument("--workers", type=int, default=8)

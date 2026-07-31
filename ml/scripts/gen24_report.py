@@ -124,6 +124,7 @@ def main():
         cup=latest(os.path.join(out, "worldcup", "cup_*.json")),
         probe=latest(os.path.join(out, "probe", "probe_*.json")),
         pairs=pairs_bundle(out),
+        bidbrain=latest(os.path.join(out, "bidbrain", "firstread_*.json")),
         oracle=dict(
             arms=ORACLE_ARMS,
             dialect=dict(passed=[1.78, 0.92], b100=[3.12, 1.24],
