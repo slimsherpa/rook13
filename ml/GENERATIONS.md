@@ -574,3 +574,19 @@ GAMES — same deck played with and without one deviation, label = the
 outcome DIFFERENCE. Common-random-numbers counterfactuals; one
 baseline serves all 12 candidates; a full near-noiseless advantage
 curve per sampled state. The variance kill, not a bigger pile.
+
+**The widow verdict (2026-07-31, evening — Riley's isolation move):**
+forget games, measure HANDS. Twin-hand methodology: same deal, same
+auction, same card play; only the declarer's (go-down, trump) differs.
+Headroom scan first (n=200 contracts): gen23's widow choice is
+hindsight-optimal only 34% of the time, leaves a median 10 pts on the
+table, and 32% of contracts flip set->made on widow choice alone. Live
+paired test, K=24 search on {discard, trump} vs bare reflex, 300
+deck-pairs / 3,010 aligned same-contract hand-pairs: **made 62.9% vs
+61.5%, paired delta +1.36% ± 1.02%, flips 142-101 (58%, p~.009)** —
+the FIRST causally confirmed improvement over gen23 in the entire
+gen24 campaign. The auction defended itself for two days; the widow
+fell in an hour. Next instrument: a per-hand widow gym (no games, no
+bidding) trained on twin-hand labels. gen7 said Rook is a bidding
+game; gen24 adds the corollary — the machine's most fixable sin is
+the discard pile.

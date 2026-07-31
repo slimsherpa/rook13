@@ -162,6 +162,29 @@ footer code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;
 
 <div class="statstrip" id="statstrip"></div>
 
+<section id="widow">
+  <h2>Act V — the widow: the first confirmed edge</h2>
+  <p class="sub">Riley's isolation move: forget games, forget bidding —
+  per HAND, given the contract you already own, can a better go-down and
+  trump choice alone make more contracts? Measured with twin hands: the
+  same deal, same auction, same card play, widow handled once by gen23
+  and once by a K=24 search chooser.</p>
+  <div class="statstrip" style="margin-bottom:14px">
+    <div class="stat"><b style="color:var(--good)">+1.36% ± 1.02</b>
+      <span>paired make-rate delta · 3,010 same-contract hand-pairs</span></div>
+    <div class="stat"><b>142 vs 101</b><span>contracts flipped set→made vs made→set (58%, p≈.009)</span></div>
+    <div class="stat"><b>32%</b><span>hindsight ceiling: contracts flippable on widow choice alone (n=200)</span></div>
+    <div class="stat"><b>34%</b><span>how often gen23's widow choice was already optimal</span></div>
+  </div>
+  <p class="aggnote">After three auction attackers hit parity walls, the
+  first causally confirmed improvement over gen23 is the <em>widow</em>:
+  gen23 leaves a median 10 points on the table per contract, and searching
+  just the go-down/trump decision collects a real slice of it. The ceiling
+  says most of the pool is still uncollected — the next instrument is a
+  per-hand widow gym with twin-hand labels. Rook may be a bidding game,
+  but the machine's most fixable sin turned out to be the discard pile.</p>
+</section>
+
 <section id="bidbrain">
   <h2>Act IV — BidBrain, the best-response bidder</h2>
   <p class="sub">gen23's auction is a frozen, known policy — frozen policies
