@@ -62,7 +62,7 @@ def city_bundle(out_dir: str, city: str):
 
 
 def latest(pattern: str):
-    files = sorted(glob.glob(pattern))
+    files = sorted(glob.glob(pattern), key=os.path.getmtime)
     if not files:
         return None
     with open(files[-1]) as f:

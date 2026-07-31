@@ -97,7 +97,36 @@ policy improvement against the house — the textbook best-response move.
   (conventions layer on top), and a candidate for distillation into
   the production stack.
 
-## Failure post-mortems to check first if the gate disappoints
+## The v1 result and the structural diagnosis (2026-07-31, hour 5)
+
+The 6-hour arc: v0 (unweighted) = **2%** — the confounding disease, it
+learned "bidding 120 is what winners do" from house correlation. v0.5
+(causal rows ×20, 30 shards) = **27%**. v1 (152k games) = **32.5%**
+peek. Each fix was found by a cheap 100-pair peek, never by burning the
+soak.
+
+What the flattening curve says: single-game WIN/LOSS labels on
+one-step deviations resolve LARGE causal effects instantly (the
+120-bomb costs ~30pp — learned in the first epoch) but cannot resolve
+the 1-2pp effects that decide crawl-vs-pass at ordinary floors — and
+crawl-vs-pass at 70-95 is exactly where the house currently collects
+1,900 contracts to our 370. More single-label data helps at sqrt speed;
+we need a variance kill, not a bigger pile.
+
+## Corpus v3 — TWIN GAMES (designed, next session)
+
+Common-random-numbers counterfactuals: for a sampled decision state,
+play the SAME deal twice — once pure house baseline, once with exactly
+one deviation — deterministic policies + same deck mean the two games
+share every card. The label becomes the OUTCOME DIFFERENCE (-1/0/+1):
+the pure causal effect of that one bid in that world, all common
+variance cancelled. Better still, one baseline serves every candidate:
+one sampled state yields the complete local advantage curve
+A(s, a) for all ~12 legal bids at ~7 game-equivalents of compute.
+States where the bid doesn't matter label 0 ("relax, it's a wash") —
+which is itself the most human bidding lesson in the whole project.
+Train on advantages, bid argmax(A). Expected yield: ~50k full curves
+(600k near-noiseless rows) per overnight soak.
 
 1. Val logloss barely under 0.693 → the label is too noisy per row →
    more corpus, or train on hand-level score deltas as auxiliary target.
