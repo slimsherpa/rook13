@@ -120,10 +120,12 @@ def play_bid_game(net, genome0, genome1, pair_seed: int, flip: bool,
                                    int(g.scores[1 - side0_team])],
                            bids=[])
             gm = genomes[team_of(seat)]
-            if gm is not None:
-                action = genome_bid(g, seat, gm)
-            else:
+            if gm is None:
                 action = model_choose(net, "cpu", env, seat, dtype, cands)
+            elif hasattr(gm, "bid"):        # duck-typed bidder (BidBrain &c)
+                action = gm.bid(g, seat, cands)
+            else:
+                action = genome_bid(g, seat, gm)
             side = 0 if team_of(seat) == side0_team else 1
             cur["bids"].append([side, int(action),
                                int(g.min_next_bid() or 0)])
