@@ -590,3 +590,17 @@ fell in an hour. Next instrument: a per-hand widow gym (no games, no
 bidding) trained on twin-hand labels. gen7 said Rook is a bidding
 game; gen24 adds the corollary — the machine's most fixable sin is
 the discard pile.
+
+**Widow forensics (n=250 contracts, hindsight-best vs gen23's choice):**
+the smoking gun is BURIED COUNTERS. On the 179 contracts where gen23's
+widow lost points, gen23 buried an average of **19.0 counter points**
+in the go-down; the best choice buried **9.0**. (Go-down points ride
+the last trick — burying counters is gift-wrapping them for whoever
+takes trick 9, and the declarer doesn't always take trick 9.) Second-
+order: best changes the trump SUIT in 36% of error cases, runs slightly
+shorter trump (4.99 -> 4.50) and chases ruffing voids less (1.10 ->
+0.76 kept). And gen23 never trumped below its longest suit (0/250) —
+the family's "trump with only 2!" complaints are about the older
+shipped bots, twice confirmed. The widow gym's mimicry target, in one
+sentence: keep your counters where your winners can escort them home,
+and stop paying points for voids.

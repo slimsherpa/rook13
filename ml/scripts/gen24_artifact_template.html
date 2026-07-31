@@ -176,6 +176,7 @@ footer code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;
     <div class="stat"><b>32%</b><span>hindsight ceiling: contracts flippable on widow choice alone (n=200)</span></div>
     <div class="stat"><b>34%</b><span>how often gen23's widow choice was already optimal</span></div>
   </div>
+  <div id="widowhist"></div>
   <p class="aggnote">After three auction attackers hit parity walls, the
   first causally confirmed improvement over gen23 is the <em>widow</em>:
   gen23 leaves a median 10 points on the table per contract, and searching
@@ -335,6 +336,35 @@ function hoverable(el, text){ el.addEventListener("mouseenter",()=>{tip.textCont
   ];
   $("#statstrip").innerHTML = items.map(([b,s])=>`<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
   $("#gendate").textContent = new Date(DATA.generated*1000).toLocaleString();
+})();
+
+/* ---------- Act V: widow swing histogram ---------- */
+(function(){
+  const W = DATA.widow;
+  if (!W){ return; }
+  const el = $("#widowhist");
+  const buckets = Object.entries(W.buckets).map(([k,v])=>[+k,v]).sort((a,b)=>a[0]-b[0]);
+  const mx = Math.max(...buckets.map(b=>b[1]));
+  const w=680, h=200, pad={l:14,r:14,t:26,b:26};
+  const bw=(w-pad.l-pad.r)/buckets.length;
+  let svg=`<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto" role="img">`;
+  buckets.forEach(([b,c],i)=>{
+    const bh=c/mx*(h-pad.t-pad.b);
+    const col = b<0 ? "var(--bad)" : b>0 ? "var(--good)" : "var(--ink3)";
+    const x=pad.l+i*bw;
+    svg+=`<rect x="${x+2}" y="${h-pad.b-bh}" width="${bw-4}" height="${Math.max(1,bh)}"
+      rx="2" fill="${col}" opacity=".85"><title>${b>0?"+":""}${b}: ${c} hands</title></rect>
+    <text x="${x+bw/2}" y="${h-pad.b+13}" font-size="8.5" text-anchor="middle">${b>0?"+":""}${b}${Math.abs(b)>=60?"+":""}</text>
+    <text x="${x+bw/2}" y="${h-pad.b-bh-4}" font-size="8.5" text-anchor="middle">${c}</text>`;
+  });
+  svg+="</svg>";
+  el.innerHTML = `<figure>${svg}<figcaption>scoreboard swing per CHANGED
+    twin-hand (search minus gen23 baseline), 10-pt buckets; ±60 buckets
+    hold the make/set flips. ${W.changed} of ${W.n} contracts changed;
+    net ${W.net>=0?"+":""}${W.net.toLocaleString()} pts, mean
+    ${W.mean>=0?"+":""}${W.mean.toFixed(1)}/hand overall,
+    ${W.mean_changed>=0?"+":""}${W.mean_changed.toFixed(1)} per changed
+    hand.</figcaption></figure>`;
 })();
 
 /* ---------- Act IV: BidBrain first read ---------- */
