@@ -19,6 +19,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from alpharook.bidcity import CULTURES  # noqa: E402
 from alpharook.bidgenes import GENE_SPECS, GENE_NAMES, default_genome  # noqa: E402
 
+
+def _pair_specs():
+    from alpharook.bidpairs import PAIR_GENES
+    return {k: dict(lo=v[0], hi=v[1], sigma=v[2]) for k, v in PAIR_GENES.items()}
+
 TRAJ_GENES = ["base", "per_trick", "war_stretch", "jump_gap",
               "deficit_slope", "desperation", "protection", "cliff_fear"]
 
@@ -64,6 +69,42 @@ def latest(pattern: str):
         return json.load(f)
 
 
+# The oracle sweep record (arms are cheap 40-60 pair reads; the story is
+# the gradient, so the table is committed here as part of the report).
+ORACLE_ARMS = [
+    dict(arm="A", cfg="K16 · listen", rate=0.362, ci=0.085, n=80),
+    dict(arm="B", cfg="K16 · deaf", rate=0.312, ci=0.090, n=80),
+    dict(arm="C", cfg="K32 · listen · tight", rate=0.462, ci=0.100, n=80),
+    dict(arm="D", cfg="K32 · listen · thin margin", rate=0.475, ci=0.104, n=80),
+    dict(arm="E", cfg="K48 · listen", rate=0.388, ci=0.088, n=80),
+    dict(arm="F", cfg="K64 · listen", rate=0.488, ci=0.088, n=80),
+]
+
+
+def pairs_bundle(out_dir: str):
+    path = os.path.join(out_dir, "pairs", "state.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        st = json.load(f)
+    if not st["history"]:
+        return None
+    last = st["history"][-1]
+    champ_name = last["table"][0]["name"]
+    champ = next(p for p in st["pairs"] if p["name"] == champ_name)
+    gauntlets = [dict(season=g["season"],
+                      best=g["rows"][0]["rate"],
+                      best_name=g["rows"][0]["name"],
+                      median=g["rows"][len(g["rows"]) // 2]["rate"])
+                 for g in st["gauntlets"]]
+    return dict(season=st["season"], table=last["table"],
+                conventions=last.get("conventions", {}),
+                champ=dict(name=champ["name"], first=champ["first"],
+                           second=champ["second"], gA=champ["gA"],
+                           gB=champ["gB"], born=champ["born"]),
+                gauntlets=gauntlets, hof=st["hof"][-8:])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="runs/gen24")
@@ -81,6 +122,14 @@ def main():
         cities={k: v for k, v in cities.items() if v},
         cup=latest(os.path.join(out, "worldcup", "cup_*.json")),
         probe=latest(os.path.join(out, "probe", "probe_*.json")),
+        pairs=pairs_bundle(out),
+        oracle=dict(
+            arms=ORACLE_ARMS,
+            dialect=dict(passed=[1.78, 0.92], b100=[3.12, 1.24],
+                         b105=[4.02, 1.10], b110=[4.78, 0.96],
+                         crawl=[2.93, 1.20]),
+        ),
+        pair_gene_specs=_pair_specs(),
     )
     path = os.path.join(out, "report.json")
     with open(path, "w") as f:

@@ -231,7 +231,9 @@ def play_pair_game(net, pairA, pairB, pair_seed: int, flip: bool,
                     g.bids[seat] is None and action != PASS and \
                     next((b for s2, b in g.bid_history
                           if s2 == partner_of(seat) and b != PASS), None) is None:
-                telemetry.append((chair, round(estimate_tricks(g.hands[seat]), 2),
+                side_idx = 0 if team_of(seat) == a_team else 1
+                telemetry.append((side_idx, chair,
+                                  round(estimate_tricks(g.hands[seat]), 2),
                                   int(action)))   # opening statements
         else:
             action = model_choose(net, "cpu", env, seat, dtype, cands)
@@ -277,7 +279,9 @@ def _worker_match(job):
             for k in (0, 1):
                 for f in stats[k]:
                     stats[k][f] += st[k][f]
-    return i, j, wins, diff, stats, tel
+    tel_i = [(ch, t, b) for s2, ch, t, b in tel if s2 == 0]
+    tel_j = [(ch, t, b) for s2, ch, t, b in tel if s2 == 1]
+    return i, j, wins, diff, stats, tel_i, tel_j
 
 
 def _worker_gauntlet(job):
@@ -359,7 +363,7 @@ class PairsLeague:
         acc = [dict(wins=0, games=0, diff=0, contracts=0, made=0, bid_sum=0)
                for _ in pairs]
         tel_by_pair: dict[int, list] = {i: [] for i in range(len(pairs))}
-        for i, j, wins, diff, stats, tel in \
+        for i, j, wins, diff, stats, tel_i, tel_j in \
                 self.pool.imap_unordered(_worker_match, jobs):
             n = 2 * PAIRS_PER_MATCH
             acc[i]["wins"] += wins
@@ -371,7 +375,8 @@ class PairsLeague:
             for side, idx in ((0, i), (1, j)):
                 for f in ("contracts", "made", "bid_sum"):
                     acc[idx][f] += stats[side][f]
-            tel_by_pair[i].extend(tel)
+            tel_by_pair[i].extend(tel_i)
+            tel_by_pair[j].extend(tel_j)
 
         # fitness: per-game point differential, EMA-smoothed
         for p, a in zip(pairs, acc):

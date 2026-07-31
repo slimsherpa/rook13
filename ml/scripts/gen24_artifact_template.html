@@ -152,16 +152,37 @@ footer code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;
 <header>
   <div class="eyebrow">Rook13 · Generation 24 · a live experiment on Riley's MacBook</div>
   <h1>The Bid Gym</h1>
-  <p class="dek">Four cities of bidders who all play identical cards. gen23 plays
-  every trick, every go-down, every trump call — the only thing evolution can
-  touch is the <em>auction</em>. Family rules, −250/+500, where one bad contract
-  is a cliff. Rook is a bidding game; this page is the reading of its genes.</p>
+  <p class="dek">Every bot at this table plays identical cards — gen23 plays
+  every trick, every go-down, every trump call. The only thing that varies is
+  the <em>auction</em>, in the family's −250/+500 format where one bad contract
+  is a cliff. Three acts so far: the gene cities, the AlphaBid oracle, and the
+  partnership league now running — locked pairs evolving their own bidding
+  language against the gen23&nbsp;&amp;&nbsp;gen23 house team.</p>
 </header>
 
 <div class="statstrip" id="statstrip"></div>
 
+<section id="pairs">
+  <h2>Act III — the partnership league</h2>
+  <p class="sub">Locked pairs for life. Each partner carries 13 interpretable
+  genes that <em>modulate gen23's own Q-values</em> — all-zero genes bid
+  byte-identically to the house, so every surviving deviation is a
+  discovery. Fitness is mirrored-deck point differential (EMA-smoothed);
+  every 8th season the league runs the gauntlet against the locked
+  <b>gen23&nbsp;&amp;&nbsp;gen23</b> house team.</p>
+  <div id="pairsbody"></div>
+</section>
+
+<section id="oracle">
+  <h2>Act II — the oracle saga</h2>
+  <p class="sub">AlphaBid: sample worlds consistent with the auction, roll
+  each out with frozen gen23, wager in win-probability currency. The sweep
+  proved listening matters and worlds matter — and found the wall.</p>
+  <div id="oraclebody"></div>
+</section>
+
 <section id="cities">
-  <h2>The four cities</h2>
+  <h2>Act I — the gene cities (retired)</h2>
   <p class="sub">Each league: 10 evolving genomes and two immortal anchors —
   <em>family</em> (the calibrated family bidder, score-blind) and <em>gen23</em>
   (the net's own neural auction). Every season is a duplicate-deck round-robin;
@@ -250,15 +271,110 @@ function hoverable(el, text){ el.addEventListener("mouseenter",()=>{tip.textCont
   const cs = Object.values(DATA.cities||{});
   const seasons = cs.reduce((a,c)=>a+c.season,0);
   const games = cs.reduce((a,c)=>a+(c.games_played||0),0);
+  const lastG = DATA.pairs && DATA.pairs.gauntlets.length
+    ? DATA.pairs.gauntlets[DATA.pairs.gauntlets.length-1] : null;
   const items = [
-    [seasons.toLocaleString(), "league seasons"],
-    [games.toLocaleString(), "games played"],
-    [cs.length, "cities running"],
+    [DATA.pairs ? DATA.pairs.season : 0, "pair-league seasons"],
+    [lastG ? Math.round(lastG.best*100)+"%" : "—", "best vs the house"],
+    [(seasons + (DATA.pairs ? DATA.pairs.season : 0)).toLocaleString(), "seasons, all acts"],
+    [games.toLocaleString(), "act-one games banked"],
     [DATA.probe ? DATA.probe.panel.length : 0, "hands on the probe panel"],
-    [DATA.cup ? "#"+DATA.cup.cup : "—", "latest world cup"],
   ];
   $("#statstrip").innerHTML = items.map(([b,s])=>`<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
   $("#gendate").textContent = new Date(DATA.generated*1000).toLocaleString();
+})();
+
+/* ---------- Act III: the partnership league ---------- */
+(function(){
+  const P = DATA.pairs;
+  if (!P){ $("#pairsbody").innerHTML = `<div class="empty">league not started yet</div>`; return; }
+  // gauntlet trend: best + median vs the 50% house line
+  const gs = P.gauntlets;
+  let chart = "";
+  if (gs.length >= 2){
+    chart = lineChart({series:[
+        {x:gs.map(g=>g.season), y:gs.map(g=>g.best), col:"var(--provo)", label:"best"},
+        {x:gs.map(g=>g.season), y:gs.map(g=>g.median), col:"var(--moab)", label:"median"}],
+      refY:0.5, yFmt:v=>Math.round(v*100)+"%", w:640, h:200,
+      pad:{l:44,r:64,t:12,b:22}});
+  }
+  const spec = DATA.pair_gene_specs;
+  const bar = (k, val)=>{
+    const s = spec[k], span = s.hi - s.lo;
+    const d = val / span;
+    const w = Math.min(48, Math.abs(d)*100);
+    const side = d >= 0 ? "left:50%" : `left:${50-w}%`;
+    const col = d >= 0 ? "var(--bad)" : "var(--moab)";
+    return `<div class="gbar"><div class="axis"></div>
+      <div class="bar" style="${side};width:${w}%;background:${col};opacity:.85"></div></div>`;
+  };
+  const chairCol = (g)=>Object.keys(spec).map(k=>
+    `<div class="generow"><span class="gname">${k}</span>${bar(k, g[k])}
+     <span class="gval">${g[k]>=0?"+":""}${g[k].toFixed(2)}</span></div>`).join("");
+  const c = P.champ;
+  const conv = P.conventions[c.name];
+  const convRow = (who, l)=> l ? `<tr><td>${esc(who)}</td>` +
+    l.map(v=>`<td class="num">${v==null?"—":v}</td>`).join("") + "</tr>" : "";
+  const lastG = gs[gs.length-1];
+  $("#pairsbody").innerHTML = `
+    <figure>${chart}<figcaption>gauntlet vs the house — dashed line is
+      gen23 parity; season ${P.season}, latest best
+      ${lastG ? Math.round(lastG.best*100)+"% ("+esc(lastG.best_name)+")" : "—"}</figcaption></figure>
+    <div class="grid2" style="margin-top:18px">
+      <div class="citycard">
+        <div class="cityhead"><span class="chip" style="background:var(--provo)"></span>
+          <h3>${esc(c.name)}</h3><span class="cul">league leaders, season ${P.season}</span></div>
+        <div class="genefp"><div class="glabel">${esc(c.first)} (first chair) — drift from house</div>${chairCol(c.gA)}</div>
+        <div class="genefp"><div class="glabel">${esc(c.second)} (second chair)</div>${chairCol(c.gB)}</div>
+      </div>
+      <div class="citycard">
+        <div class="cityhead"><h3 style="font-size:17px">Their opening language</h3></div>
+        <div class="tblwrap"><table><thead><tr><th>chair</th><th class="num">junk</th>
+          <th class="num">thin</th><th class="num">decent</th><th class="num">monster</th></tr></thead>
+          <tbody>${convRow(c.first, conv && conv.A)}${convRow(c.second, conv && conv.B)}</tbody></table></div>
+        <p class="aggnote">Mean opening level by hand strength this season.
+        A flat row = mute crawler (the house's dialect); a steep row = the
+        pair invented a signal.</p>
+        <div class="tblwrap" style="margin-top:10px"><table><thead>
+          <tr><th class="num">#</th><th>pair</th><th class="num">EMA diff/game</th>
+          <th class="num">last W–L</th><th class="num">avg bid</th></tr></thead><tbody>
+          ${P.table.slice(0,6).map((r,i)=>`<tr><td class="num">${i+1}</td><td>${esc(r.name)}</td>
+            <td class="num">${r.ema>=0?"+":""}${r.ema}</td>
+            <td class="num">${r.wins}–${r.games-r.wins}</td>
+            <td class="num">${r.avg_bid}</td></tr>`).join("")}
+        </tbody></table></div>
+      </div>
+    </div>`;
+})();
+
+/* ---------- Act II: the oracle saga ---------- */
+(function(){
+  const O = DATA.oracle;
+  if (!O){ $("#oraclebody").innerHTML = ""; return; }
+  const rows = O.arms.map(a=>{
+    const pct100 = Math.round(a.rate*1000)/10;
+    const w = Math.max(2, (a.rate-0.25)*200);
+    return `<tr><td>${esc(a.arm)}</td><td>${esc(a.cfg)}</td>
+      <td style="min-width:180px"><div style="position:relative;height:12px">
+        <div style="position:absolute;left:${(0.5-0.25)*200}px;top:-2px;bottom:-2px;width:1px;background:var(--ink3)"></div>
+        <div style="position:absolute;left:0;top:2px;height:8px;border-radius:2px;width:${w}px;background:${a.rate>=0.5?"var(--good)":"var(--heat3)"}"></div>
+      </div></td>
+      <td class="num">${pct100}% ± ${Math.round(a.ci*1000)/10}</td></tr>`;
+  }).join("");
+  const d = O.dialect;
+  $("#oraclebody").innerHTML = `
+    <div class="tblwrap"><table><thead><tr><th>arm</th><th>config</th>
+      <th>vs gen23's auction (line = parity)</th><th class="num">win rate</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <p class="aggnote" style="margin-top:14px"><b>The dialect discovery</b> —
+    measured from 19,852 gen23 seat-hands: its bids 65–95 are one mute crawl
+    class (${d.crawl[0]} ± ${d.crawl[1]} tricks regardless of level). The
+    information lives at the top: willing-to-say-100 means ${d.b100[0]}
+    tricks, 105 means ${d.b105[0]}, 110 means ${d.b110[0]}; a pass means
+    ${d.passed[0]}. Listening was worth +5pp; worlds were worth ~+12pp
+    (K16→K64); and the wall is the winner's curse — at feasible K the
+    rollout oracle plateaus just under parity with the distilled
+    equilibrium it is trying to out-bid.</p>`;
 })();
 
 /* ---------- city cards ---------- */
