@@ -178,7 +178,8 @@ class OracleBidder:
 
     def __init__(self, net, wp: WinProb, worlds: int = 16,
                  listen: bool = True, max_raises: int = 2,
-                 margin: float = 0.02, widen: float = 1.5):
+                 margin: float = 0.02, widen: float = 1.5,
+                 oversample: int = 4):
         # margin: a raise must beat PASS by this much win-probability to be
         # chosen. EV differences at K worlds carry ~1/sqrt(K) noise, and the
         # option menu is mostly raises — without a fold-unless-clearly-+EV
@@ -190,6 +191,7 @@ class OracleBidder:
         self.listen = BidEvidence(widen=widen) if listen else None
         self.max_raises = max_raises
         self.margin = margin
+        self.oversample = oversample
         self.stats = dict(decisions=0, worlds=0, secs=0.0)
 
     def _candidates(self, g: Game, cands: list[int]) -> list[int]:
@@ -233,7 +235,8 @@ class OracleBidder:
         rng = random.Random((g.hand_number * 1_000_003)
                             ^ (len(g.bid_history) * 7919)
                             ^ hash(tuple(sorted(g.hands[me]))) & 0xFFFFFF)
-        worlds = sample_worlds(g, me, self.worlds, self.listen, rng)
+        worlds = sample_worlds(g, me, self.worlds, self.listen, rng,
+                               oversample=self.oversample)
         team = team_of(me)
         ev = {c: 0.0 for c in options}
         for world in worlds:
@@ -304,12 +307,14 @@ _W: dict = {}
 
 
 def _init_worker(net_path: str, worlds: int, listen: bool,
-                 win: int, lose: int, margin: float, widen: float):
+                 win: int, lose: int, margin: float, widen: float,
+                 oversample: int):
     torch.set_num_threads(1)
     net = load_qnet(net_path)
     _W["net"] = net
     _W["oracle"] = OracleBidder(net, WinProb(), worlds=worlds, listen=listen,
-                                margin=margin, widen=widen)
+                                margin=margin, widen=widen,
+                                oversample=oversample)
     _W["win"], _W["lose"] = win, lose
 
 
@@ -339,6 +344,7 @@ def main():
     ap.add_argument("--lose-score", type=int, default=-250)
     ap.add_argument("--margin", type=float, default=0.02)
     ap.add_argument("--widen", type=float, default=1.5)
+    ap.add_argument("--oversample", type=int, default=4)
     ap.add_argument("--dump", default=None)
     args = ap.parse_args()
     listen = bool(args.listen) and not args.deaf
@@ -371,7 +377,8 @@ def main():
     with ctx.Pool(args.workers, initializer=_init_worker,
                   initargs=(args.net, args.worlds, listen,
                             args.win_score, args.lose_score,
-                            args.margin, args.widen)) as pool:
+                            args.margin, args.widen,
+                            args.oversample)) as pool:
         for n, (seed, games, ostats) in enumerate(
                 pool.imap_unordered(_run_pair, pair_seeds), 1):
             pw = 0
