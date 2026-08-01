@@ -162,20 +162,31 @@ def train(args):
 
 
 class WidowChooser:
-    """Enumerates all 2,860 (discard, trump) options and argmaxes the net."""
+    """Enumerates (discard, trump) options and argmaxes the net.
+    longest_only enforces Riley's hard rule: trump must be one of the
+    longest suits in the 13 (ties allowed) — v1 already chose that way
+    99.2% of the time on its own; pinning it spends the net's whole
+    capacity on the go-down."""
 
-    def __init__(self, path: str = MODEL_PATH):
+    def __init__(self, path: str = MODEL_PATH, longest_only: bool = False):
         self.net = WidowNet()
         self.net.load_state_dict(torch.load(path, map_location="cpu",
                                             weights_only=True))
         self.net.eval()
+        self.longest_only = longest_only
 
     @torch.no_grad()
     def choose(self, hand13, bid):
         hand13 = sorted(hand13)
+        trumps = list(SUITS)
+        if self.longest_only:
+            import collections
+            lens = collections.Counter(suit_of(c) for c in hand13)
+            mx = max(lens.values())
+            trumps = [s for s in SUITS if lens.get(s, 0) == mx]
         cands = []
         for disc in itertools.combinations(hand13, 4):
-            for t in SUITS:
+            for t in trumps:
                 if any(suit_of(c) == t for c in hand13 if c not in disc):
                     cands.append((list(disc), t))
         X = np.stack([featurize(hand13, bid, d, t) for d, t in cands])
@@ -190,11 +201,11 @@ class WidowChooser:
 _G: dict = {}
 
 
-def _gate_init(net_path, brain_path):
+def _gate_init(net_path, brain_path, longest_only=False):
     torch.set_num_threads(1)
     from .widowgym_data import rollout  # noqa: F401
     _G["net"] = load_qnet(net_path)
-    _G["chooser"] = WidowChooser(brain_path)
+    _G["chooser"] = WidowChooser(brain_path, longest_only=longest_only)
 
 
 def _gate_chunk(seeds):
@@ -248,7 +259,8 @@ def gate(args):
     rows = []
     t0 = time.time()
     with ctx.Pool(args.workers, initializer=_gate_init,
-                  initargs=(args.net, args.brain)) as pool:
+                  initargs=(args.net, args.brain,
+                            getattr(args, "longest_only", False))) as pool:
         for n, out in enumerate(pool.imap_unordered(_gate_seed, seeds), 1):
             rows.extend(out)
             if n % 40 == 0 and rows:
@@ -292,6 +304,7 @@ def main():
     gp.add_argument("--seed", type=int, default=4_000_000_000)
     gp.add_argument("--net", default="models/gen23-cand1.pt")
     gp.add_argument("--brain", default=MODEL_PATH)
+    gp.add_argument("--longest-only", action="store_true")
     args = ap.parse_args()
     if args.cmd == "train":
         train(args)
