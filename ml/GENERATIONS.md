@@ -636,3 +636,20 @@ trump brain) measured clean in self-play (3,080 contracts, never a
 screenshots therefore implicate out-of-distribution HUMAN auctions,
 the browser gen19->gen13 degradation path, or service plumbing;
 production-games audit is the next job.
+
+**THE 2-CARD-TRUMP BUG (2026-08-01, the cousins' screenshots vindicated):**
+production audit — all 714 completed games replayed through the parity
+engine via read-only Firestore REST. Verdict table: every brain picks
+shorter-than-longest 0-1.4% of the time, humans 0.6% — except style
+'teacher' (Cosmo): **9.5% (40/422)**. Root cause in
+service/brain/main.py: the stateless nudge RE-DERIVES trump at the
+TRUMP phase on the kept nine — a decision type the net never saw in
+training (the lab auto-applies the widow-time intent) and a hand whose
+discards were shaped for a different trump. Local repro: 12.2%
+intent-disagreement, 6.2% shorter-than-longest. The comment in the old
+code claimed "same net, same kept hand, same answer" — same net, WRONG
+question. Fix: rebuild the 13-card widow state and re-ask the exact
+intent question; verified byte-exact against the lab intent on 1,484
+contracts (0 mismatches). Lesson for the ledger: a model is only as
+sane as the distribution of questions you ask it — the bug was never
+in gen21, it was in the interview. Deploy pending (Riley's console).

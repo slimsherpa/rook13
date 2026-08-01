@@ -391,13 +391,40 @@ def decide(req: DecideReq):
     if dtype == D_DISCARD:
         return collect_go_down()
 
+    if dtype == D_TRUMP:
+        # THE 2-CARD-TRUMP BUG (found 2026-08-01, prod audit of 714 games):
+        # asking the net for trump HERE — at the TRUMP phase, on the kept
+        # nine — is a question it never saw in training (the lab always
+        # auto-applies the widow-time intent), and its discards were shaped
+        # around that intent. The stateless re-derivation disagreed with
+        # the intent 12.2% of the time and picked a shorter-than-longest
+        # suit 6.2% (production 'teacher': 9.5%, incl. gutted 2-card
+        # suits). Fix: rebuild the 13-card widow state and re-ask the
+        # EXACT intent question — deterministic, in-distribution, and
+        # consistent with the discards it already made.
+        g13 = g.clone()
+        g13.hands[seat] = g13.hands[seat] + list(g13.go_down)
+        g13.go_down = []
+        g13.phase = WIDOW
+        g13.turn = seat
+        env13 = SelfPlayGame.__new__(SelfPlayGame)
+        env13.g = g13
+        env13.picks = []
+        env13.trump_intent = None
+        _s3, d3, c3 = env13.decision()
+        assert d3 == D_TRUMP, "widow reconstruction should ask for intent"
+        if spec[0] == "reflex":
+            intent = int(model_choose(spec[1], "cpu", env13, seat,
+                                      D_TRUMP, c3))
+        else:
+            intent = int(spec[2].choose(env13, seat, D_TRUMP, c3))
+        return {"action": {"type": "SELECT_TRUMP", "seat": sname,
+                           "suit": intent}}
+
     choice = choose(dtype, cands)
     if dtype == D_BID:
         return {"action": {"type": "BID", "seat": sname,
                            "bid": "pass" if choice == PASS else choice}}
-    if dtype == D_TRUMP:
-        return {"action": {"type": "SELECT_TRUMP", "seat": sname,
-                           "suit": choice}}
     return {"action": {"type": "PLAY_CARD", "seat": sname, "card": choice}}
 
 

@@ -406,18 +406,20 @@ function hoverable(el, text){ el.addEventListener("mouseenter",()=>{tip.textCont
     make), occasionally a small +5..+15 point pickup, and almost never
     in-between — hand scores are chunky.</p>
     <div class="statstrip" style="margin-top:16px">
-      <div class="stat"><b style="color:var(--good)">+2.37% ± 1.29</b>
-        <span>WIDOWBRAIN v1 — paired make-rate vs gen23, 3,000 fresh contracts, NO peeking</span></div>
-      <div class="stat"><b>230 vs 159</b><span>contracts rescued vs lost (p≈0.0002)</span></div>
-      <div class="stat"><b>+5.3</b><span>pts per contract, scoreboard</span></div>
-      <div class="stat"><b>0.1s</b><span>per game — scores all 2,860 options in one pass</span></div>
+      <div class="stat"><b style="color:var(--good)">+3.80% ± 1.37</b>
+        <span>WIDOWBRAIN v2 — paired make-rate vs gen23, 3,000 fresh contracts, NO peeking</span></div>
+      <div class="stat"><b>277 vs 163</b><span>contracts rescued vs lost</span></div>
+      <div class="stat"><b>+8.5</b><span>pts per contract, scoreboard (v1: +5.3)</span></div>
+      <div class="stat"><b>±0.03pp</b><span>value of hardcoding the longest-trump rule: nothing — the net obeys it voluntarily</span></div>
     </div>
-    <p class="aggnote"><b>The bot passed.</b> Trained on this corpus ("beat
-    gen23's widow, get rewarded" as the literal loss), seeing only its 13
-    cards and the bid. It beats the live search chooser (+1.36pp) at a
-    thousandth of the cost — the first shippable product of the whole
-    campaign. The map says ~+30–48 pts/contract exist; v1 collects ~5.3.
-    The remaining gap is v2's job.</p>`;
+    <p class="aggnote"><b>The bot passed, twice.</b> v1 (+2.37pp) proved the
+    method; v2 nearly doubled it by spending the entire second corpus on
+    go-down variations under a longest-trump exploration rule — then
+    playing with the rule OFF, because masked and unmasked gated identical.
+    Trained only on "beat gen23's widow on the same cards, get rewarded,"
+    seeing only its 13 cards and the bid; decides in milliseconds. The map
+    says ~+30–48 pts/contract exist; v2 collects ~8.5 — the first
+    shippable product of the campaign, and the gap is the roadmap.</p>`;
 })();
 
 /* ---------- Act V: widow swing histogram ---------- */
