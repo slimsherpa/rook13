@@ -12,7 +12,7 @@ Cosmo (the grandmaster). Listed here strongest first:
 
 | File                    | Agent       | Brain            | Camp rank | Art |
 |-------------------------|-------------|------------------|-----------|-----|
-| `00-AlphaGodRook.jpg`   | AlphaGodRook| godrook (solver) | secret unlock | (art wanted: all-seeing rook) |
+| `00-AlphaGodRook.jpg`   | AlphaGodRook| godrook (solver) | secret unlock | crowned black rook, glowing eye (midnight-blue bg — keep it dark) |
 | `07-Cosmo.jpg`          | Cosmo       | teacher (gen21+t0, Cloud Run) | grandmaster (default) | BYU space cougar w/ glasses |
 | `06-Cougar.jpg`         | Cougar      | gen19            | #2        | tan cougar (purple bg) |
 | `05-Puma.jpg`           | Puma        | gen16            | #3        | black panther (blue bg) |
