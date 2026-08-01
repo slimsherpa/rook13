@@ -15,6 +15,7 @@
 import http from 'node:http';
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 import {
     GameDoc, GameAction, Seat, SEATS, SUITS, Card,
@@ -26,6 +27,13 @@ const BRAIN = process.env.BRAIN_URL ?? 'http://127.0.0.1:8081';
 const PORT = Number(process.env.PORT ?? 8080);
 // natural table pacing: never answer faster than this after the turn starts
 const MIN_MOVE_MS = 1200;
+// The IAM invoker stays allUsers (Firebase ID tokens aren't Google IAM
+// identity tokens), so WE are the auth boundary: every POST must carry a
+// verified Firebase ID token. ALLOW_ANON=1 is the rollback hatch for a
+// deploy-ordering pinch (old clients that don't send tokens yet).
+const ALLOW_ANON = process.env.ALLOW_ANON === '1';
+// biggest legit body is {gameId, hand} — anything bigger is abuse
+const MAX_BODY_BYTES = 1024;
 
 initializeApp({ credential: applicationDefault() });
 const db = getFirestore();
@@ -243,6 +251,38 @@ const runAudit = async (gameId: string, hand: number): Promise<Record<string, un
 };
 
 // ---------------------------------------------------------------------------
+// Auth: verify the caller's Firebase ID token. Bots are only ever nudged by
+// signed-in players (GameRoom's auth wall), so an anonymous nudge is either
+// a stale client or an internet stranger burning our Cloud Run bill.
+// ---------------------------------------------------------------------------
+const verifyCaller = async (req: http.IncomingMessage): Promise<string | null> => {
+    const header = req.headers.authorization ?? '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (!token) return ALLOW_ANON ? 'anon' : null;
+    try {
+        return (await getAuth().verifyIdToken(token)).uid;
+    } catch {
+        return ALLOW_ANON ? 'anon' : null;
+    }
+};
+
+// per-user audit quota: solver jobs cost ~a minute of CPU each, so one
+// person can't queue-bomb the brain. Counted per request — already-solved
+// hands never generate a request (clients see the verdict via subscription),
+// so in practice this only meters fresh solves.
+const AUDIT_QUOTA = 12;
+const AUDIT_WINDOW_MS = 60 * 60 * 1000;
+const auditSpends = new Map<string, number[]>();
+const underAuditQuota = (uid: string): boolean => {
+    const now = Date.now();
+    const spent = (auditSpends.get(uid) ?? []).filter((t) => now - t < AUDIT_WINDOW_MS);
+    auditSpends.set(uid, spent);
+    if (spent.length >= AUDIT_QUOTA) return false;
+    spent.push(now);
+    return true;
+};
+
+// ---------------------------------------------------------------------------
 // HTTP surface: POST /nudge {gameId}, POST /audit {gameId, hand}, GET /status
 // ---------------------------------------------------------------------------
 const server = http.createServer(async (req, res) => {
@@ -251,7 +291,7 @@ const server = http.createServer(async (req, res) => {
     // client fetch dies at OPTIONS and the tables fall back to local cover
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'content-type');
+    res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
     if (req.method === 'OPTIONS') {
         res.writeHead(204).end();
         return;
@@ -269,12 +309,30 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && (url.pathname === '/nudge' || url.pathname === '/audit')) {
         let body = '';
-        req.on('data', (c) => { body += c; });
+        let dropped = false;
+        req.on('data', (c) => {
+            body += c;
+            if (body.length > MAX_BODY_BYTES && !dropped) {
+                dropped = true;
+                res.writeHead(413).end('too big');
+                req.destroy();
+            }
+        });
         req.on('end', async () => {
+            if (dropped) return;
             try {
+                const uid = await verifyCaller(req);
+                if (!uid) {
+                    res.writeHead(401).end('sign in');
+                    return;
+                }
                 const { gameId, hand } = JSON.parse(body || '{}');
                 if (typeof gameId !== 'string' || !/^[a-z0-9]{1,32}$/.test(gameId)) {
                     res.writeHead(400).end('bad gameId');
+                    return;
+                }
+                if (url.pathname === '/audit' && !underAuditQuota(uid)) {
+                    res.writeHead(429).end('audit quota — try again in an hour');
                     return;
                 }
                 // answer after the work so Cloud Run keeps CPU allocated

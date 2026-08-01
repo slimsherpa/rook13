@@ -6,8 +6,22 @@
 // malicious nudge can never corrupt a game. Fire-and-forget: if the
 // service is down, useGame's 20s local cover keeps the table moving.
 
+import { auth } from './firebase/firebase';
+
 export const BOT_SERVICE_URL =
     process.env.NEXT_PUBLIC_BOT_SERVICE_URL ?? 'https://rook13-bots-3ytxfwifyq-uc.a.run.app';
+
+/** Auth headers for the bot service: it verifies our Firebase ID token
+ *  (the SDK caches it, so this is a sync-fast call between refreshes).
+ *  No user → no header → the service 401s and local cover takes over. */
+export const botServiceHeaders = async (): Promise<Record<string, string>> => {
+    const base: Record<string, string> = { 'content-type': 'application/json' };
+    try {
+        const token = await auth.currentUser?.getIdToken();
+        if (token) base.authorization = `Bearer ${token}`;
+    } catch { /* expired session — send without and let the 401 speak */ }
+    return base;
+};
 
 const nudged = new Map<string, number>(); // gameId -> last actionCount nudged
 
@@ -32,9 +46,9 @@ const markUnhealthy = () => {
 export const nudgeBotService = (gameId: string, actionCount: number): void => {
     if (nudged.get(gameId) === actionCount) return;
     nudged.set(gameId, actionCount);
-    const attempt = () => fetch(`${BOT_SERVICE_URL}/nudge`, {
+    const attempt = async () => fetch(`${BOT_SERVICE_URL}/nudge`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: await botServiceHeaders(),
         body: JSON.stringify({ gameId }),
         keepalive: true,
     });

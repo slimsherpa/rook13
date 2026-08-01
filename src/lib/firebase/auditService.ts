@@ -7,7 +7,7 @@
 import { collection, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { db } from './firebase';
 import { Card, Seat } from '../game/types';
-import { BOT_SERVICE_URL } from '../botService';
+import { BOT_SERVICE_URL, botServiceHeaders } from '../botService';
 
 export interface AuditBlunder {
     /** trick index within the hand, 0-based */
@@ -48,7 +48,7 @@ export const requestHandAudit = async (gameId: string, hand: number): Promise<bo
     try {
         const res = await fetch(`${BOT_SERVICE_URL}/audit`, {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: await botServiceHeaders(),
             body: JSON.stringify({ gameId, hand }),
         });
         if (!res.ok) throw new Error(String(res.status));

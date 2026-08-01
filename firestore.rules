@@ -6,32 +6,57 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Games: any signed-in player can read (enables spectating) and any
-    // signed-in player can write via the client engine's transactions.
-    // Move legality is enforced by the shared rules engine on every client;
-    // this is a family game built on trust, not an anti-cheat system.
+    // Games: any signed-in player can read (enables spectating). Writes are
+    // restricted to the people IN the game — the host and the seated
+    // players — plus anyone seating themselves at an open table (their uid
+    // appears in the incoming playerUids). Move legality is still enforced
+    // by the shared rules engine on every client; this is a family game
+    // built on trust, not an anti-cheat system. What these rules stop is
+    // the drive-by: a signed-in stranger rewriting a table they never
+    // joined.
     match /games/{gameId} {
+      function inGame(data) {
+        return request.auth.uid in data.playerUids
+          || request.auth.uid == data.hostUid;
+      }
+
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.hostUid == request.auth.uid;
-      allow update: if signedIn();
+      allow update: if signedIn()
+        && (inGame(resource.data)
+            // sitting down at an open table adds yourself to playerUids
+            || request.auth.uid in request.resource.data.playerUids);
       allow delete: if false;
 
-      // Append-only action log for replays.
+      // Append-only action log for replays. Same membership boundary as the
+      // game doc (the two are written in one transaction). SIT/LEAVE_SEAT
+      // are the join/leave moves themselves — at rule-evaluation time the
+      // actor isn't in the committed playerUids yet, so they get a typed
+      // escape hatch instead of a membership check.
       match /actions/{actionId} {
+        function parentGame() {
+          return get(/databases/$(database)/documents/games/$(gameId)).data;
+        }
         allow read: if signedIn();
-        allow create: if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['index', 'at', 'action', 'by'])
+          && request.resource.data.action is map
+          && (request.resource.data.action.type in ['SIT', 'LEAVE_SEAT']
+              || inGame(parentGame()));
         allow update, delete: if false;
       }
 
       // Spectator presence heartbeats: each watcher owns exactly one doc
-      // keyed by their uid.
+      // keyed by their uid. Watchers are by definition NOT in the game, so
+      // no membership check here.
       match /watchers/{watcherUid} {
         allow read: if signedIn();
         allow write: if signedIn() && request.auth.uid == watcherUid;
       }
 
       // Blunder reports for AI training: anyone who can see the game can
-      // file one; append-only except the reporter retracting their own.
+      // file one (spectators included); append-only except the reporter
+      // retracting their own.
       match /blunders/{blunderId} {
         allow read: if signedIn();
         allow create: if signedIn() && request.resource.data.reporter.uid == request.auth.uid;
@@ -48,6 +73,7 @@ service cloud.firestore {
 
       // Table talk: short bubbles, append-only FOREVER — the permanent log
       // is the anti-signaling audit trail (chatService.ts caps length).
+      // Spectators can talk too, so no membership check.
       match /chat/{msgId} {
         allow read: if signedIn();
         allow create: if signedIn()
@@ -59,11 +85,18 @@ service cloud.firestore {
     }
 
     // Table invites: created by the sender, retired (accepted/declined) by
-    // either side. Doc ids are {gameId}_{toUid}, so re-invites overwrite
-    // rather than pile up.
+    // either side. Doc ids are {gameId}_{toUid} — enforced, so nobody can
+    // squat another invite's slot — and only the two parties can read one.
     match /invites/{inviteId} {
-      allow read: if signedIn();
-      allow create, update: if signedIn() && request.resource.data.fromUid == request.auth.uid;
+      allow read: if signedIn()
+        && (resource.data.toUid == request.auth.uid || resource.data.fromUid == request.auth.uid);
+      allow create, update: if signedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && request.resource.data.gameId is string
+        && inviteId == request.resource.data.gameId + '_' + request.resource.data.toUid
+        && request.resource.data.keys().hasOnly(
+             ['id', 'gameId', 'joinCode', 'fromUid', 'fromName', 'fromPhotoURL', 'toUid', 'createdAt']);
       allow delete: if signedIn()
         && (resource.data.toUid == request.auth.uid || resource.data.fromUid == request.auth.uid);
     }
@@ -85,10 +118,20 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Profiles: readable by any signed-in user, writable only by the owner.
+    // Profiles: readable by any signed-in user, writable only by the owner —
+    // and only the fields the app actually writes. jayCupYears is granted by
+    // hand in the Firebase console (admin bypasses rules), so a player can't
+    // award themselves the family trophy from the browser console.
     match /users/{uid} {
       allow read: if signedIn();
-      allow write: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.keys().hasOnly(
+             ['uid', 'displayName', 'photoURL', 'createdAt', 'stats']);
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+             ['displayName', 'photoURL', 'createdAt', 'stats']);
+      allow delete: if false;
 
       match /history/{gameId} {
         allow read: if signedIn();

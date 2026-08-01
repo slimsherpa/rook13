@@ -74,6 +74,10 @@ rook13-01, image `us-central1-docker.pkg.dev/rook13-01/rook13/bots`.
   leaves IAM untouched). Sized 2026-07-30 after family-night saturation
   (429s + GIL-starved audits): 2 brain workers, audits serialized in the
   driver, ~$15-20/mo warm.
+- AUTH (2026-08-01): the driver verifies a Firebase ID token on every
+  POST (docs/security.md) — clients send it automatically. Deploy the
+  service BEFORE hosting when shipping both; `ALLOW_ANON=1` env var is
+  the temporary rollback hatch if old clients need to keep nudging.
 - ONE-TIME (Riley, permission-gated for Claude): make it publicly
   invokable so family clients can nudge it —
   `gcloud run services add-iam-policy-binding rook13-bots --region us-central1 --project rook13-01 --member=allUsers --role=roles/run.invoker`
