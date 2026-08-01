@@ -604,3 +604,20 @@ the family's "trump with only 2!" complaints are about the older
 shipped bots, twice confirmed. The widow gym's mimicry target, in one
 sentence: keep your counters where your winners can escort them home,
 and stop paying points for voids.
+
+**WIDOWBRAIN v1 (2026-07-31, night — the widow gym's bot):** trained on
+430k twin-hand contracts / ~6M labeled rollouts ("beat gen23's widow,
+get rewarded" as the literal loss), sees only its 13 cards + the bid,
+argmaxes predicted advantage over ALL 2,860 (discard, trump) options in
+one batched forward. Gate, 3,000 fresh contracts, twin rollouts, no
+peeking: **made 61.5% vs 59.2% — +2.37pp ± 1.29 paired, flips 230-159
+(p~2e-4), +5.3 pts/contract.** Beats the K=24 live search (+1.36pp) at
+~1000x less decision cost. The first product of gen24: a distillable,
+shippable widow chooser. Riley's staged-experiment discipline made it —
+the 20-min trial caught nothing, HIS eye caught uniform-sampling waste
+(3x discovery from the temperature fix), his "measure hands not games"
+set the gate currency, and the corpus was clean because a pollution
+accident got caught at audit rather than at conclusions. Remaining
+ceiling: gate captured ~1/6 of the mapped +30-48 pts/contract — v2
+levers: more epochs/data, deeper candidate features, or search-teaches-
+reflex on top.
