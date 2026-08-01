@@ -48,21 +48,46 @@ CONTRACTS_PER_SHARD = 400
 
 N_CANDIDATES = 14
 
+# Cranked-temperature sampling (v3 — Riley's correction of uniform-v2,
+# whose budget went 70% to voluntary trump burials and 58% to <=3-card
+# trump suits). TRUMP FIRST, like the engine and like humans: suits are
+# sampled by softmax over (length + power/40) at temperature TRUMP_TEMP —
+# long/strong suits dominate but alternatives stay well-represented and
+# even short suits keep a pulse. Then the discard is drawn with trump
+# cards at low weight (burying trump stays testable, ~never dominant).
+# Still no strategy templates — a smooth prior, not a rulebook.
+TRUMP_TEMP = 0.9
+TRUMP_BURY_W = 0.10     # weight of a trump card in the discard draw
+import math as _math
+
 
 def candidate_menu(hand13, g23_disc, g23_trump):
-    """N uniform samples of the raw (discard, trump) space, deduped
-    against gen23's own choice and each other. No templates, no tags."""
     own = (tuple(sorted(g23_disc)), g23_trump)
-    suits_present = [s for s in SUITS
-                     if any(suit_of(c) == s for c in hand13)]
     rng = random.Random(hash(tuple(sorted(hand13))) & 0xFFFFFF)
+    by_suit = {s: [c for c in hand13 if suit_of(c) == s] for s in SUITS}
+    suits = [s for s in SUITS if by_suit[s]]
+    strength = [len(by_suit[s]) + sum(num_of(c) for c in by_suit[s]) / 40.0
+                for s in suits]
+    mx = max(strength)
+    tw = [_math.exp((x - mx) / TRUMP_TEMP) for x in strength]
     seen = {own}
     menu = []
     tries = 0
-    while len(menu) < N_CANDIDATES and tries < 400:
+    while len(menu) < N_CANDIDATES and tries < 500:
         tries += 1
-        key = (tuple(sorted(rng.sample(list(hand13), 4))),
-               rng.choice(suits_present))
+        trump = rng.choices(suits, weights=tw, k=1)[0]
+        weights = [TRUMP_BURY_W if suit_of(c) == trump else 1.0
+                   for c in hand13]
+        picks: set = set()
+        pool = list(hand13)
+        wpool = list(weights)
+        while len(picks) < 4:
+            c = rng.choices(pool, weights=wpool, k=1)[0]
+            i = pool.index(c)
+            pool.pop(i)
+            wpool.pop(i)
+            picks.add(c)
+        key = (tuple(sorted(picks)), trump)
         if key in seen:
             continue
         seen.add(key)
