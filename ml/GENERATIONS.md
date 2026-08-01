@@ -653,3 +653,16 @@ intent question; verified byte-exact against the lab intent on 1,484
 contracts (0 mismatches). Lesson for the ledger: a model is only as
 sane as the distribution of questions you ask it — the bug was never
 in gen21, it was in the interview. Deploy pending (Riley's console).
+
+**Interview audit (2026-08-01):** the trump bug generalized into a
+method — replay every deterministic production decision by a server bot
+and recompute what the same brain says in the lab. Result: 2,245 bids,
+99.4% exact match; 444 go-downs, 98.9%; residual mismatches cluster in
+~5 games (replay-reconstruction noise or older deployed images), no
+systematic signature. The service's question-asking is certifiably
+clean everywhere except the now-fixed trump path. Deploy state: trump
+fix committed and awaiting Riley's Cloud Run redeploy; WidowBrain ships
+DISABLED behind the WIDOWBRAIN env var — its +3.80pp gate was under
+gen23 play and did NOT transfer to gen21 play (+0.53 ± 1.24), so the
+enable waits for a Cosmo-play-gated v2.1 (regenerate corpus with gen21
+rollouts, retrain, re-gate: one overnight soak, on demand).
