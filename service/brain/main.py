@@ -35,6 +35,20 @@ SEAT_NAME = {v: k for k, v in SEAT_IDX.items()}
 
 app = FastAPI()
 _agents: dict = {}
+_widow: dict = {"chooser": None, "tried": False}
+
+
+def widow_chooser():
+    """WidowBrain, if enabled. OFF unless the WIDOWBRAIN env var names a
+    checkpoint (see the deploy-gate note at the widow branch): the v2
+    model's edge did not transfer to gen21-play rollouts."""
+    if not _widow["tried"]:
+        _widow["tried"] = True
+        path = os.environ.get("WIDOWBRAIN", "")
+        if path and os.path.exists(path):
+            from alpharook.widowbrain import WidowChooser
+            _widow["chooser"] = WidowChooser(path)
+    return _widow["chooser"]
 
 
 def get_agent(style: str):
@@ -381,11 +395,23 @@ def decide(req: DecideReq):
 
     # The lab env is trump-INTENT-first: at widow start it wants the trump
     # suit declared (privately, no engine transition), THEN the 4 discards
-    # shaped around it. Production wants only the SELECT_GODOWN here — the
-    # intent is re-derived at the trump phase (same net, same kept hand,
-    # same answer). Mapping D_TRUMP-at-widow straight to SELECT_TRUMP was
-    # the "Not selecting trump now" stuck-loop bug.
+    # shaped around it. Production wants only the SELECT_GODOWN here.
+    # Mapping D_TRUMP-at-widow straight to SELECT_TRUMP was the "Not
+    # selecting trump now" stuck-loop bug.
+    #
+    # WIDOWBRAIN (gen24, 2026-08-01): when enabled via the WIDOWBRAIN env
+    # var, the trained chooser makes the whole (go-down, trump) decision.
+    # SHIPS DISABLED: +3.80pp make-rate under gen23 play, but the transfer
+    # gate under gen21 play (what Cosmo actually plays) came back
+    # +0.53 ± 1.24 — not significant. Enable only after a gen21/t0-gated
+    # model passes. Deterministic on the 13-card set, so the trump phase
+    # below recomputes the identical choice with no state between nudges.
     if dtype == D_TRUMP and g.phase == WIDOW:
+        wc = widow_chooser()
+        if wc is not None:
+            d4, _t = wc.choose(list(g.hands[seat]), g.high_bid)
+            return {"action": {"type": "SELECT_GODOWN", "seat": sname,
+                               "cards": list(d4)}}
         env.apply(choose(dtype, cands))       # the private intent
         return collect_go_down()
     if dtype == D_DISCARD:
@@ -402,6 +428,12 @@ def decide(req: DecideReq):
         # suits). Fix: rebuild the 13-card widow state and re-ask the
         # EXACT intent question — deterministic, in-distribution, and
         # consistent with the discards it already made.
+        wc = widow_chooser()
+        if wc is not None:
+            hand13 = list(g.hands[seat]) + list(g.go_down)
+            _d4, t = wc.choose(hand13, g.high_bid)
+            return {"action": {"type": "SELECT_TRUMP", "seat": sname,
+                               "suit": int(t)}}
         g13 = g.clone()
         g13.hands[seat] = g13.hands[seat] + list(g13.go_down)
         g13.go_down = []

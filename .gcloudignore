@@ -23,3 +23,4 @@
 __pycache__/
 node_modules/
 .DS_Store
+!/ml/models/widowbrain-v2.pt

@@ -24,6 +24,7 @@ COPY ml/rook ml/rook
 COPY ml/alpharook ml/alpharook
 COPY ml/models/gen21-cand1.pt ml/models/gen21-cand1.pt
 COPY ml/models/gen23-cand1.pt ml/models/gen23-cand1.pt
+COPY ml/models/widowbrain-v2.pt ml/models/widowbrain-v2.pt
 COPY ml/runs/gen15/best_duel.pt ml/runs/gen15/best_duel.pt
 
 # the app engine (driver imports it directly) + the service itself
