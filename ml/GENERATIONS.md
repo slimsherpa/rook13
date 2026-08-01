@@ -621,3 +621,18 @@ accident got caught at audit rather than at conclusions. Remaining
 ceiling: gate captured ~1/6 of the mapped +30-48 pts/contract — v2
 levers: more epochs/data, deeper candidate features, or search-teaches-
 reflex on top.
+
+**WIDOWBRAIN v2 (2026-08-01, the focused corpus):** Riley's design
+sequence — hard longest-trump rule for EXPLORATION (all 16 candidates
+per contract spent on the go-down), no rule for the BOT (train on
+everything, play unmasked). 515k new focused contracts (945k total /
+~13M rollouts). Gate, 3,000 fresh contracts, twin rollouts, no peeking:
+**made 63.9% vs 60.1% — +3.80pp ± 1.37 paired, flips 277-163, +8.5
+pts/contract** (v1: +2.37pp / +5.3). Masked-vs-unmasked measured
+identical (+3.83 vs +3.80) — the rule is free because the net obeys it
+voluntarily; legislating it buys nothing. Meanwhile gen21 (Cosmo's
+trump brain) measured clean in self-play (3,080 contracts, never a
+<3-card trump) — the cousins' verified production 2-card-trump
+screenshots therefore implicate out-of-distribution HUMAN auctions,
+the browser gen19->gen13 degradation path, or service plumbing;
+production-games audit is the next job.
