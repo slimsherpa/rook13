@@ -162,6 +162,32 @@ footer code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;
 
 <div class="statstrip" id="statstrip"></div>
 
+<section id="widowgym">
+  <h2>Act VI — the widow gym: mapping the treasure</h2>
+  <p class="sub">Riley's experiment, run raw: no strategy templates, no
+  categories, no morals baked in. Play gen23 games; freeze every contract
+  at the widow moment; replay that same hand 14 more times with
+  <em>uniformly random</em> go-down/trump choices; score every replay
+  against what gen23 actually did on the identical cards.</p>
+  <div class="citycard" style="margin-bottom:16px">
+    <div class="cityhead"><h3 style="font-size:17px">The 7th-grade version</h3></div>
+    <p class="aggnote" style="max-width:75ch">You know that moment in Rook
+    when you win the bid, pick up the widow, and have to throw 4 cards down
+    and call trump? We built a time machine for exactly that moment. The
+    robot makes its choice and the hand plays out — then we rewind and
+    replay the <em>same hand</em> 14 more times, each with a different
+    random choice at that moment, everything else identical. Because only
+    that one choice changed, any score difference was <em>caused</em> by
+    it. We did this for over a hundred thousand hands. The result is a
+    treasure map: it shows exactly where better choices existed and what
+    they were worth. It is NOT yet a smarter robot — the map was drawn by
+    peeking at how each hand actually played out, and a real player can't
+    peek. The next step is training a bot that finds this treasure seeing
+    only its own 13 cards.</p>
+  </div>
+  <div id="widowgymbody"></div>
+</section>
+
 <section id="widow">
   <h2>Act V — the widow: the first confirmed edge</h2>
   <p class="sub">Riley's isolation move: forget games, forget bidding —
@@ -336,6 +362,52 @@ function hoverable(el, text){ el.addEventListener("mouseenter",()=>{tip.textCont
   ];
   $("#statstrip").innerHTML = items.map(([b,s])=>`<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
   $("#gendate").textContent = new Date(DATA.generated*1000).toLocaleString();
+})();
+
+/* ---------- Act VI: widow gym summary ---------- */
+(function(){
+  const G = DATA.widowgym;
+  const el = $("#widowgymbody");
+  if (!G){ el.innerHTML = `<div class="empty">corpus still soaking</div>`; return; }
+  // baseline histogram
+  const hist = Object.entries(G.baseline.hist).map(([k,v])=>[+k,v]).sort((a,b)=>a[0]-b[0]);
+  const hmx = Math.max(...hist.map(h=>h[1]));
+  const w=680, hh=190, pad={l:14,r:14,t:20,b:26};
+  const bw=(w-pad.l-pad.r)/hist.length;
+  let svg=`<svg viewBox="0 0 ${w} ${hh}" style="width:100%;height:auto" role="img">`;
+  hist.forEach(([b,c],i)=>{
+    const bh=c/hmx*(hh-pad.t-pad.b);
+    const col = b<0 ? "var(--bad)" : "var(--logan)";
+    svg+=`<rect x="${pad.l+i*bw+2}" y="${hh-pad.b-bh}" width="${bw-4}" height="${Math.max(1,bh)}"
+      rx="2" fill="${col}" opacity=".85"><title>${b}: ${c.toLocaleString()}</title></rect>
+    <text x="${pad.l+i*bw+bw/2}" y="${hh-pad.b+13}" font-size="8.5" text-anchor="middle">${b>0?"+":""}${b}</text>`;
+  });
+  svg+="</svg>";
+  const supplyRows = G.supply.map(s=>`<tr><td>${esc(s.label)}</td>
+    <td class="num">${(s.pct*100).toFixed(1)}%</td>
+    <td class="num">${s.n.toLocaleString()}</td></tr>`).join("");
+  el.innerHTML = `
+    <div class="statstrip" style="margin-bottom:14px">
+      <div class="stat"><b>${G.n_contracts.toLocaleString()}</b><span>contracts frozen &amp; replayed</span></div>
+      <div class="stat"><b>${G.n_rollouts.toLocaleString()}</b><span>alternative widow rollouts</span></div>
+      <div class="stat"><b>${Math.round(G.baseline.made*100)}%</b><span>gen23 baseline make-rate</span></div>
+      <div class="stat"><b>+${G.mean_ceiling}</b><span>pts/contract ceiling (perfect selection among samples)</span></div>
+      <div class="stat"><b>${(G.single_random.beat*100).toFixed(1)}%</b><span>chance ONE random choice beats gen23</span></div>
+    </div>
+    <figure>${svg}<figcaption><b>The baseline</b> — gen23's hand score as
+    declarer, ${G.n_contracts.toLocaleString()} contracts (left of zero:
+    went set for −bid; right: made, points captured). Nearly all contracts
+    sit at 95+ bids — the crawl guarantees it.</figcaption></figure>
+    <div class="tblwrap" style="margin-top:14px"><table style="max-width:520px">
+      <thead><tr><th>best alternative found gained…</th><th class="num">share of contracts</th>
+      <th class="num">count</th></tr></thead><tbody>${supplyRows}</tbody></table></div>
+    <p class="aggnote">Read it as a barbell: when a better widow exists, it's
+    usually worth a full contract flip (+200 = a −100 set becoming a +100
+    make), occasionally a small +5..+15 point pickup, and almost never
+    in-between — hand scores are chunky. Honesty box: this table is
+    OPPORTUNITY, measured with hindsight; the achieved, no-peeking result so
+    far is Act V's +1.36pp make-rate from live search. Closing the gap
+    between the two numbers is the whole job of the widow-gym bot.</p>`;
 })();
 
 /* ---------- Act V: widow swing histogram ---------- */

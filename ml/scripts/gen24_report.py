@@ -126,6 +126,7 @@ def main():
         pairs=pairs_bundle(out),
         bidbrain=latest(os.path.join(out, "bidbrain", "firstread_*.json")),
         widow=latest(os.path.join(out, "widow_deltas.json")),
+        widowgym=latest(os.path.join(out, "widowgym", "summary.json")),
         oracle=dict(
             arms=ORACLE_ARMS,
             dialect=dict(passed=[1.78, 0.92], b100=[3.12, 1.24],
