@@ -20,6 +20,18 @@ export default function ScoreSheetModal({ game, onClose }: ScoreSheetModalProps)
         B: `${game.seats.B1.name.split(' ')[0]} & ${game.seats.B2.name.split(' ')[0]}`,
     };
 
+    // the running total after each hand, the way the paper sheet keeps it:
+    // the hand's score on top, the cumulative sum under the line
+    const running: { A: number; B: number }[] = [];
+    {
+        let a = 0, b = 0;
+        for (const h of game.handHistory) {
+            a += h.handScore.A;
+            b += h.handScore.B;
+            running.push({ A: a, B: b });
+        }
+    }
+
     // bare URL only (same rule as the lobby share): prose in the clipboard
     // mangles links in chats that join lines
     const shareWatchLink = async () => {
@@ -64,13 +76,13 @@ export default function ScoreSheetModal({ game, onClose }: ScoreSheetModalProps)
                                 </tr>
                             </thead>
                             <tbody>
-                                {game.handHistory.map((h) => {
+                                {game.handHistory.map((h, i) => {
                                     const bidTeam = teamOf(h.bidWinner);
                                     return (
                                         <tr key={h.handNumber} className="border-t border-white/10 text-white">
-                                            <td className="py-2.5 pl-4 text-white/70">{h.handNumber}</td>
-                                            <td className="text-white/80">{game.seats[h.dealer].name.split(' ')[0]}</td>
-                                            <td>
+                                            <td className="py-2.5 pl-4 text-white/70 align-top">{h.handNumber}</td>
+                                            <td className="text-white/80 align-top">{game.seats[h.dealer].name.split(' ')[0]}</td>
+                                            <td className="align-top">
                                                 <span className="text-white/90">{game.seats[h.bidWinner].name.split(' ')[0]} </span>
                                                 <span className={`font-orbitron font-bold ${h.wentSet ? 'text-red-400' : 'text-white'}`}>
                                                     {h.bid}
@@ -79,9 +91,15 @@ export default function ScoreSheetModal({ game, onClose }: ScoreSheetModalProps)
                                             </td>
                                             <td className={`text-right font-semibold ${bidTeam === 'A' && h.wentSet ? 'text-red-400' : ''}`}>
                                                 {h.handScore.A}
+                                                <div className="text-[11px] font-normal text-sky-200/60 border-t border-white/15 mt-0.5 pt-0.5">
+                                                    {running[i].A}
+                                                </div>
                                             </td>
                                             <td className={`text-right pr-4 font-semibold ${bidTeam === 'B' && h.wentSet ? 'text-red-400' : ''}`}>
                                                 {h.handScore.B}
+                                                <div className="text-[11px] font-normal text-orange-200/60 border-t border-white/15 mt-0.5 pt-0.5">
+                                                    {running[i].B}
+                                                </div>
                                             </td>
                                         </tr>
                                     );

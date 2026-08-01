@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { GameDoc, GameAction, Seat, teamOf } from '@/lib/game/types';
+import { GameDoc, GameAction, Seat, teamOf, BOT_STYLE_LABELS } from '@/lib/game/types';
 import { getGame, loadActionLog } from '@/lib/firebase/gameService';
 import { HandReview, reconstructGame } from '@/lib/game/review';
 import { requestHandAudit, subscribeAudits, HandAudit } from '@/lib/firebase/auditService';
@@ -83,6 +83,17 @@ export default function GameReview({ gameId }: { gameId: string }) {
     const teamLabel = (t: 'A' | 'B') =>
         t === 'A' ? `${name('A1')} & ${name('A2')}` : `${name('B1')} & ${name('B2')}`;
 
+    // paper-scorecard running totals: cumulative team scores after each hand
+    const running: { A: number; B: number }[] = [];
+    if (hands) {
+        let a = 0, b = 0;
+        for (const h of hands) {
+            a += h.summary.handScore.A;
+            b += h.summary.handScore.B;
+            running.push({ A: a, B: b });
+        }
+    }
+
     const handCard = (h: HandReview, idx: number) => {
         const open = openHand === idx;
         const s = h.summary;
@@ -102,14 +113,22 @@ export default function GameReview({ gameId }: { gameId: string }) {
                         </div>
                         <div className={`text-[11px] ${s.wentSet ? 'text-red-300' : 'text-white/60'}`}>
                             {s.wentSet ? `SET — took ${s.pointsTaken[bidTeam]}` : `made it with ${s.pointsTaken[bidTeam]}`}
+                            <span className="text-white/35"> · {name(s.dealer)} dealt</span>
                         </div>
                     </div>
-                    <div className="text-right font-orbitron text-xs flex-shrink-0">
-                        <div className={s.handScore.A < 0 ? 'text-red-400' : 'text-sky-300'}>
-                            {s.handScore.A >= 0 ? '+' : ''}{s.handScore.A}
+                    <div className="text-right font-orbitron text-xs flex-shrink-0 flex items-center">
+                        <div>
+                            <div className={s.handScore.A < 0 ? 'text-red-400' : 'text-sky-300'}>
+                                {s.handScore.A >= 0 ? '+' : ''}{s.handScore.A}
+                            </div>
+                            <div className={s.handScore.B < 0 ? 'text-red-400' : 'text-orange-300'}>
+                                {s.handScore.B >= 0 ? '+' : ''}{s.handScore.B}
+                            </div>
                         </div>
-                        <div className={s.handScore.B < 0 ? 'text-red-400' : 'text-orange-300'}>
-                            {s.handScore.B >= 0 ? '+' : ''}{s.handScore.B}
+                        {/* the paper-scorecard column: score after this hand */}
+                        <div className="border-l border-white/15 ml-2 pl-2 text-[11px] min-w-[2.5rem]">
+                            <div className="text-sky-200/60">{running[idx]?.A}</div>
+                            <div className="text-orange-200/60">{running[idx]?.B}</div>
                         </div>
                     </div>
                     <span className="material-symbols-outlined text-white/50">{open ? 'expand_less' : 'expand_more'}</span>
@@ -181,6 +200,30 @@ export default function GameReview({ gameId }: { gameId: string }) {
                     <div className="text-white/50 text-[11px] mt-2">
                         {new Date(game.createdAt).toLocaleDateString()} · table <span className="font-code text-[10px]">{game.joinCode}</span>
                     </div>
+
+                    {/* who (and what) was at the table — bot seats show the brain
+                        that seat finished with, the audit trail for "which version
+                        was I playing against?" */}
+                    <div className="mt-3 pt-2.5 border-t border-white/10 grid grid-cols-2 gap-x-4 gap-y-1 text-left">
+                        {(['A1', 'A2', 'B1', 'B2'] as Seat[]).map((seat) => {
+                            const info = game.seats[seat];
+                            return (
+                                <div key={seat} className="flex items-center gap-1.5 min-w-0">
+                                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${teamOf(seat) === 'A' ? 'bg-sky-400' : 'bg-orange-400'}`} />
+                                    <span className="text-white/80 text-[11px] truncate">{name(seat)}</span>
+                                    {info.kind === 'bot' && (
+                                        <span className="text-white/40 font-code text-[9px] truncate flex-shrink-0">
+                                            {BOT_STYLE_LABELS[info.botStyle ?? 'basic']}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* the full game id, for when a screenshot lands in the family
+                        chat and someone needs to find this game in the archives */}
+                    <div className="text-white/25 font-code text-[9px] mt-2 select-all">{game.id}</div>
                 </div>
 
                 {!complete && (
@@ -194,7 +237,14 @@ export default function GameReview({ gameId }: { gameId: string }) {
                 ) : hands.length === 0 ? (
                     <p className="text-center text-white/60 font-orbitron text-sm py-8">No finished hands in this game yet.</p>
                 ) : (
-                    <div className="space-y-2.5">{hands.map(handCard)}</div>
+                    <>
+                        <div className="space-y-2.5">{hands.map(handCard)}</div>
+                        {/* repeated at the bottom so a screenshot of the tail end of
+                            a long game still identifies the table */}
+                        <div className="text-center text-white/30 font-code text-[10px] mt-5">
+                            table {game.joinCode} · {game.id}
+                        </div>
+                    </>
                 )}
             </div>
         </div>
