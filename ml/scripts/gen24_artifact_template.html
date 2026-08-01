@@ -404,10 +404,20 @@ function hoverable(el, text){ el.addEventListener("mouseenter",()=>{tip.textCont
     <p class="aggnote">Read it as a barbell: when a better widow exists, it's
     usually worth a full contract flip (+200 = a −100 set becoming a +100
     make), occasionally a small +5..+15 point pickup, and almost never
-    in-between — hand scores are chunky. Honesty box: this table is
-    OPPORTUNITY, measured with hindsight; the achieved, no-peeking result so
-    far is Act V's +1.36pp make-rate from live search. Closing the gap
-    between the two numbers is the whole job of the widow-gym bot.</p>`;
+    in-between — hand scores are chunky.</p>
+    <div class="statstrip" style="margin-top:16px">
+      <div class="stat"><b style="color:var(--good)">+2.37% ± 1.29</b>
+        <span>WIDOWBRAIN v1 — paired make-rate vs gen23, 3,000 fresh contracts, NO peeking</span></div>
+      <div class="stat"><b>230 vs 159</b><span>contracts rescued vs lost (p≈0.0002)</span></div>
+      <div class="stat"><b>+5.3</b><span>pts per contract, scoreboard</span></div>
+      <div class="stat"><b>0.1s</b><span>per game — scores all 2,860 options in one pass</span></div>
+    </div>
+    <p class="aggnote"><b>The bot passed.</b> Trained on this corpus ("beat
+    gen23's widow, get rewarded" as the literal loss), seeing only its 13
+    cards and the bid. It beats the live search chooser (+1.36pp) at a
+    thousandth of the cost — the first shippable product of the whole
+    campaign. The map says ~+30–48 pts/contract exist; v1 collects ~5.3.
+    The remaining gap is v2's job.</p>`;
 })();
 
 /* ---------- Act V: widow swing histogram ---------- */

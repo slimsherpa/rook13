@@ -61,11 +61,17 @@ TRUMP_BURY_W = 0.10     # weight of a trump card in the discard draw
 import math as _math
 
 
-def candidate_menu(hand13, g23_disc, g23_trump):
+def candidate_menu(hand13, g23_disc, g23_trump, longest_only=False,
+                   n_cands=None):
     own = (tuple(sorted(g23_disc)), g23_trump)
     rng = random.Random(hash(tuple(sorted(hand13))) & 0xFFFFFF)
     by_suit = {s: [c for c in hand13 if suit_of(c) == s] for s in SUITS}
     suits = [s for s in SUITS if by_suit[s]]
+    if longest_only:
+        # Riley's hard rule (2026-08-01): trump MUST be a longest suit
+        # (ties allowed). All exploration budget goes to the go-down.
+        mxlen = max(len(by_suit[s]) for s in suits)
+        suits = [s for s in suits if len(by_suit[s]) == mxlen]
     strength = [len(by_suit[s]) + sum(num_of(c) for c in by_suit[s]) / 40.0
                 for s in suits]
     mx = max(strength)
@@ -73,7 +79,8 @@ def candidate_menu(hand13, g23_disc, g23_trump):
     seen = {own}
     menu = []
     tries = 0
-    while len(menu) < N_CANDIDATES and tries < 500:
+    target = n_cands or N_CANDIDATES
+    while len(menu) < target and tries < 500:
         tries += 1
         trump = rng.choices(suits, weights=tw, k=1)[0]
         weights = [TRUMP_BURY_W if suit_of(c) == trump else 1.0
@@ -154,7 +161,10 @@ def harvest_game(net, seed: int):
         disc, trump = choices[hn]
         hand13 = sorted(g0.hands[declarer])
         cands_out = []
-        for cdisc, ctrump in candidate_menu(hand13, disc, trump):
+        for cdisc, ctrump in candidate_menu(
+                hand13, disc, trump,
+                longest_only=getattr(harvest_game, "LONGEST_ONLY", False),
+                n_cands=getattr(harvest_game, "N_CANDS", None)):
             made, score = rollout(g0, declarer, cdisc, ctrump, net)
             cands_out.append(dict(d=sorted(cdisc), t=ctrump,
                                   m=int(made), s=score, adv=score - own_score))
@@ -169,6 +179,8 @@ def harvest_game(net, seed: int):
 
 def worker(worker_id: int, args, run_tag: str):
     torch.set_num_threads(1)
+    harvest_game.LONGEST_ONLY = bool(getattr(args, "longest_trump", False))
+    harvest_game.N_CANDS = getattr(args, "cands", None)
     net = load_qnet(args.net)
     os.makedirs(args.out, exist_ok=True)
     # run_tag makes shard names unique per LAUNCH: a pkill'd parent leaves
@@ -208,6 +220,10 @@ def main():
     ap.add_argument("--net", default="models/gen23-cand1.pt")
     ap.add_argument("--out", default=OUT_DIR)
     ap.add_argument("--seed-base", type=int, default=3_000_000_000)
+    ap.add_argument("--longest-trump", action="store_true",
+                    help="hard rule: trump must be a longest suit (ties ok)")
+    ap.add_argument("--cands", type=int, default=None,
+                    help="candidates per contract (default 14)")
     ap.add_argument("--run-tag", default=None,
                     help="unique shard-name prefix; default derives from "
                          "seed-base (pass a distinct seed-base per run)")
