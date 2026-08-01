@@ -39,6 +39,12 @@ const FALLBACK_EXTRA_MS = 2500;      // non-host clients wait longer before cove
 // covers (with the strongest local brain) if the service stays silent this
 // long. Deliberately unpaced — it's a failsafe, not theater.
 const SERVER_COVER_MS = 20000;
+// AlphaGodRook's exact solver gets a bigger budget (GOD_BUDGET_S=25s on the
+// service) and announces slow thinks in table chat at 10s, so his seats get
+// a roomier grace before the local cover moves for him. Only applies while
+// the service looks healthy — a known-down service still covers at normal
+// bot pacing.
+const GODROOK_COVER_MS = 40000;
 
 export interface UseGameResult {
     game: GameDoc | null;
@@ -223,9 +229,10 @@ export const useGame = (gameId: string | null): UseGameResult => {
                 leadsNextTrick ? BOT_TRICK_LEAD_DELAY_MS :
                 BOT_BASE_DELAY_MS;
             const jitter = Math.random() * 400;
-            // a known-down service gets normal bot pacing, not the 20s grace
+            // a known-down service gets normal bot pacing, not the long grace
             const delay = serverDriven && botServiceHealthy()
-                ? SERVER_COVER_MS + (isHost ? 0 : FALLBACK_EXTRA_MS)
+                ? (turnInfo!.botStyle === 'godrook' ? GODROOK_COVER_MS : SERVER_COVER_MS)
+                    + (isHost ? 0 : FALLBACK_EXTRA_MS)
                 : paced(baseDelay + jitter) + (isHost ? 0 : paced(FALLBACK_EXTRA_MS));
             const expected = serverGame.actionCount;
 

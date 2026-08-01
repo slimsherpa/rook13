@@ -82,13 +82,18 @@ def get_agent(style: str):
 class TimeboxedGod:
     """AlphaGodRook under a wall-clock budget. The gauntlet's god took
     minutes on opening-trick exact solves; a family table can't wait that
-    long (the client's local cover fires at 20s). Every play tries the
-    exact solver in a daemon thread; if the deadline passes, the move
-    falls back to the gen21 reflex — late-trick solves (where the crush
-    happens) finish in well under a second. Bids/widow/trump ride the net,
-    exactly like the measured god arms."""
+    long (the client's local cover fires at 40s for godrook seats). Every
+    play tries the exact solver in a daemon thread; if the deadline passes,
+    the move falls back to the gen21 reflex — late-trick solves (where the
+    crush happens) finish in well under a second. Bids/widow/trump ride the
+    net, exactly like the measured god arms.
 
-    def __init__(self, net, budget_s: float = 12.0):
+    Production telemetry (Aug 2026): ~91% of plays solve in <1.3s; the
+    slow ~9% are early tricks that used to hit the old 12s cap. The driver
+    posts a "still thinking" table bubble at 10s, so the budget can afford
+    to be generous — people wait for a bot they can see working."""
+
+    def __init__(self, net, budget_s: float = float(os.environ.get("GOD_BUDGET_S", "25"))):
         self.net = net
         self.budget = budget_s
         self.last_search = None

@@ -97,6 +97,12 @@ const firstDealer = (id: string): Seat => {
 
 const THINKING_PHASES = new Set(['bidding', 'widow', 'trump', 'playing']);
 
+// A long solve shouldn't look like a frozen table: after this many ms of
+// thinking, the bot says so in table chat (admin SDK bypasses the
+// create-only-as-yourself chat rule; the seat name makes the bubble land
+// on the bot's badge like any player message).
+const THINKING_CHAT_MS = 10_000;
+
 // one decision in flight per game; keyed by the actionCount it answers
 const inflight = new Map<string, number>();
 let decisions = 0;
@@ -118,6 +124,19 @@ const maybeAct = async (gameId: string): Promise<string> => {
     if (inflight.get(gameId) === expected) return 'already thinking';
     inflight.set(gameId, expected);
     const started = Date.now();
+
+    // "sorry, still thinking" — armed before the brain call, disarmed the
+    // moment a decision lands; only the genuinely slow solves ever speak
+    const thinkingTimer = setTimeout(() => {
+        ref.collection('chat').add({
+            uid: `bot-${seat}`,
+            name: info.name,
+            text: 'Sorry — still thinking. This one is worth getting right 🧠',
+            seat,
+            at: Date.now(),
+            serverAt: FieldValue.serverTimestamp(),
+        }).catch(() => { /* chat is garnish, never fail the move for it */ });
+    }, THINKING_CHAT_MS);
 
     try {
         let action: GameAction;
@@ -173,6 +192,7 @@ const maybeAct = async (gameId: string): Promise<string> => {
         console.warn(`✗ ${gameId} #${expected}: ${msg}`);
         return `error: ${msg}`;
     } finally {
+        clearTimeout(thinkingTimer);
         if (inflight.get(gameId) === expected) inflight.delete(gameId);
     }
 };
