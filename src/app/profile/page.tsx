@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { getUserProfile, UserProfile, UserStats } from '@/lib/firebase/userService';
 import { rankFor } from '@/lib/game/rank';
+import RankBadge from '@/components/ui/RankBadge';
 import LoadingPage from '@/components/LoadingPage';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
 
@@ -246,10 +247,10 @@ function ProfileInner() {
                             {s && s.gamesPlayed > 0 && (() => {
                                 const rank = rankFor(s);
                                 return (
-                                    <div className={`font-orbitron text-sm font-bold mt-1 ${rank.tier.color}`}>
-                                        {rank.tier.emoji} {rank.tier.name}
+                                    <div className="text-sm mt-1">
+                                        <RankBadge rank={rank} />
                                         {rank.next && (
-                                            <span className="text-white/40 font-normal text-[11px]">
+                                            <span className="text-white/40 font-orbitron text-[11px]">
                                                 {' '}· {rank.rating}/{rank.next.min} to {rank.next.name}
                                             </span>
                                         )}

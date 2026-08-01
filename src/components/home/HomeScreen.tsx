@@ -186,7 +186,7 @@ export default function HomeScreen() {
                                         onClick={() => router.push('/players')}
                                         className="w-full px-4 py-3 text-left text-white font-orbitron text-sm hover:bg-white/10 flex items-center gap-2"
                                     >
-                                        <span className="material-symbols-outlined text-base">groups</span> Players
+                                        <span className="material-symbols-outlined text-base">social_leaderboard</span> Leaderboard
                                     </button>
                                     <button
                                         onClick={() => router.push('/shop')}

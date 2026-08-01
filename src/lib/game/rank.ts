@@ -11,18 +11,20 @@ export interface RankTier {
     emoji: string;
     /** tailwind text color for the tier */
     color: string;
+    /** tailwind background color for progress bars */
+    bar: string;
     /** rating floor */
     min: number;
 }
 
 export const RANK_TIERS: RankTier[] = [
-    { key: 'bronze', name: 'Bronze', emoji: '🥉', color: 'text-amber-600', min: 0 },
-    { key: 'silver', name: 'Silver', emoji: '🥈', color: 'text-gray-300', min: 25 },
-    { key: 'gold', name: 'Gold', emoji: '🥇', color: 'text-yellow-400', min: 60 },
-    { key: 'platinum', name: 'Platinum', emoji: '🛡️', color: 'text-cyan-200', min: 120 },
-    { key: 'diamond', name: 'Diamond', emoji: '💎', color: 'text-sky-300', min: 250 },
-    { key: 'master', name: 'Master', emoji: '👑', color: 'text-purple-400', min: 450 },
-    { key: 'grandmaster', name: 'GrandMaster', emoji: '⚡', color: 'text-red-400', min: 700 },
+    { key: 'bronze', name: 'Bronze', emoji: '🥉', color: 'text-amber-600', bar: 'bg-amber-600', min: 0 },
+    { key: 'silver', name: 'Silver', emoji: '🥈', color: 'text-gray-300', bar: 'bg-gray-300', min: 25 },
+    { key: 'gold', name: 'Gold', emoji: '🥇', color: 'text-yellow-400', bar: 'bg-yellow-400', min: 60 },
+    { key: 'platinum', name: 'Platinum', emoji: '🛡️', color: 'text-cyan-200', bar: 'bg-cyan-200', min: 120 },
+    { key: 'diamond', name: 'Diamond', emoji: '💎', color: 'text-sky-300', bar: 'bg-sky-300', min: 250 },
+    { key: 'master', name: 'Master', emoji: '👑', color: 'text-purple-400', bar: 'bg-purple-400', min: 450 },
+    { key: 'grandmaster', name: 'GrandMaster', emoji: '⚡', color: 'text-red-400', bar: 'bg-red-400', min: 700 },
 ];
 
 export const ratingOf = (s: Pick<UserStats, 'gamesPlayed' | 'gamesWon'>): number =>

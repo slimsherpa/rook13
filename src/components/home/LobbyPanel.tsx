@@ -13,6 +13,7 @@ import { listPlayers, UserProfile } from '@/lib/firebase/userService';
 import { createGame, listMyGames } from '@/lib/firebase/gameService';
 import { sendInvite } from '@/lib/firebase/inviteService';
 import { rankFor, RankInfo } from '@/lib/game/rank';
+import RankBadge from '@/components/ui/RankBadge';
 
 interface LobbyPanelProps {
     myUid: string;
@@ -128,8 +129,11 @@ export default function LobbyPanel({ myUid, myName, myPhotoURL }: LobbyPanelProp
                                         {p.name.split(' ')[0]}{isMe ? ' (you)' : ''}
                                     </span>
                                     {rank && (
-                                        <span className={`block text-[10px] leading-tight font-orbitron ${rank.tier.color}`}>
-                                            {rank.tier.emoji} {rank.tier.name}{rank.winPct !== null ? ` · ${rank.winPct}%` : ''}
+                                        <span className="block text-[10px] leading-tight">
+                                            <RankBadge rank={rank} />
+                                            {rank.winPct !== null && (
+                                                <span className="text-white/50 font-orbitron"> · {rank.winPct}%</span>
+                                            )}
                                         </span>
                                     )}
                                 </span>
