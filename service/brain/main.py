@@ -90,8 +90,9 @@ class TimeboxedGod:
 
     Production telemetry (Aug 2026): ~91% of plays solve in <1.3s; the
     slow ~9% are early tricks that used to hit the old 12s cap. The driver
-    posts a "still thinking" table bubble at 10s, so the budget can afford
-    to be generous — people wait for a bot they can see working."""
+    posts a "still thinking" table bubble at 8s (and the client offers a
+    "just play your best guess" button at the same mark), so the budget can
+    afford to be generous — people wait for a bot they can see working."""
 
     def __init__(self, net, budget_s: float = float(os.environ.get("GOD_BUDGET_S", "25"))):
         self.net = net

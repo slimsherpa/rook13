@@ -100,8 +100,9 @@ const THINKING_PHASES = new Set(['bidding', 'widow', 'trump', 'playing']);
 // A long solve shouldn't look like a frozen table: after this many ms of
 // thinking, the bot says so in table chat (admin SDK bypasses the
 // create-only-as-yourself chat rule; the seat name makes the bubble land
-// on the bot's badge like any player message).
-const THINKING_CHAT_MS = 10_000;
+// on the bot's badge like any player message). Matches the client's
+// "just play your best guess" offer at the same mark.
+const THINKING_CHAT_MS = 8_000;
 
 // one decision in flight per game; keyed by the actionCount it answers
 const inflight = new Map<string, number>();

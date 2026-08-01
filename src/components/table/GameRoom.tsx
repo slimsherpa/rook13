@@ -21,7 +21,7 @@ import LoadingPage from '@/components/LoadingPage';
 export default function GameRoom({ gameId }: { gameId: string }) {
     const { user, loading: authLoading, signInWithGoogle } = useAuth();
     // don't subscribe until we know who's asking — unauthenticated reads are denied
-    const { game, loading, error, mySeat, isHost, act, actionError, synced, pendingCount } = useGame(user ? gameId : null);
+    const { game, loading, error, mySeat, isHost, act, actionError, synced, pendingCount, serverThinking, hurryUp } = useGame(user ? gameId : null);
     const router = useRouter();
     const [signingIn, setSigningIn] = useState(false);
 
@@ -88,7 +88,7 @@ export default function GameRoom({ gameId }: { gameId: string }) {
                     actionError={actionError}
                 />
             ) : (
-                <TableView game={game} mySeat={mySeat} act={act} actionError={actionError} />
+                <TableView game={game} mySeat={mySeat} act={act} actionError={actionError} serverThinking={serverThinking} onHurryUp={hurryUp} />
             )}
         </>
     );

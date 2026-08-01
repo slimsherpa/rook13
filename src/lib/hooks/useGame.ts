@@ -40,7 +40,8 @@ const FALLBACK_EXTRA_MS = 2500;      // non-host clients wait longer before cove
 // long. Deliberately unpaced — it's a failsafe, not theater.
 const SERVER_COVER_MS = 20000;
 // AlphaGodRook's exact solver gets a bigger budget (GOD_BUDGET_S=25s on the
-// service) and announces slow thinks in table chat at 10s, so his seats get
+// service) and announces slow thinks in table chat at 8s — and the table
+// offers "just play your best guess" at the same mark — so his seats get
 // a roomier grace before the local cover moves for him. Only applies while
 // the service looks healthy — a known-down service still covers at normal
 // bot pacing.
@@ -58,6 +59,11 @@ export interface UseGameResult {
     actionError: string | null;
     /** false while the live listener is serving cached data (offline / reconnecting) */
     synced: boolean;
+    /** a Cloud Run bot seat we're currently waiting on, and since when —
+     *  lets the table offer "just play your best guess" on a long think */
+    serverThinking: { seat: Seat; since: number } | null;
+    /** skip the rest of the server grace and play the local cover move now */
+    hurryUp: () => void;
     /** local actions applied optimistically but not yet confirmed by the server */
     pendingCount: number;
 }
@@ -181,11 +187,16 @@ export const useGame = (gameId: string | null): UseGameResult => {
     // ---- bot runner (always off confirmed server state) ----
     // manual table pace: while this device holds the table, its bots wait too
     const tableHeld = useTableHold();
+    const [serverThinking, setServerThinking] = useState<{ seat: Seat; since: number } | null>(null);
+    // the armed cover move, exposed so hurryUp() can fire it early
+    const coverRef = useRef<{ expected: number; fire: (viaHurry: boolean) => void } | null>(null);
     useEffect(() => {
         if (botTimer.current) {
             clearTimeout(botTimer.current);
             botTimer.current = null;
         }
+        coverRef.current = null;
+        setServerThinking(null);
         if (!serverGame || !gameId || !user || serverGame.status !== 'active') return;
         if (!mySeat && !isHost) return; // spectators never drive bots
         if (tableHeld) return; // the player is counting — resume on release
@@ -209,7 +220,10 @@ export const useGame = (gameId: string | null): UseGameResult => {
                 seats: { ...serverGame.seats, [serverGame.turn!]: { ...turnInfo!, botStyle: 'gen19' as const } },
             }
             : serverGame;
-        if (serverDriven) nudgeBotService(gameId, serverGame.actionCount);
+        if (serverDriven) {
+            nudgeBotService(gameId, serverGame.actionCount);
+            setServerThinking({ seat: serverGame.turn!, since: Date.now() });
+        }
 
         // Computing the move may await weight loading (neural bots), so the
         // pacing timer is armed once the action is known; a newer snapshot
@@ -236,9 +250,9 @@ export const useGame = (gameId: string | null): UseGameResult => {
                 : paced(baseDelay + jitter) + (isHost ? 0 : paced(FALLBACK_EXTRA_MS));
             const expected = serverGame.actionCount;
 
-            botTimer.current = setTimeout(async () => {
+            const fireCover = async (viaHurry: boolean) => {
                 try {
-                    if (serverDriven) console.warn(`⚠️ bot service unreachable — local gen19 covers ${serverGame.turn}`);
+                    if (serverDriven && !viaHurry) console.warn(`⚠️ bot service unreachable — local gen19 covers ${serverGame.turn}`);
                     // 'bot-cover' marks browser-backup moves for cloud seats in
                     // the audit log; the table shows a 💻 toast when one lands
                     await submitAction(gameId, action, serverDriven ? 'bot-cover' : 'bot', expected);
@@ -248,14 +262,32 @@ export const useGame = (gameId: string | null): UseGameResult => {
                 } catch (e) {
                     if (!isExpectedRaceError(e)) console.error('bot move failed', e);
                 }
-            }, delay);
+            };
+            if (serverDriven) coverRef.current = { expected, fire: fireCover };
+            botTimer.current = setTimeout(() => fireCover(false), delay);
         })();
 
         return () => {
             cancelled = true;
             if (botTimer.current) clearTimeout(botTimer.current);
+            coverRef.current = null;
         };
     }, [serverGame, gameId, user, mySeat, isHost, tableHeld]);
+
+    // "just make your best guess": the player got tired of waiting — fire the
+    // local cover now instead of at the end of the grace window. Safe against
+    // a simultaneous server answer: both go through the same
+    // optimistic-concurrency check, only one lands.
+    const hurryUp = useCallback(() => {
+        const cover = coverRef.current;
+        if (!cover) return;
+        coverRef.current = null;
+        if (botTimer.current) {
+            clearTimeout(botTimer.current);
+            botTimer.current = null;
+        }
+        cover.fire(true);
+    }, []);
 
     // ---- stats recording (confirmed state only) ----
     // Runs at every hand end AND at completion; recordGameStats is idempotent
@@ -274,5 +306,5 @@ export const useGame = (gameId: string | null): UseGameResult => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const pendingCount = useMemo(() => pendingRef.current.length, [pendingVersion]);
 
-    return { game, loading, error, mySeat, isHost, act, actionError, synced, pendingCount };
+    return { game, loading, error, mySeat, isHost, act, actionError, synced, pendingCount, serverThinking, hurryUp };
 };

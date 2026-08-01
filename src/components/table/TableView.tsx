@@ -36,13 +36,21 @@ interface TableViewProps {
     mySeat: Seat | null; // null = spectator
     act: (action: GameAction) => Promise<void>;
     actionError: string | null;
+    /** Cloud Run bot seat currently thinking (absent in the dev sandbox) */
+    serverThinking?: { seat: Seat; since: number } | null;
+    /** force the local cover move now instead of waiting out the grace */
+    onHurryUp?: () => void;
 }
 
 // both run through paced(): the game-speed setting scales the theater
 const HAND_RECAP_DELAY_MS = 3000; // let the last trick sink in before the recap
 const ANNOUNCE_MS = 4500;
+// a cloud bot quietly thinking looks identical to a hung one — after this
+// long, offer the humans a "just play" escape hatch (matches the service's
+// own "still thinking" chat bubble at the same mark)
+const HURRY_OFFER_MS = 8000;
 
-export default function TableView({ game, mySeat, act, actionError }: TableViewProps) {
+export default function TableView({ game, mySeat, act, actionError, serverThinking, onHurryUp }: TableViewProps) {
     const router = useRouter();
     const bottomSeat: Seat = mySeat ?? 'A1';
     const pos = positionsFor(bottomSeat);
@@ -52,6 +60,17 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
     const [showLastTrick, setShowLastTrick] = useState(false);
     const [goDownPeek, setGoDownPeek] = useState(false);
     const [showWatchers, setShowWatchers] = useState(false);
+    // "just play" escape hatch for a long cloud-bot think. serverThinking is
+    // only ever set on clients that armed a cover (seated players + host),
+    // so its presence doubles as the permission check.
+    const [hurryVisible, setHurryVisible] = useState(false);
+    useEffect(() => {
+        setHurryVisible(false);
+        if (!serverThinking || !onHurryUp) return;
+        const wait = Math.max(0, serverThinking.since + HURRY_OFFER_MS - Date.now());
+        const t = setTimeout(() => setHurryVisible(true), wait);
+        return () => clearTimeout(t);
+    }, [serverThinking, onHurryUp]);
     const watchers = useWatchers(game.id, mySeat === null);
     const theme = themeFor(game.trump);
     // hindsight blunder audits: opt-in per hand — the recap's "Ask AI" button
@@ -347,6 +366,21 @@ export default function TableView({ game, mySeat, act, actionError }: TableViewP
                 <div className="bg-navy-800/90 text-center text-white/90 text-xs font-orbitron py-1">
                     <span className="material-symbols-outlined text-sm align-middle mr-1">visibility</span>
                     Spectating
+                </div>
+            )}
+
+            {/* long think: let the humans call time on a cloud bot */}
+            {hurryVisible && serverThinking && (
+                <div className="bg-navy-800/90 text-center py-1.5 flex items-center justify-center gap-3">
+                    <span className="text-white/70 text-xs font-orbitron">
+                        {game.seats[serverThinking.seat].name.split(' ')[0]} is thinking hard…
+                    </span>
+                    <button
+                        onClick={() => { setHurryVisible(false); onHurryUp?.(); }}
+                        className="px-3 py-1 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-navy-950 font-orbitron text-xs font-bold"
+                    >
+                        ⏩ Just play your best guess
+                    </button>
                 </div>
             )}
 
