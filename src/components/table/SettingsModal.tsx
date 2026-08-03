@@ -1,9 +1,10 @@
 'use client';
 
-// Table settings, opened from the gear in the game header. Device-local:
-// everyone at the table picks the pace of their own screen (bot pacing
+// Table settings, opened from the gear in the game header. Device-local
+// (everyone at the table picks the pace of their own screen; bot pacing
 // follows the host's device, since the host's client usually wins the race
-// to move the bots).
+// to move the bots) — except the Turn Clock, the one whole-table rule here:
+// it lives on the game doc and only the host can flip it.
 
 import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist, useBlunderDetector } from '@/lib/settings';
 import { ASSIST_PINK } from './AssistDial';
@@ -13,7 +14,13 @@ const PACES: { id: TablePace; label: string; blurb: string; icon: string }[] = [
     { id: 'manual', label: 'Manual', blurb: 'Cards stay until you advance — count away',     icon: 'back_hand' },
 ];
 
-export default function SettingsModal({ onClose }: { onClose: () => void }) {
+interface SettingsModalProps {
+    onClose: () => void;
+    /** the whole-table turn clock — absent outside a live game */
+    clock?: { on: boolean; isHost: boolean; onToggle: (on: boolean) => void };
+}
+
+export default function SettingsModal({ onClose, clock }: SettingsModalProps) {
     const [speed, setSpeed] = useGameSpeed();
     const [pace, setPace] = useTablePace();
     const [assist, setAssist] = useAiAssist();
@@ -119,6 +126,45 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                         blunders ? 'The review button shows in recaps' : 'Recaps stay judgment-free',
                         () => setBlunders(!blunders))}
                 </div>
+
+                {clock && (
+                    <>
+                        <div className="flex items-center gap-2 text-white font-orbitron text-sm mt-5 mb-1">
+                            <span className="material-symbols-outlined text-lg">timer</span>
+                            Turn Clock
+                            <span className="ml-auto px-1.5 py-px rounded bg-yellow-500/15 text-yellow-300/90 text-[9px] uppercase tracking-wide font-orbitron">
+                                whole table
+                            </span>
+                        </div>
+                        <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
+                            One rule for everyone at the table: when it&apos;s on, a player who sits on
+                            their turn a full minute forfeits the game. Off by default — take all the
+                            time you want.{clock.isHost ? '' : ' Only the host can flip this.'}
+                        </p>
+                        {clock.isHost ? (
+                            <div className="space-y-1.5">
+                                {option(clock.on, clock.on ? 'timer' : 'timer_off',
+                                    clock.on ? 'Clock on' : 'Clock off',
+                                    clock.on ? '60 seconds to play or forfeit' : 'No time pressure',
+                                    () => clock.onToggle(!clock.on))}
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-2.5">
+                                <span className="material-symbols-outlined text-xl text-white/50">
+                                    {clock.on ? 'timer' : 'timer_off'}
+                                </span>
+                                <span className="flex-1 min-w-0">
+                                    <span className="block font-orbitron text-sm text-white/85">
+                                        {clock.on ? 'Clock on' : 'Clock off'}
+                                    </span>
+                                    <span className="block text-white/50 text-[11px]">
+                                        {clock.on ? '60 seconds to play or forfeit' : 'No time pressure'}
+                                    </span>
+                                </span>
+                            </div>
+                        )}
+                    </>
+                )}
 
                 <button
                     onClick={onClose}

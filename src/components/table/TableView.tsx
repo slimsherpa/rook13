@@ -620,7 +620,19 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
                 <GameOverOverlay game={game} mySeat={mySeat} onShowScores={() => setShowScores(true)} />
             )}
             {showScores && <ScoreSheetModal game={game} onClose={() => setShowScores(false)} />}
-            {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+            {showSettings && (
+                <SettingsModal
+                    onClose={() => setShowSettings(false)}
+                    clock={mySeat !== null ? {
+                        on: game.clockEnabled ?? false,
+                        isHost: game.seats[mySeat].uid === game.hostUid,
+                        onToggle: (on) => {
+                            const uid = game.seats[mySeat]?.uid;
+                            if (uid) act({ type: 'SET_CLOCK', uid, on }).catch(() => {});
+                        },
+                    } : undefined}
+                />
+            )}
             {showTeamIntro && <TeamIntro game={game} onDone={() => setShowTeamIntro(false)} />}
             {showWatchers && (
                 <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowWatchers(false)}>

@@ -205,6 +205,37 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     </p>
                 )}
 
+                {/* the one whole-table rule set before the deal: the turn
+                    clock. Host flips it; everyone sees where it stands. */}
+                <div className="mt-4 rounded-2xl border border-white/15 bg-navy-950/40 p-3 flex items-center gap-3">
+                    <span className={`material-symbols-outlined text-2xl ${game.clockEnabled ? 'text-yellow-300' : 'text-white/40'}`}>
+                        {game.clockEnabled ? 'timer' : 'timer_off'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                        <div className="text-white font-orbitron text-sm">
+                            Turn Clock {game.clockEnabled ? 'on' : 'off'}
+                        </div>
+                        <div className="text-white/50 text-[11px] leading-snug">
+                            {game.clockEnabled
+                                ? '60 seconds to play or forfeit — for the whole table'
+                                : 'Everyone takes as long as they want'}
+                            {!isHost && ' · host sets this'}
+                        </div>
+                    </div>
+                    {isHost && (
+                        <button
+                            onClick={() => act({ type: 'SET_CLOCK', uid: myUid, on: !game.clockEnabled })}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-orbitron whitespace-nowrap ${
+                                game.clockEnabled
+                                    ? 'bg-yellow-500 hover:bg-yellow-400 text-navy-950 font-bold'
+                                    : 'bg-gray-700 hover:bg-gray-600 text-white'
+                            }`}
+                        >
+                            {game.clockEnabled ? 'Turn off' : 'Turn on'}
+                        </button>
+                    )}
+                </div>
+
                 {/* errors (e.g. Firestore rules not deployed) */}
                 {actionError && (
                     <div className="mt-4 rounded-xl bg-red-900/50 border border-red-500/50 p-3 text-red-200 text-xs font-orbitron text-center leading-relaxed">

@@ -513,9 +513,9 @@ describe('full game simulation', () => {
                 { A: 0, B: 0 },
             );
             expect(g.scores).toEqual(totals);
-            // threshold actually crossed
+            // threshold actually crossed (winning takes STRICTLY over 500)
             expect(
-                g.scores.A >= 500 || g.scores.B >= 500 || g.scores.A <= -250 || g.scores.B <= -250,
+                g.scores.A > 500 || g.scores.B > 500 || g.scores.A <= -250 || g.scores.B <= -250,
             ).toBe(true);
             // winner is the higher score
             expect(g.winner).toBe(g.scores.A > g.scores.B ? 'A' : 'B');
@@ -794,11 +794,80 @@ describe('laydown', () => {
         const done = applyAction(g, { type: 'LAYDOWN', seat: bidder });
         expect(done.laydownSeat).toBe(bidder);
         expect(done.laydownTrick).toBe(0); // claimed straight off the lead
+        // the hand summary carries the laydown for the Trophy Case
+        expect(done.handHistory[0].laydownSeat).toBe(bidder);
+        expect(done.handHistory[0].laydownTrick).toBe(0);
         if (done.phase === 'hand_done') {
             const fresh = applyAction(done, { type: 'NEXT_HAND' });
             expect(fresh.laydownSeat).toBeNull();
             expect(fresh.laydownTrick).toBeNull();
         }
+    });
+
+    it('not offered on trick 9 (isLaydown false), but the action stays legal for old replays', () => {
+        let { g } = laydownReady();
+        const bidder = g.turn!;
+        // grind out 8 tricks the long way; the bidder's hand is all locks
+        while (g.completedTricks.length < 8) {
+            g = applyAction(g, { type: 'PLAY_CARD', seat: g.turn!, card: legalCards(g, g.turn!)[0] });
+        }
+        expect(g.turn).toBe(bidder);
+        expect(g.hands[bidder]).toHaveLength(1);
+        expect(isLaydown(g, bidder)).toBe(false); // trick 9 just gets played out
+        // …yet action logs recorded before this rule replay unchanged
+        expect(validateAction(g, { type: 'LAYDOWN', seat: bidder })).toBeNull();
+    });
+});
+
+describe('win threshold (strictly over 500)', () => {
+    it('landing exactly on 500 keeps the game going; 505 ends it', () => {
+        // laydownReady's claim banks exactly +120 for the bidding team
+        const setup = () => {
+            let g = startedGame();
+            g = applyAction(g, { type: 'DEAL', deck: blockDeck() });
+            const bidder = g.turn!;
+            g = applyAction(g, { type: 'BID', seat: bidder, bid: 65 });
+            g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+            g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+            g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+            const suit = g.dealtHands![bidder][0].suit;
+            const goDown = g.hands[bidder].filter((card) => card.suit !== suit || card.number === 5);
+            g = applyAction(g, { type: 'SELECT_GODOWN', seat: bidder, cards: goDown });
+            g = applyAction(g, { type: 'SELECT_TRUMP', seat: bidder, suit });
+            return { g, team: teamOf(bidder), bidder };
+        };
+
+        const flat = setup();
+        flat.g.scores[flat.team] = 380; // +120 → exactly 500
+        const still = applyAction(flat.g, { type: 'LAYDOWN', seat: flat.bidder });
+        expect(still.scores[flat.team]).toBe(500);
+        expect(still.phase).toBe('hand_done');
+        expect(still.winner).toBeNull();
+
+        const over = setup();
+        over.g.scores[over.team] = 385; // +120 → 505, strictly over
+        const done = applyAction(over.g, { type: 'LAYDOWN', seat: over.bidder });
+        expect(done.scores[over.team]).toBe(505);
+        expect(done.phase).toBe('game_over');
+        expect(done.winner).toBe(over.team);
+    });
+});
+
+describe('the turn clock rule (SET_CLOCK)', () => {
+    it('is off by default, host can flip it any time before the game completes', () => {
+        let g = createGameDoc({ id: 'clock', joinCode: 'CLK', host: { uid: 'h', name: 'Host' }, now: 1 });
+        expect(g.clockEnabled).toBeUndefined(); // absent reads as off
+        g = applyAction(g, { type: 'SET_CLOCK', uid: 'h', on: true });
+        expect(g.clockEnabled).toBe(true);
+        g = applyAction(g, { type: 'START_GAME' });
+        g = applyAction(g, { type: 'SET_CLOCK', uid: 'h', on: false });
+        expect(g.clockEnabled).toBe(false);
+    });
+
+    it('only the host may change it', () => {
+        const g = createGameDoc({ id: 'clock2', joinCode: 'CLK', host: { uid: 'h', name: 'Host' }, now: 1 });
+        expect(validateAction(g, { type: 'SET_CLOCK', uid: 'guest', on: true }))
+            .toBe('Only the host can change the turn clock');
     });
 });
 

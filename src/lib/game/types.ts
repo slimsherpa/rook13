@@ -190,6 +190,11 @@ export interface HandSummary {
     bids?: Partial<Record<Seat, number | 'pass'>>;
     /** every bid in order — "95, then 105, then pass…" */
     bidLog?: { seat: Seat; bid: number | 'pass' }[];
+    // who laid the hand down and how many tricks were done when they did
+    // (0-based, like GameDoc.laydownTrick) — feeds the Earliest Laydown
+    // trophy. Absent on hands with no laydown and on older games.
+    laydownSeat?: Seat;
+    laydownTrick?: number;
 }
 
 export interface GameDoc {
@@ -253,6 +258,11 @@ export interface GameDoc {
     winner: Team | null;
     /** set when the game ended by turn-clock forfeit (absent on older docs) */
     forfeitSeat?: Seat | null;
+    // Whole-table rule, host-set (SET_CLOCK): when true, a human who sits on
+    // their turn a full minute forfeits (useForfeitClock). Off by default —
+    // take the phone call, finish the sandwich. Absent on older game docs,
+    // which reads as off.
+    clockEnabled?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +284,9 @@ export type GameAction =
     | { type: 'PLAY_CARD'; seat: Seat; card: Card }
     | { type: 'LAYDOWN'; seat: Seat }     // every remaining card is a lock — claim the rest
     | { type: 'SET_ASSIST'; seat: Seat; on: boolean } // toggle the AI trainer (table-visible)
+    // host flips the whole-table turn clock on or off (lobby or mid-game —
+    // the Disneyland rule: last one able to play before the ride wins)
+    | { type: 'SET_CLOCK'; uid: string; on: boolean }
     | { type: 'NEXT_HAND' }               // from hand_done -> dealing
     // competitive-lobby clock: a human who sits on their turn past the
     // deadline (useForfeitClock) loses the game for their team

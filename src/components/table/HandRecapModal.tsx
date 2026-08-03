@@ -69,6 +69,16 @@ const trophyMoments = (h: HandSummary, mySeat: Seat | null): TrophyMoment[] => {
     if (h.tricksWon[myTeam] === 9) {
         out.push({ emoji: '🧹', text: 'Swept all nine tricks!', big: true });
     }
+    if (h.laydownSeat === mySeat && h.laydownTrick != null) {
+        const trick = h.laydownTrick + 1;
+        out.push({
+            emoji: '🙌',
+            text: trick <= 4
+                ? `Laydown on trick ${trick} — nothing could touch you!`
+                : `Laid them down on trick ${trick} — all winners!`,
+            big: trick <= 4,
+        });
+    }
     return out;
 };
 

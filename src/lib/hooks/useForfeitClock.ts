@@ -4,6 +4,10 @@
 // full minute forfeits the game for their team (bots play themselves, so
 // they never time out; server bots have their own 20s cover).
 //
+// OFF unless the host arms it (game.clockEnabled, SET_CLOCK): by default
+// everyone takes all the time they want. Armed, it's the Disneyland rule —
+// the last cousin still able to play before the ride wins.
+//
 // Every open client runs the clock off the same facts — game.updatedAt
 // (stamped by the last applied action) and game.turn — so all devices
 // count down in lockstep, and whoever's timer fires first wins the
@@ -39,6 +43,7 @@ export const useForfeitClock = (game: GameDoc | null, gameId: string | null): Fo
         : 0;
     const armed = !!(
         game && gameId
+        && game.clockEnabled === true
         && game.status === 'active'
         && humansSeated >= 2
         && game.turn

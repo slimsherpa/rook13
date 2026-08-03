@@ -58,15 +58,28 @@ function TrophyCase({ s }: { s: UserStats }) {
                 <StatTile icon="emoji_events" label="Wins" value={s.gamesWon} />
                 <StatTile icon="percent" label="Win Rate" value={pct(s.gamesWon, s.gamesPlayed)} accent />
             </div>
-            {(s.widestWinMargin ?? 0) > 0 && (
-                <div className="mt-3">
-                    <StatTile
-                        icon="swords"
-                        label="Widest Margin of Victory"
-                        value={`${s.widestWinMargin} pts`}
-                        accent
-                        sub="your biggest blowout — final score gap in a win"
-                    />
+            {((s.widestWinMargin ?? 0) > 0 || (s.fastestWin ?? 0) > 0) && (
+                <div className={`mt-3 grid gap-3 ${
+                    (s.widestWinMargin ?? 0) > 0 && (s.fastestWin ?? 0) > 0 ? 'grid-cols-2' : 'grid-cols-1'
+                }`}>
+                    {(s.widestWinMargin ?? 0) > 0 && (
+                        <StatTile
+                            icon="swords"
+                            label="Widest Margin of Victory"
+                            value={`${s.widestWinMargin} pts`}
+                            accent
+                            sub="your biggest blowout — final score gap in a win"
+                        />
+                    )}
+                    {(s.fastestWin ?? 0) > 0 && (
+                        <StatTile
+                            icon="bolt"
+                            label="Fastest Win"
+                            value={`${s.fastestWin} hand${s.fastestWin === 1 ? '' : 's'}`}
+                            accent
+                            sub="fewest hands to close out a game"
+                        />
+                    )}
                 </div>
             )}
 
@@ -118,6 +131,22 @@ function TrophyCase({ s }: { s: UserStats }) {
                 <div className="grid grid-cols-2 gap-3 mt-3">
                     <StatTile icon="paid" label="Points Captured" value={(s.pointsCaptured ?? 0).toLocaleString()} sub="lifetime, with your partner" />
                     <StatTile icon="celebration" label="Legendary Redeals" value={s.redealsWitnessed} accent={s.redealsWitnessed > 0} />
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                    <StatTile
+                        icon="front_hand"
+                        label="Earliest Laydown"
+                        value={(s.earliestLaydown ?? 0) > 0 ? `Trick ${s.earliestLaydown}` : '—'}
+                        accent={(s.earliestLaydown ?? 0) > 0 && s.earliestLaydown <= 4}
+                        sub="soonest you claimed the rest with all winners"
+                    />
+                    <StatTile
+                        icon="done_all"
+                        label="Laydowns"
+                        value={s.laydowns ?? 0}
+                        accent={(s.laydowns ?? 0) > 0}
+                        sub="hands claimed without playing them out"
+                    />
                 </div>
                 <div className="mt-3 rounded-xl bg-navy-950/50 border border-white/15 p-3.5">
                     <div className="text-white/60 text-[10px] font-orbitron uppercase tracking-wide mb-2">

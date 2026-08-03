@@ -130,7 +130,9 @@ export const rolloutValue = (g: GameDoc, myTeam: Team): number => {
     const mine = g.scores[myTeam] + hs[myTeam];
     const theirs = g.scores[other] + hs[other];
     let game = 0.3 * clamp1((mine - theirs) / WIN_SCORE);
-    const over = (mine >= WIN_SCORE || theirs >= WIN_SCORE
+    // winning takes STRICTLY over 500, matching engine.ts scoreHand (the
+    // ml lab's rollout_value still uses >= — a knowingly tolerated drift)
+    const over = (mine > WIN_SCORE || theirs > WIN_SCORE
         || mine <= LOSE_SCORE || theirs <= LOSE_SCORE) && mine !== theirs;
     if (over) game += 0.7 * (mine > theirs ? 1 : -1);
     return 0.5 * hand + 0.5 * game;
