@@ -533,7 +533,12 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
 /** Play `card` from `seat` on the draft: trick bookkeeping + end-of-hand scoring. */
 const playCardOnDraft = (next: GameDoc, seat: Seat, card: Card): void => {
     next.hands[seat] = next.hands[seat].filter((c) => !sameCard(c, card));
-    next.trickPlays = [...next.trickPlays, { seat, card }];
+    // stamp the trainer state onto the play itself — assist flips mid-game,
+    // so the recaps need per-play truth (no undefined: Firestore rejects it)
+    next.trickPlays = [...next.trickPlays, {
+        seat, card,
+        ...(next.seats[seat].assist ? { assist: true } : {}),
+    }];
 
     if (next.trickPlays.length < 4) {
         next.turn = nextSeat(seat);

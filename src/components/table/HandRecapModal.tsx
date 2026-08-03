@@ -15,6 +15,7 @@ import { sortHand } from '@/lib/game/deck';
 import { BlunderTarget, targetKey } from '@/lib/game/blunders';
 import PlayingCard from '@/components/ui/PlayingCard';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
+import { ASSIST_PINK } from './AssistDial';
 import {
     BlunderFlag, BlunderProvider, BlunderTrigger, blunderArmedClass, blunderFlaggedClass, useBlunderMode,
 } from '@/components/review/BlunderReport';
@@ -362,15 +363,24 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
                             )}
                         </div>
                         <div className="grid grid-cols-4 gap-1.5 flex-1">
-                            {trick.plays.map(({ seat, card }) => {
+                            {trick.plays.map(({ seat, card, assist }) => {
                                 const isWinner = seat === trick.winner;
                                 const target: BlunderTarget = { kind: 'play', seat, card, trick: idx };
                                 const flagged = blunder?.reportedKeys.has(targetKey(target)) ?? false;
                                 const hindsight = blunderAt(idx, seat);
                                 return (
                                     <div key={seat} className="flex flex-col items-center gap-1">
-                                        <span className={`px-1.5 py-px rounded text-[10px] font-orbitron max-w-full truncate ${isWinner ? 'bg-yellow-500/20 text-yellow-300 font-bold' : 'text-white/60'}`}>
-                                            {firstName(seats, seat)}
+                                        <span className={`px-1.5 py-px rounded text-[10px] font-orbitron max-w-full inline-flex items-center gap-1 ${isWinner ? 'bg-yellow-500/20 text-yellow-300 font-bold' : 'text-white/60'}`}>
+                                            <span className="truncate">{firstName(seats, seat)}</span>
+                                            {/* the trainer's signature pink: this card was played
+                                                with the AI assistant on (stamped per play) */}
+                                            {assist && (
+                                                <span
+                                                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                                    style={{ backgroundColor: ASSIST_PINK }}
+                                                    title={`${firstName(seats, seat)} had the AI trainer on for this play`}
+                                                />
+                                            )}
                                         </span>
                                         <span className="relative inline-flex">
                                             <PlayingCard

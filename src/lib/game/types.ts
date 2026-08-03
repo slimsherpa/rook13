@@ -163,9 +163,18 @@ export type Phase =
     | 'hand_done'    // hand scored, waiting to start next hand
     | 'game_over';
 
+export interface TrickPlay {
+    seat: Seat;
+    card: Card;
+    /** the player had the AI trainer on when this card hit the felt —
+     *  stamped per play (assist can be flipped mid-game), shown as the
+     *  trainer's pink dot in the recaps. Absent on older games. */
+    assist?: boolean;
+}
+
 export interface TrickRecord {
     leader: Seat;
-    plays: { seat: Seat; card: Card }[]; // in play order
+    plays: TrickPlay[]; // in play order
     winner: Seat;
     points: number;
 }
@@ -235,7 +244,7 @@ export interface GameDoc {
     trump: Suit | null;
 
     // trick play
-    trickPlays: { seat: Seat; card: Card }[]; // current trick, in order
+    trickPlays: TrickPlay[]; // current trick, in order
     trickLeader: Seat | null;
     completedTricks: TrickRecord[];
     /** the last completed trick sticks around for the "last trick" viewer */

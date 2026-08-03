@@ -853,6 +853,38 @@ describe('win threshold (strictly over 500)', () => {
     });
 });
 
+describe('per-play AI-trainer stamps', () => {
+    it('plays made with assist on carry the flag; flipping it off mid-hand stops the stamps', () => {
+        let g = startedGame();
+        g = applyAction(g, { type: 'DEAL', deck: blockDeck() });
+        const bidder = g.turn!;
+        g = applyAction(g, { type: 'BID', seat: bidder, bid: 65 });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        g = applyAction(g, { type: 'BID', seat: g.turn!, bid: 'pass' });
+        const suit = g.dealtHands![bidder][0].suit;
+        const goDown = g.hands[bidder].filter((card) => card.suit !== suit || card.number === 5);
+        g = applyAction(g, { type: 'SELECT_GODOWN', seat: bidder, cards: goDown });
+        g = applyAction(g, { type: 'SELECT_TRUMP', seat: bidder, suit });
+
+        // the host (A1, human) turns the trainer on before trick 1
+        g = applyAction(g, { type: 'SET_ASSIST', seat: 'A1', on: true });
+        while (g.completedTricks.length < 1) {
+            g = applyAction(g, { type: 'PLAY_CARD', seat: g.turn!, card: legalCards(g, g.turn!)[0] });
+        }
+        const t1 = g.completedTricks[0];
+        expect(t1.plays.find((p) => p.seat === 'A1')!.assist).toBe(true);
+        for (const p of t1.plays.filter((p) => p.seat !== 'A1')) expect(p.assist).toBeUndefined();
+
+        // trainer off for trick 2 — the stamp is per PLAY, not per hand
+        g = applyAction(g, { type: 'SET_ASSIST', seat: 'A1', on: false });
+        while (g.completedTricks.length < 2) {
+            g = applyAction(g, { type: 'PLAY_CARD', seat: g.turn!, card: legalCards(g, g.turn!)[0] });
+        }
+        expect(g.completedTricks[1].plays.find((p) => p.seat === 'A1')!.assist).toBeUndefined();
+    });
+});
+
 describe('the turn clock rule (SET_CLOCK)', () => {
     it('is off by default, host can flip it any time before the game completes', () => {
         let g = createGameDoc({ id: 'clock', joinCode: 'CLK', host: { uid: 'h', name: 'Host' }, now: 1 });
