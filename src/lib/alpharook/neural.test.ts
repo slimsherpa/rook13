@@ -116,7 +116,12 @@ describe('full-game decision parity with the training arena', () => {
                 return f.steps[stepIdx++];
             };
             let safety = 20000;
-            while (g.phase !== 'game_over' && safety-- > 0) {
+            // The lab traces end games at >= 500; the live engine now requires
+            // STRICTLY over 500. A trace that lands exactly on the number would
+            // send the TS engine hunting for a deck the fixture doesn't have —
+            // decision parity is proven per traced move, so stop with the trace.
+            const traceDone = () => g.phase === 'hand_done' && deckIdx === f.decks.length;
+            while (g.phase !== 'game_over' && !traceDone() && safety-- > 0) {
                 const phase: string = g.phase;
                 if (phase === 'dealing' || phase === 'redeal') {
                     const deck = f.decks[deckIdx++].map(intToCard);

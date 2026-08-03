@@ -136,7 +136,7 @@ export const bidLead = (dealer: Seat): Seat => nextSeat(dealer);
  * holds trump at all, since a void could develop in some order of leads.
  * Only meaningful on lead: the player must be starting the trick.
  */
-export const isLaydown = (g: GameDoc, seat: Seat): boolean => {
+const allGuaranteedWinners = (g: GameDoc, seat: Seat): boolean => {
     if (g.phase !== 'playing' || g.turn !== seat || g.trickPlays.length > 0) return false;
     const hand = g.hands[seat];
     if (hand.length === 0) return false;
@@ -148,6 +148,15 @@ export const isLaydown = (g: GameDoc, seat: Seat): boolean => {
         return !others.some((d) => d.suit === g.trump || (d.suit === c.suit && d.number > c.number));
     });
 };
+
+/**
+ * Should a laydown be OFFERED right now? Tricks 1–8 only: on the last trick
+ * everyone has one card left, so it's just played out. Note validateAction
+ * accepts a trick-9 LAYDOWN anyway — old action logs are full of them (bots
+ * used to claim any winning last card) and replays must keep working.
+ */
+export const isLaydown = (g: GameDoc, seat: Seat): boolean =>
+    g.completedTricks.length < TRICKS_PER_HAND - 1 && allGuaranteedWinners(g, seat);
 
 /**
  * The highest point total the bidding team can still reach this hand
@@ -255,7 +264,7 @@ export const validateAction = (g: GameDoc, action: GameAction): string | null =>
             if (g.phase !== 'playing') return 'Not in playing phase';
             if (g.turn !== action.seat) return 'Not your turn';
             if (g.trickPlays.length > 0) return 'You can only lay down when leading';
-            if (!isLaydown(g, action.seat)) return 'Your cards are not all guaranteed winners';
+            if (!allGuaranteedWinners(g, action.seat)) return 'Your cards are not all guaranteed winners';
             return null;
         }
         case 'NEXT_HAND': {
@@ -264,6 +273,11 @@ export const validateAction = (g: GameDoc, action: GameAction): string | null =>
         }
         case 'SET_ASSIST': {
             if (g.seats[action.seat].kind !== 'human') return 'Only a seated player can use the AI trainer';
+            return null;
+        }
+        case 'SET_CLOCK': {
+            if (g.status === 'completed') return 'Game is over';
+            if (action.uid !== g.hostUid) return 'Only the host can change the turn clock';
             return null;
         }
         case 'FORFEIT': {
@@ -338,6 +352,10 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
         case 'SET_ASSIST': {
             // preserve everything about the seat, just flip the trainer flag
             next.seats[action.seat] = { ...next.seats[action.seat], assist: action.on };
+            return next;
+        }
+        case 'SET_CLOCK': {
+            next.clockEnabled = action.on;
             return next;
         }
         case 'START_GAME': {
@@ -584,12 +602,15 @@ const scoreHand = (g: GameDoc, lastTrickWinner: Seat): void => {
         bidLog: [...(g.bidLog ?? [])],
         // no spread-of-undefined: Firestore rejects undefined fields
         ...(g.dealtHands ? { dealtHands: g.dealtHands, dealtWidow: g.dealtWidow ?? [] } : {}),
+        ...(g.laydownSeat != null && g.laydownTrick != null
+            ? { laydownSeat: g.laydownSeat, laydownTrick: g.laydownTrick } : {}),
     };
     g.handHistory = [...g.handHistory, summary];
 
-    // game over?
+    // game over? Winning takes STRICTLY more than 500 — land exactly on the
+    // number and you're still playing (house rule, 2026-08-03).
     const over =
-        g.scores.A >= WIN_SCORE || g.scores.B >= WIN_SCORE ||
+        g.scores.A > WIN_SCORE || g.scores.B > WIN_SCORE ||
         g.scores.A <= LOSE_SCORE || g.scores.B <= LOSE_SCORE;
 
     if (over && g.scores.A !== g.scores.B) {

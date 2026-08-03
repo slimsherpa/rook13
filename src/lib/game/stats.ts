@@ -28,6 +28,9 @@ export interface UserStats {
     sweeps: number;                        // hands where your team took all 9 tricks
     pointsCaptured: number;                // lifetime card points your team banked
     widestWinMargin: number;               // biggest final-score gap in a game you won
+    laydowns: number;                      // hands you claimed with all winners
+    earliestLaydown: number;               // earliest trick you laid them down on (1-based; 0 = never)
+    fastestWin: number;                    // fewest hands in a game you won outright (0 = none yet)
 }
 
 export const emptyStats = (): UserStats => ({
@@ -49,6 +52,9 @@ export const emptyStats = (): UserStats => ({
     sweeps: 0,
     pointsCaptured: 0,
     widestWinMargin: 0,
+    laydowns: 0,
+    earliestLaydown: 0,
+    fastestWin: 0,
 });
 
 /**
@@ -76,6 +82,14 @@ export const applyHandStats = (stats: UserStats, h: HandSummary, seat: Seat): Us
     stats.pointsCaptured += h.pointsTaken[myTeam];
     if (h.tricksWon[myTeam] === 9) stats.sweeps += 1;
     if (teamOf(h.bidWinner) !== myTeam && h.wentSet) stats.setsDefended += 1;
+
+    if (h.laydownSeat === seat && h.laydownTrick != null) {
+        stats.laydowns = (stats.laydowns ?? 0) + 1;
+        const trick = h.laydownTrick + 1; // stored 0-based, bragged 1-based
+        stats.earliestLaydown = (stats.earliestLaydown ?? 0) === 0
+            ? trick
+            : Math.min(stats.earliestLaydown, trick);
+    }
 
     if (h.bidWinner === seat) {
         stats.bidsWon += 1;
@@ -117,6 +131,14 @@ export const applyGameFinalStats = (stats: UserStats, game: GameDoc, seat: Seat)
         const other: Team = myTeam === 'A' ? 'B' : 'A';
         const margin = game.scores[myTeam] - game.scores[other];
         stats.widestWinMargin = Math.max(stats.widestWinMargin ?? 0, margin);
+        // fastest win: fewest hands to close out a game — forfeit wins don't
+        // count, you have to actually get there on the scoreboard
+        const hands = game.handHistory?.length ?? 0;
+        if (!game.forfeitSeat && hands > 0) {
+            stats.fastestWin = (stats.fastestWin ?? 0) === 0
+                ? hands
+                : Math.min(stats.fastestWin, hands);
+        }
     }
     stats.redealsWitnessed += game.redealCount;
     return stats;
