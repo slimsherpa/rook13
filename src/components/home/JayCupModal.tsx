@@ -36,8 +36,8 @@ const CHAMPION_UIDS: Record<string, string> = {
     'Carson Gardner': 'bNEh5J3V6MXHCOfHCkl9hJDmT8G3',
 };
 
-// Jay at the Rook table, across the decades (public/jay/).
-const JAY_PHOTOS = ['jay-01', 'jay-02', 'jay-03', 'jay-04', 'jay-05', 'jay-06', 'jay-07'];
+// Jay at the Rook table, across the decades (public/jay/), in Riley's order.
+const JAY_PHOTOS = ['jay-06', 'jay-05', 'jay-03', 'jay-02', 'jay-07', 'jay-04', 'jay-01'];
 
 export default function JayCupModal({ onClose }: { onClose: () => void }) {
     const router = useRouter();
@@ -66,9 +66,19 @@ export default function JayCupModal({ onClose }: { onClose: () => void }) {
     return (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
             <div
-                className="w-full max-w-sm max-h-[90dvh] overflow-y-auto custom-scrollbar rounded-2xl bg-navy-950 border border-white/15 shadow-2xl"
+                className="relative w-full max-w-sm max-h-[90dvh] rounded-2xl bg-navy-950 border border-white/15 shadow-2xl overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
+                {/* floating close — the photo gallery runs long, nobody
+                    should have to scroll past Jay to leave */}
+                <button
+                    onClick={onClose}
+                    aria-label="Close"
+                    className="absolute top-2.5 right-2.5 z-10 w-8 h-8 rounded-full bg-black/60 border border-white/25 text-white/80 hover:text-white hover:border-white/50 flex items-center justify-center"
+                >
+                    <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+                <div className="max-h-[90dvh] overflow-y-auto custom-scrollbar">
                 {/* the bowl */}
                 <div className="pt-6 pb-2 text-center bg-gradient-to-b from-sky-900/50 to-transparent">
                     <span
@@ -131,7 +141,7 @@ export default function JayCupModal({ onClose }: { onClose: () => void }) {
                         ))}
                     </div>
                     <p className="text-center text-white/50 text-[11px] leading-relaxed mt-3">
-                        Jay Adamson — decades of Rook, most of it on the lake.
+                        If you have pictures of Jay, please send them to Riley!
                     </p>
                 </div>
 
@@ -142,6 +152,7 @@ export default function JayCupModal({ onClose }: { onClose: () => void }) {
                     >
                         Close
                     </button>
+                </div>
                 </div>
             </div>
         </div>
