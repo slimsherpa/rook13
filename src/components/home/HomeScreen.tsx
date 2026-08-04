@@ -343,10 +343,22 @@ export default function HomeScreen() {
                     </section>
                 )}
 
+                {/* THE LEADERBOARD */}
+                <button
+                    onClick={() => router.push('/players')}
+                    className="mt-8 w-full rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-emerald-500/10 to-transparent p-4 flex items-center gap-4"
+                >
+                    <span className="material-symbols-outlined text-emerald-400 text-4xl">social_leaderboard</span>
+                    <div className="text-left">
+                        <div className="font-orbitron text-white font-bold">THE LEADERBOARD</div>
+                        <div className="text-white/60 text-xs">The family ladder · Bronze to GrandMaster</div>
+                    </div>
+                </button>
+
                 {/* JAY CUP */}
                 <button
                     onClick={() => setJayCupOpen(true)}
-                    className="mt-8 w-full rounded-2xl border border-yellow-500/40 bg-gradient-to-r from-yellow-500/10 to-transparent p-4 flex items-center gap-4"
+                    className="mt-3 w-full rounded-2xl border border-yellow-500/40 bg-gradient-to-r from-yellow-500/10 to-transparent p-4 flex items-center gap-4"
                 >
                     <span className="material-symbols-outlined text-yellow-400 text-4xl">trophy</span>
                     <div className="text-left">

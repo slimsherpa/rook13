@@ -1,10 +1,10 @@
 // User profiles and lifetime stats, stored at users/{uid} with one
 // history entry per finished game at users/{uid}/history/{gameId}.
 
-import { collection, doc, getDoc, getDocs, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, orderBy, query, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { db } from './firebase';
-import { GameDoc, Seat, SEATS, teamOf } from '../game/types';
+import { GameDoc, Seat, SeatInfo, SEATS, Team, teamOf } from '../game/types';
 import { UserStats, emptyStats, applyHandStats, applyGameFinalStats } from '../game/stats';
 
 export type { UserStats } from '../game/stats';
@@ -62,6 +62,31 @@ export const listPlayers = async (): Promise<UserProfile[]> => {
         .sort((a, b) => (b.stats?.gamesPlayed ?? 0) - (a.stats?.gamesPlayed ?? 0));
 };
 
+/** One row of a player's game log (users/{uid}/history/{gameId}), as
+ *  written by recordGameStats below. */
+export interface GameHistoryEntry {
+    gameId: string;
+    seat: Seat;
+    team: Team;
+    scores: Record<Team, number>;
+    hands: number;
+    seats: Record<Seat, SeatInfo>;
+    /** present once the game completed (the Recent Games list keys on it) */
+    finishedAt?: number;
+    won?: boolean;
+}
+
+/** The player's most recently FINISHED games, newest first. Ordering on
+ *  finishedAt naturally skips in-progress entries (no field, no row). */
+export const listRecentGames = async (uid: string, max: number): Promise<GameHistoryEntry[]> => {
+    const snap = await getDocs(query(
+        collection(db, 'users', uid, 'history'),
+        orderBy('finishedAt', 'desc'),
+        limit(max),
+    ));
+    return snap.docs.map((d) => d.data() as GameHistoryEntry);
+};
+
 /**
  * Fold a game's finished hands into the signed-in player's lifetime stats —
  * incrementally, as they happen, so the Trophy Case updates mid-game instead
@@ -106,7 +131,7 @@ export const recordGameStats = async (game: GameDoc, uid: string): Promise<void>
                 ? { ...emptyStats(), ...(userSnap.data() as UserProfile).stats }
                 : emptyStats();
 
-            for (const h of newHands) applyHandStats(stats, h, seat);
+            for (const h of newHands) applyHandStats(stats, h, seat, game.id);
             if (isComplete && !final) applyGameFinalStats(stats, game, seat);
 
             tx.set(historyRef, {

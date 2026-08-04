@@ -6,7 +6,9 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { getUserProfile, UserProfile, UserStats } from '@/lib/firebase/userService';
+import { getUserProfile, listRecentGames, GameHistoryEntry, UserProfile, UserStats } from '@/lib/firebase/userService';
+import { RecordRef } from '@/lib/game/stats';
+import { Seat, SEATS, Team, partnerOf, teamOf } from '@/lib/game/types';
 import { rankFor } from '@/lib/game/rank';
 import RankBadge from '@/components/ui/RankBadge';
 import LoadingPage from '@/components/LoadingPage';
@@ -14,20 +16,38 @@ import ConfettiBurst from '@/components/ui/ConfettiBurst';
 
 const pct = (num: number, den: number) => (den > 0 ? `${Math.round((num / den) * 100)}%` : '—');
 
-function StatTile({ icon, label, value, accent, sub }: {
+/** A stat tile; give it `onOpen` and it becomes a "see it for yourself"
+ *  link into the game review where the record was set. */
+function StatTile({ icon, label, value, accent, sub, onOpen }: {
     icon: string;
     label: string;
     value: string | number;
     accent?: boolean;
     sub?: string;
+    onOpen?: () => void;
 }) {
-    return (
-        <div className="rounded-xl bg-navy-950/50 border border-white/15 p-3 text-center">
+    const inner = (
+        <>
             <span className={`material-symbols-outlined text-xl ${accent ? 'text-yellow-400' : 'text-white/40'}`}>{icon}</span>
             <div className={`font-orbitron text-xl font-bold leading-tight ${accent ? 'text-yellow-400' : 'text-white'}`}>{value}</div>
             <div className="text-white/60 text-[10px] font-orbitron uppercase tracking-wide mt-0.5">{label}</div>
             {sub && <div className="text-white/40 text-[10px] mt-0.5">{sub}</div>}
-        </div>
+        </>
+    );
+    if (!onOpen) {
+        return <div className="rounded-xl bg-navy-950/50 border border-white/15 p-3 text-center">{inner}</div>;
+    }
+    return (
+        <button
+            onClick={onOpen}
+            title="Watch the game where this happened"
+            className="relative rounded-xl bg-navy-950/50 border border-white/15 p-3 text-center hover:border-sky-400/70 transition cursor-pointer w-full"
+        >
+            <span className="absolute top-1.5 right-1.5 material-symbols-outlined text-[13px] text-sky-300/80">
+                play_circle
+            </span>
+            {inner}
+        </button>
     );
 }
 
@@ -40,7 +60,92 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     );
 }
 
-function TrophyCase({ s }: { s: UserStats }) {
+/** "Recent Games" — the player's latest finished games, newest first, each
+ *  one a doorway into the full replay. */
+function RecentGames({ uid }: { uid: string }) {
+    const router = useRouter();
+    const [count, setCount] = useState(5);
+    const [games, setGames] = useState<GameHistoryEntry[] | null>(null);
+    const [exhausted, setExhausted] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        listRecentGames(uid, count)
+            .then((g) => {
+                if (cancelled) return;
+                setGames(g);
+                if (g.length < count) setExhausted(true);
+            })
+            .catch(() => { if (!cancelled) setGames([]); });
+        return () => { cancelled = true; };
+    }, [uid, count]);
+
+    if (!games || games.length === 0) return null;
+
+    const when = (ms?: number) => {
+        if (!ms) return '';
+        const d = new Date(ms);
+        const sameYear = d.getFullYear() === new Date().getFullYear();
+        return d.toLocaleDateString(undefined, sameYear
+            ? { month: 'short', day: 'numeric' }
+            : { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
+    const row = (g: GameHistoryEntry) => {
+        const seat: Seat = g.seat;
+        const myTeam: Team = g.team ?? teamOf(seat);
+        const other: Team = myTeam === 'A' ? 'B' : 'A';
+        const partner = g.seats?.[partnerOf(seat)]?.name.split(' ')[0];
+        const opps = SEATS
+            .filter((x) => teamOf(x) !== myTeam)
+            .map((x) => g.seats?.[x]?.name.split(' ')[0])
+            .filter(Boolean)
+            .join(' & ');
+        return (
+            <button
+                key={g.gameId}
+                onClick={() => router.push(`/review?id=${g.gameId}`)}
+                className="w-full rounded-xl bg-navy-950/50 border border-white/15 hover:border-sky-400/70 p-3 flex items-center gap-3 text-left transition"
+            >
+                <span className={`px-2 py-0.5 rounded-md font-orbitron text-[11px] font-bold flex-shrink-0 ${
+                    g.won ? 'bg-yellow-500/20 text-yellow-300' : 'bg-white/10 text-white/50'
+                }`}>
+                    {g.won ? 'W' : 'L'}
+                </span>
+                <div className="flex-1 min-w-0">
+                    <div className="font-orbitron text-sm">
+                        <span className={g.won ? 'text-yellow-300 font-bold' : 'text-white'}>{g.scores?.[myTeam]}</span>
+                        <span className="text-white/40"> – </span>
+                        <span className="text-white/70">{g.scores?.[other]}</span>
+                        <span className="text-white/40 text-[11px]"> · {g.hands} hand{g.hands === 1 ? '' : 's'}</span>
+                    </div>
+                    <div className="text-white/50 text-[11px] truncate">
+                        {partner ? `with ${partner}` : ''}{opps ? ` vs ${opps}` : ''}{g.finishedAt ? ` · ${when(g.finishedAt)}` : ''}
+                    </div>
+                </div>
+                <span className="material-symbols-outlined text-white/30 flex-shrink-0">play_circle</span>
+            </button>
+        );
+    };
+
+    return (
+        <Section title="Recent Games">
+            <div className="space-y-2">{games.map(row)}</div>
+            {!exhausted && (
+                <button
+                    onClick={() => setCount((c) => c + 10)}
+                    className="mt-2 w-full py-2 rounded-xl bg-white/5 border border-white/15 hover:border-white/30 text-white/70 font-orbitron text-xs"
+                >
+                    Show more
+                </button>
+            )}
+        </Section>
+    );
+}
+
+function TrophyCase({ s, openRef }: { s: UserStats; openRef: (r?: RecordRef) => void }) {
+    const refs = s.recordRefs ?? {};
+    const open = (key: string) => (refs[key] ? () => openRef(refs[key]) : undefined);
     const madeBids = Object.entries(s.madeByBid ?? {})
         .map(([bid, n]) => [Number(bid), n] as [number, number])
         .sort((a, b) => b[0] - a[0]);
@@ -69,6 +174,7 @@ function TrophyCase({ s }: { s: UserStats }) {
                             value={`${s.widestWinMargin} pts`}
                             accent
                             sub="your biggest blowout — final score gap in a win"
+                            onOpen={open('widestWinMargin')}
                         />
                     )}
                     {(s.fastestWin ?? 0) > 0 && (
@@ -78,6 +184,7 @@ function TrophyCase({ s }: { s: UserStats }) {
                             value={`${s.fastestWin} hand${s.fastestWin === 1 ? '' : 's'}`}
                             accent
                             sub="fewest hands to close out a game"
+                            onOpen={open('fastestWin')}
                         />
                     )}
                 </div>
@@ -90,8 +197,8 @@ function TrophyCase({ s }: { s: UserStats }) {
                     <StatTile icon="percent" label="Bid Success" value={pct(s.bidsMade, s.bidsWon)} />
                 </div>
                 <div className="grid grid-cols-3 gap-3 mt-3">
-                    <StatTile icon="trending_up" label="Highest Bid" value={s.highestBid || '—'} />
-                    <StatTile icon="workspace_premium" label="Best Bid Made" value={s.highestBidMade || '—'} accent />
+                    <StatTile icon="trending_up" label="Highest Bid" value={s.highestBid || '—'} onOpen={open('highestBid')} />
+                    <StatTile icon="workspace_premium" label="Best Bid Made" value={s.highestBidMade || '—'} accent onOpen={open('highestBidMade')} />
                     <StatTile icon="sentiment_very_dissatisfied" label="Times Set" value={s.timesSet} />
                 </div>
                 {madeBids.length > 0 && (
@@ -124,9 +231,9 @@ function TrophyCase({ s }: { s: UserStats }) {
 
             <Section title="Hand Records">
                 <div className="grid grid-cols-3 gap-3">
-                    <StatTile icon="local_fire_department" label="Most Count Dealt" value={s.maxHandPoints || '—'} accent={(s.maxHandPoints ?? 0) >= 40} />
+                    <StatTile icon="local_fire_department" label="Most Count Dealt" value={s.maxHandPoints || '—'} accent={(s.maxHandPoints ?? 0) >= 40} onOpen={open('maxHandPoints')} />
                     <StatTile icon="filter_none" label="Zero-Count Hands" value={s.zeroCountHands ?? 0} />
-                    <StatTile icon="linear_scale" label="Longest Suit" value={s.longestSuit || '—'} accent={(s.longestSuit ?? 0) >= 7} />
+                    <StatTile icon="linear_scale" label="Longest Suit" value={s.longestSuit || '—'} accent={(s.longestSuit ?? 0) >= 7} onOpen={open('longestSuit')} />
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-3">
                     <StatTile icon="paid" label="Points Captured" value={(s.pointsCaptured ?? 0).toLocaleString()} sub="lifetime, with your partner" />
@@ -139,6 +246,7 @@ function TrophyCase({ s }: { s: UserStats }) {
                         value={(s.earliestLaydown ?? 0) > 0 ? `Trick ${s.earliestLaydown}` : '—'}
                         accent={(s.earliestLaydown ?? 0) > 0 && s.earliestLaydown <= 4}
                         sub="soonest you claimed the rest with all winners"
+                        onOpen={open('earliestLaydown')}
                     />
                     <StatTile
                         icon="done_all"
@@ -301,7 +409,16 @@ function ProfileInner() {
                                 {isMe ? 'No finished games yet — go play a hand!' : `${name} hasn't finished a game yet.`}
                             </div>
                         ) : (
-                            <TrophyCase s={s} />
+                            <>
+                                <TrophyCase
+                                    s={s}
+                                    openRef={(r) => {
+                                        if (!r) return;
+                                        router.push(`/review?id=${r.gameId}${r.hand ? `&hand=${r.hand}` : ''}`);
+                                    }}
+                                />
+                                {uid && <RecentGames uid={uid} />}
+                            </>
                         )}
                     </>
                 )}

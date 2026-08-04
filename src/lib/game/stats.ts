@@ -6,6 +6,14 @@
 
 import { GameDoc, HandSummary, Seat, Team, getCardPoints, teamOf } from './types';
 
+/** Where a personal record was set — powers the Trophy Case's "see it for
+ *  yourself" links into /review. `hand` is the 1-based hand number for
+ *  hand-level records; absent for game-level ones. */
+export interface RecordRef {
+    gameId: string;
+    hand?: number;
+}
+
 export interface UserStats {
     gamesPlayed: number;
     gamesWon: number;
@@ -31,6 +39,10 @@ export interface UserStats {
     laydowns: number;                      // hands you claimed with all winners
     earliestLaydown: number;               // earliest trick you laid them down on (1-based; 0 = never)
     fastestWin: number;                    // fewest hands in a game you won outright (0 = none yet)
+    // provenance for the record stats above: stat key -> where it happened.
+    // Stamped whenever a record is (re)broken; older records earned before
+    // this existed have no ref until beaten (or backfilled).
+    recordRefs: Record<string, RecordRef>;
 }
 
 export const emptyStats = (): UserStats => ({
@@ -55,6 +67,7 @@ export const emptyStats = (): UserStats => ({
     laydowns: 0,
     earliestLaydown: 0,
     fastestWin: 0,
+    recordRefs: {},
 });
 
 /**
@@ -74,9 +87,15 @@ export const rainbowNumbersFor = (h: HandSummary, seat: Seat): number[] => {
         .sort((a, b) => a - b);
 };
 
-/** Fold one finished hand into `stats` (mutates and returns it). */
-export const applyHandStats = (stats: UserStats, h: HandSummary, seat: Seat): UserStats => {
+/** Fold one finished hand into `stats` (mutates and returns it).
+ *  `gameId` lets record-breaking hands remember where they happened. */
+export const applyHandStats = (stats: UserStats, h: HandSummary, seat: Seat, gameId?: string): UserStats => {
     const myTeam = teamOf(seat);
+    const setRef = (key: string) => {
+        if (!gameId) return;
+        stats.recordRefs = stats.recordRefs ?? {};
+        stats.recordRefs[key] = { gameId, hand: h.handNumber };
+    };
 
     stats.handsPlayed += 1;
     stats.pointsCaptured += h.pointsTaken[myTeam];
@@ -86,19 +105,27 @@ export const applyHandStats = (stats: UserStats, h: HandSummary, seat: Seat): Us
     if (h.laydownSeat === seat && h.laydownTrick != null) {
         stats.laydowns = (stats.laydowns ?? 0) + 1;
         const trick = h.laydownTrick + 1; // stored 0-based, bragged 1-based
-        stats.earliestLaydown = (stats.earliestLaydown ?? 0) === 0
-            ? trick
-            : Math.min(stats.earliestLaydown, trick);
+        const prev = stats.earliestLaydown ?? 0;
+        if (prev === 0 || trick < prev) {
+            stats.earliestLaydown = trick;
+            setRef('earliestLaydown');
+        }
     }
 
     if (h.bidWinner === seat) {
         stats.bidsWon += 1;
-        stats.highestBid = Math.max(stats.highestBid, h.bid);
+        if (h.bid > stats.highestBid) {
+            stats.highestBid = h.bid;
+            setRef('highestBid');
+        }
         if (h.wentSet) {
             stats.timesSet += 1;
         } else {
             stats.bidsMade += 1;
-            stats.highestBidMade = Math.max(stats.highestBidMade, h.bid);
+            if (h.bid > stats.highestBidMade) {
+                stats.highestBidMade = h.bid;
+                setRef('highestBidMade');
+            }
             const k = String(h.bid);
             stats.madeByBid[k] = (stats.madeByBid[k] ?? 0) + 1;
         }
@@ -107,11 +134,18 @@ export const applyHandStats = (stats: UserStats, h: HandSummary, seat: Seat): Us
     const dealt = h.dealtHands?.[seat];
     if (dealt && dealt.length > 0) {
         const pts = dealt.reduce((sum, c) => sum + getCardPoints(c), 0);
-        stats.maxHandPoints = Math.max(stats.maxHandPoints, pts);
+        if (pts > stats.maxHandPoints) {
+            stats.maxHandPoints = pts;
+            setRef('maxHandPoints');
+        }
         if (pts === 0) stats.zeroCountHands += 1;
         const bySuit = new Map<string, number>();
         for (const c of dealt) bySuit.set(c.suit, (bySuit.get(c.suit) ?? 0) + 1);
-        stats.longestSuit = Math.max(stats.longestSuit, ...Array.from(bySuit.values()));
+        const longest = Math.max(...Array.from(bySuit.values()));
+        if (longest > stats.longestSuit) {
+            stats.longestSuit = longest;
+            setRef('longestSuit');
+        }
         for (const num of rainbowNumbersFor(h, seat)) {
             const k = String(num);
             stats.rainbowCounts[k] = (stats.rainbowCounts[k] ?? 0) + 1;
@@ -124,20 +158,29 @@ export const applyHandStats = (stats: UserStats, h: HandSummary, seat: Seat): Us
 /** Fold the game-level facts in once, when the game completes. */
 export const applyGameFinalStats = (stats: UserStats, game: GameDoc, seat: Seat): UserStats => {
     const won: boolean = (teamOf(seat) as Team) === game.winner;
+    const setRef = (key: string) => {
+        stats.recordRefs = stats.recordRefs ?? {};
+        stats.recordRefs[key] = { gameId: game.id };
+    };
     stats.gamesPlayed += 1;
     if (won) {
         stats.gamesWon += 1;
         const myTeam = teamOf(seat) as Team;
         const other: Team = myTeam === 'A' ? 'B' : 'A';
         const margin = game.scores[myTeam] - game.scores[other];
-        stats.widestWinMargin = Math.max(stats.widestWinMargin ?? 0, margin);
+        if (margin > (stats.widestWinMargin ?? 0)) {
+            stats.widestWinMargin = margin;
+            setRef('widestWinMargin');
+        }
         // fastest win: fewest hands to close out a game — forfeit wins don't
         // count, you have to actually get there on the scoreboard
         const hands = game.handHistory?.length ?? 0;
         if (!game.forfeitSeat && hands > 0) {
-            stats.fastestWin = (stats.fastestWin ?? 0) === 0
-                ? hands
-                : Math.min(stats.fastestWin, hands);
+            const prev = stats.fastestWin ?? 0;
+            if (prev === 0 || hands < prev) {
+                stats.fastestWin = hands;
+                setRef('fastestWin');
+            }
         }
     }
     stats.redealsWitnessed += game.redealCount;

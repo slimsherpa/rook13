@@ -13,13 +13,16 @@ function ReviewPageInner() {
     const router = useRouter();
     const raw = params.get('id') || '';
     const id = (decodeURIComponent(raw).match(/^[a-z0-9]+/) || [''])[0];
+    // optional deep-link straight to one hand (?hand=3) — the Trophy Case's
+    // "see it for yourself" records land here
+    const hand = parseInt(params.get('hand') || '', 10);
 
     if (!id) {
         router.push('/');
         return null;
     }
 
-    return <GameReview gameId={id} />;
+    return <GameReview gameId={id} initialHand={Number.isFinite(hand) && hand > 0 ? hand : undefined} />;
 }
 
 export default function ReviewPage() {

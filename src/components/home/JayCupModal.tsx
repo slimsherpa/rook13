@@ -4,6 +4,7 @@
 // Jay Adamson, who won the inaugural cup in 2008. Styled after the real
 // thing: a silver bowl on a walnut base with black engraved plaques.
 
+import { useRouter } from 'next/navigation';
 import RookBird from '@/components/ui/RookBird';
 
 interface Champions {
@@ -23,7 +24,45 @@ const CHAMPIONS: Champions[] = [
     { year: 2026, names: ['Brandon Chambers', 'JD Gardner'] },
 ];
 
+// Champions who've signed up for Rook13 — their engraved name links to
+// their Trophy Case. Add a line here as each one joins.
+const CHAMPION_UIDS: Record<string, string> = {
+    'Rob Gardner': '5G8lHHPCwKRdljhpH9dq3b4f86C3',
+    'David Gardner': 'uBN9sFYEloTScP3aXztRRuPO5dI2',   // DavidK Gardner in-app
+    'Spencer Gardner': 'aGIIxsrn1heiGvPovDLHpL1fd8G3',
+    'Matt Gardner': 'YWzXvDSkVgbDTsuTUGGQXFikfev2',
+    'Reed Gardner': 'nl6RegNDDxgrf2zNhHM2TXwTdOA3',
+    'Darrell Gardner': 'BiJd3Q8QAqgbLkhGEVLStme0H023',
+    'Carson Gardner': 'bNEh5J3V6MXHCOfHCkl9hJDmT8G3',
+};
+
+// Jay at the Rook table, across the decades (public/jay/).
+const JAY_PHOTOS = ['jay-01', 'jay-02', 'jay-03', 'jay-04', 'jay-05', 'jay-06', 'jay-07'];
+
 export default function JayCupModal({ onClose }: { onClose: () => void }) {
+    const router = useRouter();
+
+    // an engraved name: signed-up champions click through to their profile
+    const champName = (name: string) => {
+        const uid = CHAMPION_UIDS[name];
+        if (!uid) {
+            return (
+                <div key={name} className="text-gray-100 text-[11px] font-serif font-semibold leading-tight">
+                    {name}
+                </div>
+            );
+        }
+        return (
+            <button
+                key={name}
+                onClick={() => router.push(`/profile?uid=${uid}`)}
+                className="block w-full text-gray-100 text-[11px] font-serif font-semibold leading-tight underline decoration-dotted decoration-gray-500 underline-offset-2 hover:text-yellow-200"
+            >
+                {name}
+            </button>
+        );
+    };
+
     return (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
             <div
@@ -66,19 +105,37 @@ export default function JayCupModal({ onClose }: { onClose: () => void }) {
                     <div className="rounded-lg bg-gradient-to-b from-[#3b2314] to-[#241209] border border-[#5a3a22] p-3 grid grid-cols-2 gap-2.5 shadow-lg">
                         {CHAMPIONS.map(({ year, names }) => (
                             <div key={year} className="rounded bg-black/85 border border-gray-500/40 px-2 py-2 text-center">
-                                <div className="text-gray-400 text-[10px] tracking-[0.2em]">{year}</div>
-                                <div className="text-gray-100 text-[11px] font-serif font-semibold leading-tight mt-0.5">
-                                    {names[0]}
-                                </div>
-                                <div className="text-gray-100 text-[11px] font-serif font-semibold leading-tight">
-                                    {names[1]}
-                                </div>
+                                <div className="text-gray-400 text-[10px] tracking-[0.2em] mb-0.5">{year}</div>
+                                {champName(names[0])}
+                                {champName(names[1])}
                             </div>
                         ))}
                     </div>
                 </div>
 
-                <div className="px-6 pb-6">
+                {/* Jay himself, at the table — the reason there's a cup */}
+                <div className="px-6 pb-2">
+                    <div className="text-center text-gray-400 text-[10px] tracking-[0.25em] font-serif mb-3">
+                        JAY AT THE TABLE
+                    </div>
+                    <div className="space-y-3">
+                        {JAY_PHOTOS.map((p) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                key={p}
+                                src={`/jay/${p}.jpg`}
+                                alt="Jay Adamson playing Rook"
+                                loading="lazy"
+                                className="w-full rounded-lg border border-[#5a3a22] shadow-md"
+                            />
+                        ))}
+                    </div>
+                    <p className="text-center text-white/50 text-[11px] leading-relaxed mt-3">
+                        Jay Adamson — decades of Rook, most of it on the lake.
+                    </p>
+                </div>
+
+                <div className="px-6 pb-6 pt-2">
                     <button
                         onClick={onClose}
                         className="w-full py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-orbitron text-sm"

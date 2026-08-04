@@ -15,7 +15,7 @@ import LoadingPage from '@/components/LoadingPage';
 import { DealBreakdown, TrickByTrick } from '@/components/table/HandRecapModal';
 import { BlunderProvider, BlunderTrigger } from '@/components/review/BlunderReport';
 
-export default function GameReview({ gameId }: { gameId: string }) {
+export default function GameReview({ gameId, initialHand }: { gameId: string; initialHand?: number }) {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const [game, setGame] = useState<GameDoc | null>(null);
@@ -55,6 +55,13 @@ export default function GameReview({ gameId }: { gameId: string }) {
                 setComplete(review.complete);
                 // a single-hand game might as well open expanded
                 if (review.hands.length === 1) setOpenHand(0);
+                // deep-linked hand (?hand=N): open it and scroll it into view
+                else if (initialHand && initialHand >= 1 && initialHand <= review.hands.length) {
+                    setOpenHand(initialHand - 1);
+                    setTimeout(() => {
+                        document.getElementById(`hand-${initialHand}`)?.scrollIntoView({ block: 'start' });
+                    }, 100);
+                }
             } catch (e: any) {
                 setError(e?.message || 'Could not load the game log');
             }
@@ -99,7 +106,7 @@ export default function GameReview({ gameId }: { gameId: string }) {
         const s = h.summary;
         const bidTeam = teamOf(s.bidWinner);
         return (
-            <div key={idx} className="rounded-2xl bg-navy-950/50 border border-white/15 overflow-hidden">
+            <div key={idx} id={`hand-${idx + 1}`} className="rounded-2xl bg-navy-950/50 border border-white/15 overflow-hidden scroll-mt-4">
                 <button
                     onClick={() => setOpenHand(open ? null : idx)}
                     className="w-full p-3.5 flex items-center gap-3 text-left"

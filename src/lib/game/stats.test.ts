@@ -123,6 +123,37 @@ describe('applyHandStats', () => {
     });
 });
 
+describe('recordRefs (the "see it for yourself" links)', () => {
+    it('stamps where a record was set, and re-stamps only when beaten', () => {
+        const s = emptyStats();
+        applyHandStats(s, hand({ bidWinner: 'A1', bid: 100, wentSet: false, handNumber: 2 }), 'A1', 'game-one');
+        expect(s.recordRefs.highestBid).toEqual({ gameId: 'game-one', hand: 2 });
+        expect(s.recordRefs.highestBidMade).toEqual({ gameId: 'game-one', hand: 2 });
+        // an equal bid later does NOT move the ref — first achiever keeps it
+        applyHandStats(s, hand({ bidWinner: 'A1', bid: 100, wentSet: false, handNumber: 1 }), 'A1', 'game-two');
+        expect(s.recordRefs.highestBid).toEqual({ gameId: 'game-one', hand: 2 });
+        // a higher bid moves it
+        applyHandStats(s, hand({ bidWinner: 'A1', bid: 110, wentSet: true, handNumber: 3 }), 'A1', 'game-two');
+        expect(s.recordRefs.highestBid).toEqual({ gameId: 'game-two', hand: 3 });
+        expect(s.recordRefs.highestBidMade).toEqual({ gameId: 'game-one', hand: 2 }); // set: made-record unchanged
+        // without a gameId (legacy caller) the stat still moves, no ref
+        applyHandStats(s, hand({ bidWinner: 'A1', bid: 120, wentSet: false, handNumber: 4 }), 'A1');
+        expect(s.highestBid).toBe(120);
+        expect(s.recordRefs.highestBid).toEqual({ gameId: 'game-two', hand: 3 });
+    });
+
+    it('game-level records point at the game', () => {
+        const s = emptyStats();
+        applyGameFinalStats(s, {
+            id: 'blowout', winner: 'A', redealCount: 0, scores: { A: 505, B: -250 },
+            handHistory: [{}, {}, {}],
+        } as GameDoc, 'A1');
+        expect(s.recordRefs.widestWinMargin).toEqual({ gameId: 'blowout' });
+        expect(s.recordRefs.fastestWin).toEqual({ gameId: 'blowout' });
+        expect(s.fastestWin).toBe(3);
+    });
+});
+
 describe('applyGameFinalStats', () => {
     it('adds the game-level facts exactly once', () => {
         const s = emptyStats();
