@@ -145,6 +145,43 @@ class _Sim:
         self._advance()
 
 
+def solver_tail_value(g: Game, my_team: int) -> float:
+    """T2 (GEN24-PLAN, 2026-08-02): finish a rollout's last tricks with the
+    EXACT solver instead of net playouts. Same return scale as
+    rollout_value, but the tail is perfect play by both sides — every
+    early-trick evaluation gets a noiseless endgame under it. Cost at
+    <=4 tricks left is ~1ms (measured), on par with the net-forward
+    steps it replaces. Mirrors engine._score_hand exactly: go-down rides
+    the last trick inside the solver, 5-trick bonus, set = -bid, and the
+    engine's game-over rule."""
+    from rook import solver as S
+    # solve() = team-0 points FROM HERE (banked counters are the caller's
+    # to add; the 5-trick bonus is settled at the terminal inside solve)
+    pts0 = g.points_taken[0] + S.solve(
+        [list(h) for h in g.hands], g.trump, g.trick_leader,
+        g.go_down_points(), t0_tricks=g.tricks_won[0],
+        tricks_done=len(g.completed_tricks), trick=tuple(g.trick_plays))
+    pts = [pts0, S.TOTAL_POINTS - pts0]
+    bid_team = team_of(g.bid_winner)
+    bid = g.high_bid
+    went_set = pts[bid_team] < bid
+    hand_score = [0, 0]
+    hand_score[bid_team] = -bid if went_set else pts[bid_team]
+    hand_score[1 - bid_team] = pts[1 - bid_team]
+    diff = hand_score[my_team] - hand_score[1 - my_team]
+    hand = max(-1.0, min(1.0, diff / 200.0))
+    s0 = g.scores[0] + hand_score[0]
+    s1 = g.scores[1] + hand_score[1]
+    sd = (s0 - s1) if my_team == 0 else (s1 - s0)
+    game = 0.3 * max(-1.0, min(1.0, sd / g.win_score))
+    over = (s0 >= g.win_score or s1 >= g.win_score
+            or s0 <= g.lose_score or s1 <= g.lose_score)
+    if over and s0 != s1:
+        winner = 0 if s0 > s1 else 1
+        game += 0.7 * (1.0 if winner == my_team else -1.0)
+    return 0.5 * hand + 0.5 * game
+
+
 def rollout_value(g: Game, my_team: int) -> float:
     """What one finished rollout hand is worth, on the same scale the net
     was trained to predict: 0.5 * clipped hand diff + 0.5 * game term.
@@ -242,7 +279,8 @@ class SearchAgent:
                  bid_infer: float = 0.0, belief=None,
                  fork_depth: int = 0, fork_width: int = 3,
                  plan_lines: int = 0, seed: int = 0,
-                 prior_schedule: tuple[float, float] | None = None):
+                 prior_schedule: tuple[float, float] | None = None,
+                 solve_tail: int = 0):
         self.net = net
         self.device = device
         self.worlds = worlds
@@ -261,6 +299,9 @@ class SearchAgent:
         self.fork_depth = fork_depth
         self.fork_width = fork_width
         self.plan_lines = plan_lines
+        # T2: finish rollouts with the exact solver once <= solve_tail
+        # tricks remain (0 = off). 4 is the measured sweet spot (~1ms).
+        self.solve_tail = solve_tail
         self.rng = random.Random(seed)
         net.eval()
 
@@ -494,6 +535,13 @@ class SearchAgent:
                 while True:
                     if sim.hand_over:
                         v = rollout_value(sim.g, my_team)
+                        if best.get((k, ci, li), -9.9) < v:
+                            best[(k, ci, li)] = v
+                        break
+                    if (self.solve_tail > 0 and sim.g.phase == PLAYING
+                            and len(sim.g.completed_tricks)
+                            >= 9 - self.solve_tail):
+                        v = solver_tail_value(sim.g, my_team)
                         if best.get((k, ci, li), -9.9) < v:
                             best[(k, ci, li)] = v
                         break

@@ -1,0 +1,66 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="120">
+<title>PROJECT ALPHAROOK</title>
+<style>
+body{font-family:ui-monospace,Menlo,monospace;background:#0d1117;
+color:#e6edf3;margin:2rem}
+h1{color:#f0b429} h2{color:#79c0ff;margin-top:2rem}
+table{border-collapse:collapse;margin-top:1rem}
+td,th{border:1px solid #30363d;padding:.5rem .9rem;text-align:right}
+th{background:#161b22;color:#79c0ff}
+.small{color:#8b949e;font-size:.85rem}
+</style></head><body>
+<h1>PROJECT ALPHAROOK — the K-ladder, live</h1>
+<p class=small>MortalRook (disciplined exact-solve mortal) vs Cosmo
+(gen21×belief×t0 K24) · duplicate decks · family format · per-hand
+currency. Positive pts/hand = MortalRook ahead. ✅ = CI clear of zero.
+Updated 2026-08-05 17:28:19 MDT</p>
+<table><tr><th>arm</th><th>games</th><th>hands</th><th>pace</th>
+<th>pts/hand vs Cosmo</th><th>game win%</th><th>make% MR vs Cosmo</th>
+<th>declaring: pts captured</th><th>defending: pts captured</th></tr>
+<tr><td>K48</td><td>3000</td><td>36,613</td><td></td><td><b>+1.4</b> ± 1.2 ✅</td><td>51.8%</td><td>65% vs 64%</td><td>100.8 vs 100.1</td><td>19.9 vs 19.2</td></tr><tr><td>K96</td><td>2360</td><td>29,295</td><td>47.5s/game</td><td><b>+2.1</b> ± 1.4 ✅</td><td>51.9%</td><td>65% vs 64%</td><td>101.1 vs 99.9</td><td>20.1 vs 18.9</td></tr><tr><td>K192</td><td>1160</td><td>13,861</td><td>82.9s/game</td><td><b>+1.7</b> ± 2.0 …</td><td>52.6%</td><td>66% vs 64%</td><td>101.0 vs 100.2</td><td>19.8 vs 19.0</td></tr><tr><td>K384</td><td>236</td><td>2,867</td><td>430.1s/game</td><td><b>+2.2</b> ± 4.3 …</td><td>53.8%</td><td>67% vs 65%</td><td>101.8 vs 101.0</td><td>19.0 vs 18.2</td></tr><tr><td>K768</td><td>72</td><td>856</td><td>1325.4s/game</td><td><b>-1.6</b> ± 7.9 …</td><td>51.4%</td><td>67% vs 68%</td><td>101.6 vs 101.9</td><td>18.1 vs 18.4</td></tr></table>
+<h2>THE CURVE — compute vs strength (the saturation hunt)</h2>
+<svg width="640" height="260" style="background:#161b22;border:1px solid #30363d"><line x1="45" y1="115.98607985677636" x2="595" y2="115.98607985677636" stroke="#8b949e" stroke-dasharray="4"/><text x="599" y="119.98607985677636" fill="#8b949e" font-size="11">Cosmo</text><line x1="45.0" y1="114.58579995998667" x2="45.0" y2="91.58398695804226" stroke="#79c0ff" stroke-width="2"/><circle cx="45.0" cy="103.08489345901448" r="5" fill="#f0b429"/><text x="35.0" y="231" fill="#e6edf3" font-size="12">K48</text><line x1="182.5" y1="109.23670299509904" x2="182.5" y2="83.52203435869637" stroke="#79c0ff" stroke-width="2"/><circle cx="182.5" cy="96.37936867689768" r="5" fill="#f0b429"/><text x="172.5" y="231" fill="#e6edf3" font-size="12">K96</text><line x1="320.0" y1="118.54759351897238" x2="320.0" y2="81.29307896722821" stroke="#79c0ff" stroke-width="2"/><circle cx="320.0" cy="99.92033624310031" r="5" fill="#f0b429"/><text x="310.0" y="231" fill="#e6edf3" font-size="12">K192</text><line x1="457.5" y1="136.08231896680942" x2="457.5" y2="54.48210654584474" stroke="#79c0ff" stroke-width="2"/><circle cx="457.5" cy="95.28221275632708" r="5" fill="#f0b429"/><text x="447.5" y="231" fill="#e6edf3" font-size="12">K384</text><line x1="595.0" y1="205.51789345415526" x2="595.0" y2="56.58432444245551" stroke="#79c0ff" stroke-width="2"/><circle cx="595.0" cy="131.0511089483054" r="5" fill="#f0b429"/><text x="585.0" y="231" fill="#e6edf3" font-size="12">K768</text><polyline points="45.0,103.08489345901448 182.5,96.37936867689768 320.0,99.92033624310031 457.5,95.28221275632708 595.0,131.0511089483054" fill="none" stroke="#f0b429" stroke-width="1.5" opacity="0.6"/><text x="45" y="18" fill="#79c0ff" font-size="13">pts/hand vs Cosmo — whiskers are 95% CI; more compute tightens them</text></svg>
+<h2>column guide</h2>
+<p class=small>
+<b>arm</b>: K = imagined deals MortalRook averages before playing a card ·
+<b>games</b>: full games to 500/−250, every deck played twice with teams
+swapped so deal luck cancels ·
+<b>hands</b>: total deals inside those games — one data point each ·
+<b>pace</b>: wall-clock seconds per game per fleet core ·
+<b>pts/hand vs Cosmo</b>: PER HAND (a hand = one deal, 9 tricks): each
+hand's scorecard delta for MortalRook's team minus Cosmo's team (made
+contract = points captured; set = −bid), averaged. ± is the 95%%
+confidence range; ✅ = range clear of zero ·
+<b>game win%%</b>: share of full games won ·
+<b>make%%</b>: of contracts each side bought, share converted — same
+bidding brains both sides, so any difference is pure card play ·
+<b>declaring/defending pts captured</b>: RAW points won at the table
+(out of 120/hand incl. the 20 trick bonus), no −bid cliff anywhere —
+"when MY team bought the contract, I captured X; when THEIRS did, I
+stole Y." MR's number vs Cosmo's number in the same role. The cliff-free
+view of the same skill the pts/hand column prices.</p>
+<h2>think-time per decision (measured 08-05, 1 MBP core; ×2 for a
+fleet/cloud core, ÷cores when worlds are parallelized)</h2>
+<table><tr><th>K</th><th>t0 LEAD med/p90</th><th>t0 follow</th>
+<th>trick 1</th><th>trick 4+</th></tr>
+<tr><td>48</td><td>25.7s / 42s</td><td>3.3s</td><td>1.2s</td><td>0.02s</td></tr>
+<tr><td>96</td><td>51.8s / 85s</td><td>5.4s</td><td>1.7s</td><td>0.03s</td></tr>
+<tr><td>192</td><td>82.1s / 154s</td><td>11.9s</td><td>3.6s</td><td>0.05s</td></tr>
+<tr><td>384</td><td>227.7s / 478s</td><td>26.8s</td><td>7.8s</td><td>0.10s</td></tr></table>
+<p class=small>The OPENING LEAD is the wall — ~8× any other trick-0
+decision, ~1000× the late tricks. Production implication: budget-shaped
+K (8s at 8 cores ≈ K50–64 on the lead, K200+ on follows, unlimited
+late) rather than flat K.</p>
+<h2>the scouting quiz that aimed these duels (8.2k flashcards)</h2>
+<p class=small>Before the duels we ran flashcards: freeze one moment of
+a real game, ask "what card?", grade that single answer with perfect
+math on fresh imagined deals, put the game back. Those grades —
+K12 +1.7 · K24 +2.0 · K48 +2.6 · K96 +3.9 (pts/early-decision) — measured points gained PER GRADED EARLY DECISION (~5 such
+decisions per hand per team), not per hand. They drew the map: gain
+grows with K, cost is linear. The duel table above is the territory —
+whole hands, consequences included, in the per-hand currency.</p>
+<p class=small>C solver: 58–66× Python, parity-proven both platforms.
+8-second budget at 8 cores ≈ K50 hard-case / K400 median on the opening
+lead. Fleet: 3× CPX51 + MBP.</p>
+</body></html>

@@ -55,7 +55,8 @@ class Side:
                  infer_temp: float = 0.0, bid_infer: float = 0.0,
                  belief_ckpt: str | None = None, belief_temp: float = 1.0,
                  fork_depth: int = 0, fork_width: int = 3,
-                 plan_lines: int = 0, god: bool = False):
+                 plan_lines: int = 0, god: bool = False,
+                 solve_tail: int = 0, mortal: int = 0, mrook: int = 0):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
         self.net = net
@@ -80,7 +81,26 @@ class Side:
             self.net = load_qnet(spec)
         self.agent = None
         self.god = god
-        if god:
+        self.mortal = mortal
+        self.mrook = mrook
+        if mrook:
+            assert self.net is not None and belief_ckpt
+            assert worlds == 0 and not god and not mortal
+            from .beliefs import BeliefOracle
+            from .mortalgod import MortalRookAgent
+            self.agent = MortalRookAgent(
+                self.net, BeliefOracle(belief_ckpt, temp=belief_temp),
+                worlds=mrook)
+        elif mortal:
+            assert self.net is not None, "mortal god bids with a net"
+            assert worlds == 0 and not god, "mortal replaces search/god"
+            assert belief_ckpt, "mortal god imagines through a belief net"
+            from .beliefs import BeliefOracle
+            from .mortalgod import MortalGodAgent
+            self.agent = MortalGodAgent(
+                self.net, BeliefOracle(belief_ckpt, temp=belief_temp),
+                worlds=mortal)
+        elif god:
             assert self.net is not None, "god mode bids with a net"
             assert worlds == 0, "god does not imagine; god knows"
             from .god import GodAgent
@@ -103,10 +123,16 @@ class Side:
                                      bid_infer=bid_infer, belief=belief,
                                      fork_depth=fork_depth,
                                      fork_width=fork_width,
-                                     plan_lines=plan_lines)
+                                     plan_lines=plan_lines,
+                                     solve_tail=solve_tail)
 
     def name(self) -> str:
         base = self.spec.split("/")[-1]
+        if self.mrook:
+            return f"{base}+MORTALROOK(K{self.mrook},confirm24,tau2)"
+        if self.mortal:
+            return (f"{base}+MORTALGOD(K{self.mortal},"
+                    f"B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g})")
         if self.god:
             return f"{base}+GOD(omniscient play)"
         if not self.worlds:
@@ -436,6 +462,20 @@ def main():
                          "next-play intentions per candidate, same line "
                          "across all worlds (fusion-free)")
     ap.add_argument("--plan-lines-b", type=int, default=0)
+    ap.add_argument("--solve-tail-a", type=int, default=0,
+                    help="T2: exact-solve rollout tails once <= N tricks "
+                         "remain (0 = off; 4 = measured sweet spot)")
+    ap.add_argument("--solve-tail-b", type=int, default=0)
+    ap.add_argument("--mortal-a", type=int, default=0,
+                    help="MORTALGOD card play: exact-solve every candidate "
+                         "in K belief-sampled worlds, average in family "
+                         "hand currency, argmax (needs --belief-a)")
+    ap.add_argument("--mortal-b", type=int, default=0)
+    ap.add_argument("--mrook-a", type=int, default=0,
+                    help="MORTALROOK: disciplined mortal — reflex incumbent "
+                         "+ split-sample-confirmed overrides (sel K, eval "
+                         "24, tau 2). Needs --belief-a")
+    ap.add_argument("--mrook-b", type=int, default=0)
     ap.add_argument("--god-a", action="store_true",
                     help="ALPHAGODROOK: side A plays cards with the exact "
                          "omniscient solver (bids stay with --a's net)")
@@ -458,11 +498,13 @@ def main():
     a_args = (args.a, args.script_a, None, args.worlds_a, args.search_a,
               args.prior_a, args.min_trick_a, args.infer_a, args.bid_infer_a,
               args.belief_a, args.belief_temp_a, args.fork_depth_a,
-              args.fork_width_a, args.plan_lines_a, args.god_a)
+              args.fork_width_a, args.plan_lines_a, args.god_a,
+              args.solve_tail_a, args.mortal_a, args.mrook_a)
     b_args = (args.b, args.script_b, None, args.worlds_b, args.search_b,
               args.prior_b, args.min_trick_b, args.infer_b, args.bid_infer_b,
               args.belief_b, args.belief_temp_b, args.fork_depth_b,
-              args.fork_width_b, args.plan_lines_b, args.god_b)
+              args.fork_width_b, args.plan_lines_b, args.god_b,
+              args.solve_tail_b, args.mortal_b, args.mrook_b)
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
          workers=args.workers, side_args=(a_args, b_args),

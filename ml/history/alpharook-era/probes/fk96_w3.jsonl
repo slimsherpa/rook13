@@ -1,0 +1,16 @@
+{"agree": 0, "gain": -0.8, "sel_gap": 3.1, "k_sel": 96, "k_eval": 24, "seed": 12030000001, "hn": 1, "trick": 0, "pos": 0, "seat": 2, "declarer": 0, "decl_team": 1, "bid": 100, "n_cands": 6}
+{"agree": 0, "gain": 21.5, "sel_gap": 19.9, "k_sel": 96, "k_eval": 24, "seed": 12030000001, "hn": 1, "trick": 2, "pos": 0, "seat": 3, "declarer": 0, "decl_team": 0, "bid": 100, "n_cands": 6}
+{"agree": 1, "gain": 0.0, "sel_gap": 0.0, "k_sel": 96, "k_eval": 0, "seed": 12030000001, "hn": 2, "trick": 1, "pos": 1, "seat": 3, "declarer": 0, "decl_team": 0, "bid": 100, "n_cands": 3}
+{"agree": 0, "gain": 35.8, "sel_gap": 48.3, "k_sel": 96, "k_eval": 24, "seed": 12030000001, "hn": 2, "trick": 2, "pos": 1, "seat": 3, "declarer": 0, "decl_team": 0, "bid": 100, "n_cands": 2}
+{"agree": 1, "gain": 0.0, "sel_gap": 0.0, "k_sel": 96, "k_eval": 0, "seed": 12030000001, "hn": 3, "trick": 1, "pos": 0, "seat": 1, "declarer": 1, "decl_team": 1, "bid": 100, "n_cands": 6}
+{"agree": 1, "gain": 0.0, "sel_gap": 0.0, "k_sel": 96, "k_eval": 0, "seed": 12030000001, "hn": 3, "trick": 2, "pos": 3, "seat": 0, "declarer": 0, "decl_team": 0, "bid": 100, "n_cands": 2}
+{"agree": 0, "gain": 0.0, "sel_gap": 0.8, "k_sel": 96, "k_eval": 24, "seed": 12030000001, "hn": 4, "trick": 0, "pos": 2, "seat": 3, "declarer": 0, "decl_team": 0, "bid": 100, "n_cands": 2}
+{"agree": 1, "gain": 0.0, "sel_gap": 0.0, "k_sel": 96, "k_eval": 0, "seed": 12030000001, "hn": 5, "trick": 2, "pos": 0, "seat": 1, "declarer": 1, "decl_team": 1, "bid": 100, "n_cands": 6}
+{"agree": 1, "gain": 0.0, "sel_gap": 0.0, "k_sel": 96, "k_eval": 0, "seed": 12030000001, "hn": 5, "trick": 2, "pos": 3, "seat": 0, "declarer": 0, "decl_team": 0, "bid": 100, "n_cands": 6}
+{"agree": 1, "gain": 0.0, "sel_gap": 0.0, "k_sel": 96, "k_eval": 0, "seed": 12030000001, "hn": 6, "trick": 0, "pos": 2, "seat": 1, "declarer": 0, "decl_team": 0, "bid": 100, "n_cands": 2}
+{"agree": 1, "gain": 0.0, "sel_gap": 0.0, "k_sel": 96, "k_eval": 0, "seed": 12030000001, "hn": 6, "trick": 1, "pos": 3, "seat": 0, "declarer": 1, "decl_team": 1, "bid": 100, "n_cands": 2}
+{"agree": 0, "gain": 0.6, "sel_gap": 0.6, "k_sel": 96, "k_eval": 24, "seed": 12030000001, "hn": 7, "trick": 1, "pos": 2, "seat": 0, "declarer": 1, "decl_team": 1, "bid": 100, "n_cands": 4}
+{"agree": 0, "gain": -8.8, "sel_gap": 0.1, "k_sel": 96, "k_eval": 24, "seed": 12030000001, "hn": 7, "trick": 2, "pos": 2, "seat": 2, "declarer": 0, "decl_team": 1, "bid": 100, "n_cands": 6}
+{"agree": 0, "gain": -1.7, "sel_gap": 0.7, "k_sel": 96, "k_eval": 24, "seed": 12030000001, "hn": 8, "trick": 1, "pos": 2, "seat": 0, "declarer": 1, "decl_team": 1, "bid": 105, "n_cands": 6}
+{"agree": 1, "gain": 0.0, "sel_gap": 0.0, "k_sel": 96, "k_eval": 0, "seed": 12030000001, "hn": 8, "trick": 1, "pos": 3, "seat": 1, "declarer": 0, "decl_team": 0, "bid": 105, "n_cands": 3}
+{"agree": 1, "gain": 0.0, "sel_gap": 0.0, "k_sel": 96, "k_eval": 0, "seed": 12030000001, "hn": 9, "trick": 0, "pos": 1, "seat": 3, "declarer": 0, "decl_team": 0, "bid": 100, "n_cands": 4}

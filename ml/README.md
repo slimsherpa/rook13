@@ -8,6 +8,19 @@ a finished brain ships later via ONNX. Nothing here touches Firebase.
 **The full generation-by-generation ledger — recipes, results, failures,
 and the laws they earned — lives in [GENERATIONS.md](GENERATIONS.md).**
 
+**Latest era (closed 2026-08-05): PROJECT ALPHAROOK** — the mortal
+card-play ceiling, measured. MortalRook (reflex + belief-sampled
+exact-solver overrides + split-sample discipline) beats production
+Cosmo by **+1.68 ± 0.80 pts/hand over 83,604 hands** — the first
+confirmed card-play rung ever, achieved at K=48 imagined worlds with
+no measurable gain from more compute in real play. Enabling move:
+`rook/csolver.c`, a 58–66× C port of the double-dummy solver,
+parity-gated by `tests/test_csolver_parity.py` (auto-builds on import;
+`ROOK_PURE_PY=1` opts out). Data + era doc:
+[history/alpharook-era/](history/alpharook-era/README.md); campaign
+log: [GEN24-PLAN.md](GEN24-PLAN.md); the story:
+https://claude.ai/code/artifact/02fbc294-0722-40b9-a21b-4737ba036cd1
+
 ## Layout
 
 ```
@@ -40,6 +53,25 @@ ml/
    `tests/test_leak.py` scrambles all hidden cards (other hands + go-down)
    mid-game and asserts the encoding is bit-identical. Cheating is a test
    failure, not a temptation.
+
+## House rules for specialist nets (Riley, 2026-08-01)
+
+Any new learned model — specialist brains included — must comply:
+
+1. **Full human view, nothing less.** Give the net ALL the information a
+   human player would have at that point in the game: scorecard, dealer,
+   every bid, trump, all played cards, points captured. In practice: ride
+   the leak-tested encoder (v4 today) rather than hand-rolling a stripped
+   feature set. (WidowBrain v1/v2 predate this rule — they see only 13
+   cards + bid; successors get the full view.) And never MORE than the
+   human view: hindsight belongs in training labels, not inputs (law 9).
+2. **Test the test.** Before committing hours of compute, spend ~20
+   minutes proving the pipeline learns what we think it does: generate a
+   small corpus, AUDIT THE ACTUAL ROWS (label distribution, integrity
+   self-checks, coverage), run a short training, and confirm the metric
+   that matters moves. Only then launch the soak. Corollary from the
+   ledger: audit the artifact, not the code — a write-path filter once
+   silently ate a new field for an hour of production.
 
 ## Training
 

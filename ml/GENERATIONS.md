@@ -666,3 +666,66 @@ DISABLED behind the WIDOWBRAIN env var — its +3.80pp gate was under
 gen23 play and did NOT transfer to gen21 play (+0.53 ± 1.24), so the
 enable waits for a Cosmo-play-gated v2.1 (regenerate corpus with gen21
 rollouts, retrain, re-gate: one overnight soak, on demand).
+
+---
+
+# THE ALPHAROOK ERA (2026-08-01 → 08-05) — the mortal ceiling, measured
+
+The campaign that answered Riley's founding question ("how good can card
+play actually get?") with a measurement instead of a judgment. Full
+record: GEN24-PLAN.md (campaign log) + history/alpharook-era/ (data +
+era README). Riley's artifact tells the story:
+https://claude.ai/code/artifact/02fbc294-0722-40b9-a21b-4737ba036cd1
+
+**The verdict: MortalRook — the champion's reflex + belief-sampled
+exact-solver overrides under split-sample discipline — beats Cosmo at
+card play by +1.68 ± 0.80 pts/hand (83,604 duplicate-deck hands,
+family format, identical bids; make-rate +1-2pp; the edge is symmetric
+across declaring/defending, ~+0.7-1.2 raw captured pts in each role).
+First confirmed card-play rung after 11 failed attacks across three
+eras. The edge arrives at K48 and does NOT measurably grow with K in
+real play at achieved precision (K48-K384 all compatible with a flat
++1.5-2; K768 still noise at wrap).**
+
+The road there, compressed (each step banked in GEN24-PLAN's verdict
+log): CardBrain v1/v2/v3 (hindsight labels, belief-world labels,
+champion-trunk graft) — three negatives proving reflex saturation; the
+flywheel test (the gen23-core search stack LOSES 43.3% to the
+gen21-core stack — Cosmo's brain was already the right one); belief24
+retrain — parity (gen15's organ is meta-robust; frozen-trunk heads are
+feature-capped); solver-tail T2 — parity (rollout-tail noise cancels
+across candidates); WidowMaker v2.1 — parity under Cosmo (gen21
+already buries smart, ~13.8 counter pts vs gen23's 19.0 in error
+cases; the widow gold was gen23-specific — plus the focused-corpus ⇒
+deployment-mask law, learned from a −21pp OOD artifact gate); the
+treasure map finally run (35.4% of bought contracts unmakeable at par
+— the auction owes the most; 71-82% of early-trick play loss is
+preventable); the raw MortalGod duel — LOST 2-8 paired (the winner's
+curse survives a PERFECT evaluator); the mortal probe (split-sample
+flashcards, 8.6k) — per-decision gains +1.7→+3.9 rising K12→K96, no
+knee; **rook/csolver.c — the C oracle, 58-66×, byte-identical
+parity-gated on macOS/clang AND Linux/gcc — the campaign's enabling
+move**; then the five-arm K-ladder duels (K48/96/192/384/768) on a
+5-box fleet with live dashboard.
+
+New laws for the ledger:
+11. **Reflex saturation**: past the mimic ceiling, remaining skill is
+    per-state computation, not compressible pattern — three label
+    designs and the champion's own trunk all failed to fit it.
+12. **The winner's curse is the tax on imagination**: argmax over
+    sampled worlds loses outright without split-sample confirmation,
+    even with an exact evaluator. Discipline IS the edge.
+13. **Flashcards map, duels decide**: per-decision oracle gains
+    overstate per-hand sequential gains ~3-5×.
+14. **Compiled beats interpreted ~60×, and the opening lead is the
+    cost wall** (~8× other trick-0 decisions, ~1000× late tricks) —
+    production design is budget-shaped K, not flat K.
+
+Era ships nothing yet (Cosmo unchanged and still serving — undefeated
+until this campaign, and only beatable by out-computing it); the
+designed, priced next steps parked in GEN24-PLAN.md: budget-shaped
+production MortalRook (~8s/card, ~$0.01-0.15/game, SkyTech PC as
+candidate free host) and the distill-to-browser mimic. Fleet halted
+2026-08-05, all five boxes released to other projects; total era
+compute ~$15-20 of rented CPU for the first confirmed card-play rung
+in project history.

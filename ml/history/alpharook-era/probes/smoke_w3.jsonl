@@ -1,0 +1,2 @@
+{"agree": 0, "gain": -19.6, "sel_gap": 19.2, "k_sel": 24, "k_eval": 24, "seed": 10930000001, "hn": 1, "trick": 1, "pos": 1, "seat": 2, "declarer": 0, "decl_team": 1, "bid": 105, "n_cands": 2}
+{"agree": 1, "gain": 0.0, "sel_gap": 0.0, "k_sel": 24, "k_eval": 0, "seed": 10930000001, "hn": 2, "trick": 0, "pos": 3, "seat": 2, "declarer": 0, "decl_team": 1, "bid": 100, "n_cands": 3}

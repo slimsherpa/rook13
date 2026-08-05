@@ -51,3 +51,4 @@ __pycache__/
 # corpus archives live in GCS (gs://rook13-corpus), never in git
 ml/history/*/t0corpus-full.tar.zst
 service/driver/node_modules/
+ml/rook/_csolver.so

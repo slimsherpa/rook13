@@ -1,0 +1,5 @@
+K48: t0-LEAD med  25.7s p90  42.2s max  42.2s (n=9) | t0-follow med   3.3s | t1 med  1.2s | trick4+ med 0.02s | worst any  42.2s
+K96: t0-LEAD med  51.8s p90  84.6s max  84.6s (n=10) | t0-follow med   5.4s | t1 med  1.7s | trick4+ med 0.03s | worst any  84.6s
+K192: t0-LEAD med  82.1s p90 154.1s max 154.1s (n=10) | t0-follow med  11.9s | t1 med  3.6s | trick4+ med 0.05s | worst any 154.1s
+K384: t0-LEAD med 227.7s p90 477.8s max 477.8s (n=10) | t0-follow med  26.8s | t1 med  7.8s | trick4+ med 0.10s | worst any 477.8s
+TIMING DONE
