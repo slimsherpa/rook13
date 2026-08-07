@@ -56,7 +56,9 @@ class Side:
                  belief_ckpt: str | None = None, belief_temp: float = 1.0,
                  fork_depth: int = 0, fork_width: int = 3,
                  plan_lines: int = 0, god: bool = False,
-                 solve_tail: int = 0, mortal: int = 0, mrook: int = 0):
+                 solve_tail: int = 0, mortal: int = 0, mrook: int = 0,
+                 anytime: float = 0.0, mwidow: float = 0.0,
+                 proposer: str | None = None):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
         self.net = net
@@ -83,7 +85,32 @@ class Side:
         self.god = god
         self.mortal = mortal
         self.mrook = mrook
-        if mrook:
+        self.anytime = anytime
+        self.mwidow = mwidow
+        if anytime:
+            assert self.net is not None and belief_ckpt
+            assert worlds == 0 and not god and not mortal and not mrook
+            from .beliefs import BeliefOracle
+            from .anytime import AnytimeRookAgent
+            belief = BeliefOracle(belief_ckpt, temp=belief_temp)
+            self.agent = AnytimeRookAgent(self.net, belief,
+                                          budget_scale=anytime)
+            if mwidow:
+                # THE ASSEMBLED CANDIDATE (P3): anytime card core +
+                # MortalWidow burial (proposer-shortlisted when given)
+                from .mortalwidow import MortalWidowAgent
+                prop = None
+                if proposer:
+                    import torch as _torch
+                    from .widowprop import WidowProp
+                    ck = _torch.load(proposer, weights_only=False)
+                    prop = WidowProp(ck["d_state"])
+                    prop.load_state_dict(ck["state_dict"])
+                    prop.eval()
+                self.agent = MortalWidowAgent(
+                    self.net, belief, play_agent=self.agent,
+                    budget_s=mwidow, k_min=16, proposer=prop)
+        elif mrook:
             assert self.net is not None and belief_ckpt
             assert worlds == 0 and not god and not mortal
             from .beliefs import BeliefOracle
@@ -128,6 +155,13 @@ class Side:
 
     def name(self) -> str:
         base = self.spec.split("/")[-1]
+        if self.anytime and self.mwidow:
+            return (f"{base}+ASSEMBLED(any x{self.anytime:g}, "
+                    f"widow {self.mwidow:g}s, "
+                    f"B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g})")
+        if self.anytime:
+            return (f"{base}+ANYTIME(x{self.anytime:g},"
+                    f"B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g})")
         if self.mrook:
             return f"{base}+MORTALROOK(K{self.mrook},confirm24,tau2)"
         if self.mortal:
@@ -476,6 +510,19 @@ def main():
                          "+ split-sample-confirmed overrides (sel K, eval "
                          "24, tau 2). Needs --belief-a")
     ap.add_argument("--mrook-b", type=int, default=0)
+    ap.add_argument("--anytime-a", type=float, default=0.0,
+                    help="P1.1 ANYTIME searcher: budget_scale multiplying "
+                         "the P0 think-time map (1.0 = the 8-12s charter "
+                         "clock). Adaptive K: obvious-card stop + budget "
+                         "stop + node-capped world solves. Needs --belief-a")
+    ap.add_argument("--anytime-b", type=float, default=0.0)
+    ap.add_argument("--mwidow-a", type=float, default=0.0,
+                    help="P3 assembly: MortalWidow burial at this budget "
+                         "(seconds) on top of --anytime-a (0 = off)")
+    ap.add_argument("--mwidow-b", type=float, default=0.0)
+    ap.add_argument("--proposer-a", default=None,
+                    help="WidowProp ckpt for --mwidow-a's shortlist")
+    ap.add_argument("--proposer-b", default=None)
     ap.add_argument("--god-a", action="store_true",
                     help="ALPHAGODROOK: side A plays cards with the exact "
                          "omniscient solver (bids stay with --a's net)")
@@ -499,12 +546,14 @@ def main():
               args.prior_a, args.min_trick_a, args.infer_a, args.bid_infer_a,
               args.belief_a, args.belief_temp_a, args.fork_depth_a,
               args.fork_width_a, args.plan_lines_a, args.god_a,
-              args.solve_tail_a, args.mortal_a, args.mrook_a)
+              args.solve_tail_a, args.mortal_a, args.mrook_a, args.anytime_a,
+              args.mwidow_a, args.proposer_a)
     b_args = (args.b, args.script_b, None, args.worlds_b, args.search_b,
               args.prior_b, args.min_trick_b, args.infer_b, args.bid_infer_b,
               args.belief_b, args.belief_temp_b, args.fork_depth_b,
               args.fork_width_b, args.plan_lines_b, args.god_b,
-              args.solve_tail_b, args.mortal_b, args.mrook_b)
+              args.solve_tail_b, args.mortal_b, args.mrook_b, args.anytime_b,
+              args.mwidow_b, args.proposer_b)
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
          workers=args.workers, side_args=(a_args, b_args),

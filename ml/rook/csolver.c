@@ -65,6 +65,18 @@ static inline uint64_t pos_key(const uint64_t h[4], int turn, int t0) {
  * matching the one-worker-per-core fleet pattern) ---- */
 static int G_trump, G_gd, G_ntricks, G_bonus_at, G_bonus;
 
+/* ---- node budget (P1.1 anytime searcher, 2026-08-05): a DETERMINISTIC
+ * per-call abort — counted in search nodes, not wall clock — so a world
+ * that "times out" times out identically on every replay and every
+ * machine. 0 = unlimited. After an aborted call the out values are
+ * garbage by contract; the caller discards the whole world. ---- */
+static long G_nodes = 0, G_node_budget = 0;
+static int G_aborted = 0;
+
+void rk_set_node_budget(long nodes) { G_node_budget = nodes; }
+long rk_nodes(void) { return G_nodes; }
+int rk_aborted(void) { return G_aborted; }
+
 static inline uint64_t suit_mask(int s) { return 0x3FFULL << (s * 10); }
 
 static inline uint64_t legal_of(uint64_t hand, int lead) {
@@ -123,6 +135,8 @@ static int candidates(uint64_t legal, uint64_t live, int trump, int *out) {
 
 static int go(uint64_t h[4], int turn, int t0, int done, int alpha, int beta,
               int tlen, const int *tseat, const int *tcard) {
+    if (G_aborted) return 0;
+    if (++G_nodes > G_node_budget && G_node_budget) { G_aborted = 1; return 0; }
     if (done == G_ntricks)
         return t0 >= G_bonus_at ? G_bonus : 0;
 
@@ -227,6 +241,8 @@ static void setup(const uint64_t h[4], int trump, int gd, int tricks_done,
         if (k > mx) mx = k;
     }
     G_ntricks = tricks_done + mx;
+    G_nodes = 0;
+    G_aborted = 0;
     if (!TT) rk_init(0);
     /* fresh cache per top-level call: matches Python's per-call _Solver */
     memset(TT, 0, (TT_MASK + 1) * sizeof(TTE));
@@ -245,7 +261,7 @@ static int binary_search_value(uint64_t h[4], int turn, int t0, int done,
     int hi_v = on_table + G_gd + G_bonus;
     int step = (G_gd % 5 == 0 && G_bonus % 5 == 0) ? 5 : 1;
     int lo_k = 0, hi_k = hi_v / step;
-    while (lo_k < hi_k) {
+    while (lo_k < hi_k && !G_aborted) {
         int mid = ((lo_k + hi_k + 1) / 2) * step;
         int v = go(h, turn, t0, done, mid - 1, mid, tlen, tseat, tcard);
         if (v >= mid) lo_k = mid / step;
@@ -301,6 +317,7 @@ void rk_play_values(uint64_t h0, uint64_t h1, uint64_t h2, uint64_t h3,
     }
 
     for (int i = 0; i < nu; i++) {
+        if (G_aborted) break;   /* budget spent: caller discards the world */
         int c = use[i];
         uint64_t nh[4] = {h[0], h[1], h[2], h[3]};
         nh[turn] &= ~(1ULL << c);

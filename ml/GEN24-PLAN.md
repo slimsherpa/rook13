@@ -301,3 +301,263 @@ tighten the curve's shape (does it keep rising past K96?).
 | 08-02 | Arm B — solver-tail(4) on the gen23 stack, 600 pairs | duplicate-deck duel | **PARITY** (49.5%, +3.4 pts/game) — but tested on the wrong core; see Arm C on gen21. |
 | 08-02 | Arm C — solver-tail(4) on the gen21/Cosmo core, 700 pairs | duplicate-deck duel | **PARITY** (50.7%, +5.2 pts/game, sweeps 107–97). Combined B+C ≈ 1,300 pairs: **T2 is a wash** — rollout-tail noise cancels across candidates (common worlds), and the reflex only leaks 0.2–0.5 pts/decision late (the map called it). Instrument kept (validated 120/120, ~free); T2 CLOSED as a strength lever. T3 (adaptive K) remains untried. NEXT on critical path: W1/v2.1 — WidowBrain retrained on gen21-rollout twin labels, gated under Cosmo play (corpus soak launched 05:57). |
 | 08-02 | **WidowMaker v2.1** (Riley's name): 460k longest-trump contracts, gen21 rollouts, trained + twin-gated under gen21 play, 3,000 fresh contracts | twin gate ×2 | First gate (unmasked) read **−21.3pp — an artifact, not a verdict**: a net trained ONLY on longest-trump candidates hallucinates on the never-seen rest of the 2,860 menu. LAW ADDENDUM: **a focused-exploration corpus REQUIRES the matching deployment mask.** Masked re-gate: **−0.47 ± 1.24 — PARITY**, replicating the earlier v2 transfer test (+0.53 ± 1.24). Corpus forensics explain it: gen21's widow shows big HINDSIGHT headroom (38.7% of contracts beatable, +34 mean) but gen21 buries only ~13.8 counter pts (vs gen23's 19.0 in its error cases) — the conditional-on-observation headroom is ~zero. **The widow gold was gen23-specific; under Cosmo there is no widow edge to ship. W-track CLOSED for the Cosmo stack** (revives only if the play core ever changes). Campaign focus = 100% BidBot. |
+
+## THE CAMPAIGN CHARTER ERA — P1: the new CardPlayer (opened 2026-08-05)
+
+Charter artifact:
+https://claude.ai/code/artifact/02fbc294-0722-40b9-a21b-4737ba036cd1
+P0 (K-curve) closed same day: edge confirmed at affordable K, flat past
+K96, think-time map banked (opening lead ~8x any trick-0 follow,
+~1000x late tricks). P1.1 = the anytime searcher.
+
+### P1.1 build (2026-08-05/06)
+
+- **Node-budgeted C oracle** (`rook/csolver.c` + wrappers): per-call
+  abort counted in SEARCH NODES, not wall clock — deterministic on any
+  hardware, which is what makes anytime decisions replay-reproducible.
+  Calibration (opening-lead worlds, 6 cands): median 5M nodes, p90 42M,
+  max 123M; default per-world cap 32M. Parity suite unchanged/green.
+- **`alpharook/anytime.py` — AnytimeRookAgent**: deal-solve-check loop,
+  obvious-card stop + P0-shaped budget stop (lead 12s / t0 10s / t1 8s /
+  t2 6s / t3 4s / late 3s, x budget_scale), per-decision seeds derived
+  from PUBLIC state (`decision_seed`), `replay(k, ke)` re-derives any
+  decision bit-exactly. Duel flags `--anytime-a SCALE --belief-a ...`.
+  Telemetry via ROOK_THINK_LOG (pid-sharded JSONL).
+- **P1.4 dark plumbing landed early**: `anytime` style in
+  service/brain/main.py behind ANYTIME_ENABLED (403 when unset; scale/
+  nodes/seed via env), think telemetry in /decide responses, and the
+  interview-audit fixture `tests/test_service_anytime.py` — service
+  decisions replay bit-exactly lab-side. Container deploy still pending
+  (flag-off; next deploy window).
+- **P1.3 machinery built** (gates later, under P1.2's core):
+  `alpharook/mortalwidow.py` (anytime searcher on the 2,860-option
+  widow menu: reflex+heuristic+sampled shortlist, shared-world exact
+  solves, split-sample confirm) + `alpharook/widowtwin.py` (twin-
+  contract gate harness, --core reflex|cosmo|anytime).
+
+### P1.1 smoke gate, round 1 (2026-08-06): **FAIL — and the ledger called it**
+
+AnytimeRook(x1.0) vs MortalRook flat-K48, 5 boxes, 150 games banked:
+**A -5.64 ± 4.04 pts/hand** (win 45.3%, make 60% vs 64%). Autopsy from
+think telemetry (13k decisions): the v1 stopping design blended the
+Reflex prior as 6 pseudo-worlds at 360 pts/Q *into the override bar* —
+override rate collapsed to **0.62/hand vs MortalRook's 1.5/hand**
+(2.2% of opening leads vs 26%). The edge IS the overrides; a discipline
+that suppresses them suppresses the edge. Law 2 of the era, re-proven
+from the opposite side: split-sample confirm is not optional garnish.
+
+Fix (R2, same day): two-phase discipline — anytime SELECT (light prior
+in the stopping test only: w=2 @ 120 pts/Q; k_min 16 early / 8 late)
+then MortalRook's exact CONFIRM (fresh eval worlds, tau=2, raw means).
+Round 2 launched on fresh seeds (replication law), 100 pairs, 5 boxes.
+
+### P1.1 smoke gate, round 2 (2026-08-06): **FAIL again — the floor is the discipline**
+
+Two-phase R2 (anytime select k_min 16/8 + MortalRook confirm) restored
+overrides — overshot them: 2.88/hand (37% of leads; 8.9% at t3+ vs
+MortalRook's ~3%). Verdict: **A −4.53 ± 3.06 pts/hand** (198 games,
+2,721 hands, make 58% vs 61%). Same bar, opposite failure: SMALL
+SELECTION SAMPLES are the leak. A k=8 late selection crowns noisy
+challengers so often that the tau=2 confirm's false-pass tail
+(~25-30% per junk challenger on 24 eval worlds) accumulates real
+damage. MortalRook's 24/48 floors were never arbitrary — they are how
+few junk challengers reach the confirm in the first place.
+
+R3 (launched same day, fresh seeds): selection floors = MortalRook's
+exact 24 (t0-1) / 48 (t2+); "anytime" reduced to its two SAFE moves —
+early exit only when the top card IS the reflex incumbent (z 2.5, light
+prior, from k>=12), and adaptive depth past the floor (k_max 384) on
+close calls. A challenger is only ever crowned on a full floor's
+evidence. Expected: matches flat-K48 by construction, cheaper on
+agreement decisions, deeper on the decisions that are genuinely close.
+
+### P1.1 smoke gate, rounds 3-4 (2026-08-06): **PASS — P1.1 CLOSED**
+
+R3's first launch had an implementation bug the telemetry caught in 35
+minutes: the safe exit fired on the BLENDED ordering but the challenger
+was re-derived from RAW means — when they disagreed, a sub-floor junk
+challenger reached the confirm anyway (48% challenge rate at k=12).
+Fix: the exit is authoritative (safe exit = incumbent, full stop), and
+a challenger is NEVER crowned below the selection floor.
+
+R4 (fresh seeds, 200 games, 2,620 hands): **A +1.58 ± 3.07 pts/hand vs
+flat-K48 — PASS** (win 51.5%, identical auctions, make 60/60). Healthy
+telemetry signature: challenged 12.7% of decisions, min selection K
+among challenged = 24 (floors binding), 1.9 overrides/hand, lead
+overrides 19.9%, lead think 9.7s median / 21.8s p90 — CHEAPER than
+flat-K48's ~26s median lead while at least matching its strength.
+Adaptive K's final shape: MortalRook's floors + safe early exits +
+deep close calls. All three P1.1 done-whens met: full lab games
+end-to-end, replay-reproducible decisions (bit-exact, lab AND service),
+smoke gate passed.
+
+**P1.2 house battery LAUNCHED** (same day): AnytimeRook(x1.0) vs Cosmo
+(gen21×belief×t0 K24), 200 pairs × 5 boxes = 2,000 games, family
+format, fresh seeds. CI-clear win freezes the new card core.
+scripts/p12_battery.sh + scripts/p12_report.py.
+
+### ★ P1.2 HOUSE BATTERY — PASS: THE NEW CARD CORE IS FROZEN (2026-08-06)
+
+**AnytimeRook beats Cosmo +2.04 ± 1.01 pts/hand** (1,996 games, 25,340
+hands, 998 duplicate-deck pairs, fresh seeds; win 53.8%, CI 51.6-55.9%;
+make 62% vs 60% at identical avg bid 101.4 — pure card-play conversion).
+Top of the charter's expected range, and above flat-K48's historical
++1.68 vs Cosmo: budget-shaped adaptive K at least matches flat K at
+~2.7x lower opening-lead cost, likely a touch stronger. The last
+K-curve question, answered for free — exactly as the charter designed.
+
+**THE FROZEN CORE ("the new card core", P1.3/P2/P3 dependency):**
+gen21 Reflex × gen15 DayDream (temp 0.5) × anytime Calculator —
+selection floors 24 (t0-1) / 48 (t2+), safe early exit (top==incumbent
+only, z 2.5, prior w2@120, from k>=12), adaptive depth to k_max 384,
+split-sample confirm 24 fresh worlds @ tau 2, per-world node cap 32M,
+budget map lead 12s..late 3s (x1.0). Config = `--anytime-a 1.0
+--belief-a models/gen15.pt --belief-temp-a 0.5` / service style
+`anytime`. Replay-reproducible via (decision seed, k, ke).
+
+Fleet split post-gate: boxes 1-2 = P1.3 widow twin gate (--core
+anytime); boxes 3-5 = P2 winprob hand soak (anytime self-play,
+alpharook/handsoak.py). Both ~overnight.
+
+### P1.3 TWIN GATE — PASS: the first confirmed widow edge (2026-08-06)
+
+16,004 twin contracts under the frozen core (widowtwin, boxes 1-2,
+overnight): **MortalWidow agrees with production's burial 85.2%; on the
+14.8% it overrides, +6.16 ± 4.84 pts per disagreeing contract (CI
++1.32..+11.00) → +0.91 pts/contract expected.** WidowBrain's two nulls
+stand corrected the honest way: the reflex couldn't learn the widow,
+but the searcher CAN compute it. Interim +11.3 regressed to +6.2 at 3x
+sample — quote the honest number.
+
+The tuning fingerprint that matters: overrides born of the OBVIOUS
+stop gained +11.4; overrides cut off by the 60s BUDGET gained +3.7 —
+and 53% of all contracts budget-stopped at median K=22 worlds, BELOW
+the card-play floors, on a 2,860-option decision (each widow world
+costs ~10 solves — one full-hand solve per shortlisted burial).
+Riley's call (08-06): preserve quality — sweep before assembly.
+
+**WIDOW BUDGET SWEEP launched**: boxes 1-2, arms 180s / 300s (≈48 / 96
+worlds for close calls), 360 min, fresh seeds → runs/p13/sweep. Verdict
+picks the assembly widow config for P3's champ ladder.
+
+### P2 status (2026-08-06)
+
+- **winprob25 banked** (models/winprob25.json): 94,972 hand states from
+  3,926 new-core self-play games (handsoak.py, boxes 3-5), calibration
+  clean. Finding: the table matches the gene-gym bequest within 0.006
+  everywhere — score geometry is robust to the play-core change.
+- **Twin-game corpus soak LAUNCHED** (boxes 3-5, 720 min, resumable):
+  bidtwins --core anytime --winprob winprob25, twin_p 0.25 →
+  runs/p2/twins. The standing-queue corpus for the bid net.
+
+### WIDOWPROPOSER — the AlphaZero loop closed on the widow (2026-08-06)
+
+Riley's brainstorm call: get the smartest WidowMaker under ~10s. The
+critique run-through demoted the flashy levers (root-sharing is really
+1.5-2.5x — different burials are different games; racing risks silent
+bias — burial candidates don't share a hand, so T2's noise-cancellation
+proof doesn't transfer; pondering is launch plumbing, not lab strength)
+and picked the compounding one: **search teaches a proposer, the
+proposer prunes the search.**
+
+- Budget sweep KILLED after its interim answer (Riley's instinct):
+  180s/300s show no measurable gain over 60s at affordable n — evidence
+  saturates low, which is exactly what a 10s config needs to be viable.
+- Label stream: widowtwin --label-rows ships the leak-tested full-view
+  state + the searcher's VALUED menu per contract (mortalwidow
+  cand_means). Human concepts (winners/losers/exposure) stay OUT of the
+  code — if real, the net discovers them in the labels.
+- **widowprop-v0** (alpharook/widowprop.py, 530-state + 45-cand MLP,
+  within-contract centered value regression), trained on 4,056
+  contracts in minutes on the MBP: held-out r@1 67% / r@4 97.8%;
+  **on DISAGREEMENTS r@1 54% / r@3 88.5% / r@4 94.2%** (mimic-pilot
+  grading law: disagreements only). Clears the 85% r@4 bar at a
+  quarter of the available data, still improving.
+- **THE 10s GATE launched** (pre-registered before results): MortalWidow
+  + proposer top-4 shortlist at 10s selection budget, twin-gated vs
+  production burial, boxes 1-2, fresh seeds. PASS = CI-clear positive;
+  STRETCH = >= +0.6 of the 60s config's +0.91/contract. Gate rows keep
+  --label-rows on: the gate run is ALSO the next proposer's corpus
+  (kept separate from 60s-quality labels in runs/p13/labeled).
+
+### The widow quality/latency frontier (2026-08-06)
+
+**10s gate verdict (14,040 contracts): inconclusive-positive, value
+mostly evaporated** — +1.15 ± 5.33 per disagreement → +0.16/contract
+(60s config: +0.91). Mechanism: K med=8 (the floor), 74%
+budget-stopped — the same starvation that sank card-play R1/R2. The
+confirm discipline held the downside (positive, not negative), but 8
+worlds of evidence cannot pick quality overrides. The frontier so far:
+60s → +0.91, 10s → +0.16.
+
+**25s gate launched** (same pre-registered rules, fresh seeds, boxes
+1-2): with WidowProp cutting the menu 12→5, a 25s budget buys the
+world-counts 60s used to buy — the hypothesis is most of +0.91 at
+~40% of the clock, which pondering then hides at launch. k_min raised
+to 16 (floors are load-bearing — the era's law, applied to the widow).
+
+### The widow frontier closes; THE CROWN MATCH LAUNCHES (2026-08-07)
+
+Frontier final: **60s = +0.912 (CI-clear) | 25s = +0.852 (93% retained,
+CI lower bound −0.35, extending) | 10s = +0.161 (starved)**. The
+proposer works exactly as designed — 25s buys what 60s used to — but
+the 25s CI needs ~4 more box-hours to close. Per the pre-registered
+rules + quality-first: the CROWN MATCH benchmarks the proven 60s
+config; the 25s gate extends on the next free box and, if CI-clear,
+becomes the launch-latency config (config-swap check before ship).
+
+**P3 CROWN MATCH LIVE (boxes 1-2, expanding as boxes free):**
+A = THE ASSEMBLED CANDIDATE — anytime card core (frozen P1.2) +
+MortalWidow 60s burial (WidowProp-v0 shortlist, k_min 16), script none.
+B = Cosmo exactly as production plays (reflex bids + reflex burial +
+gen21 x belief x t0 K24), script none. Identical-auction check holds
+by construction (same net bids both sides). 200 pairs/box, fresh
+seeds, per-hand currency first. scripts/p3_crown.sh.
+
+### Crown interim: ASSEMBLY SURPRISE — the autopsy playbook engaged (2026-08-07)
+
+Interim at 580 games / 2,855 paired hands: **−0.26 ± 1.94 — flat**,
+~2.5σ under the ~+2.5 expectation (card +2.04, widow +0.91). Both
+sides make 64% (vs 62/60 in P1.2) — this match upgraded COSMO's burial
+too (script none = reflex burial; P1.2's script godown gave both sides
+the family HEURISTIC burial). Card-play think profile on the assembled
+side is bit-for-bit the gated R4 config (12.8% challenged, min K 24,
+1.87 ovr/hand) — the mechanics are intact; the QUESTION is whether the
++2.04 card edge was partly conditional on heuristic burials.
+
+Per the GEN24 playbook (re-gate pieces individually):
+- boxes 3-4: **CONTROL** — bare anytime (reflex burial) vs Cosmo
+  (reflex burial). ~+2 => card edge stands, widow assembly is suspect;
+  ~0 => the P1.2 edge was context-dependent (the honest finding).
+- boxes 1-2 + 5: crown continues for volume (±1.2 by morning).
+
+### Autopsy checkpoint (2026-08-07 ~11:40Z)
+
+**CONTROL: bare anytime vs Cosmo = +2.21 ± 1.61 (800 games)** — the
+card edge REPLICATES under reflex burials (P1.2 read +2.04 under
+heuristic burials; two contexts, two CI-positive reads). The core is
+crown-worthy. **CROWN (assembled): +0.90 ± 1.36 (1,164 games)** —
+positive, but the widow's in-game marginal (crown − control ≈ −1.3 ±
+~2.1) is unresolved by independent arms at any affordable n.
+
+Fleet reassigned to the sharp instruments:
+- boxes 1-2: **WIDOW MARGINAL, paired** — assembled vs BARE anytime,
+  duplicate decks; only the burial differs, so the widow's real-game
+  value resolves at per-hand precision (p3_widowmarg.sh). Charter P1.3
+  is null-OK: a wash => the widow stays home, launch = bare core.
+- boxes 3-4: crown volume, fresh seeds; box5 finishing its crown run.
+
+### ★ RILEY'S HUMAN EVAL — the WidowMaker verdict (2026-08-07)
+
+Riley reviewed the 100-hand old-vs-new artifact
+(https://claude.ai/code/artifact/d10894e5-185b-41ce-998d-f7bd2c34ba85),
+55 hands deep: **"The NEW WidowMaker seems more human... a step or two
+smarter for sure... subtly but significantly better decisions from a
+human perspective."** Agrees with new on the vast majority; sides with
+old on hands 22/25/30; hand 17 "both weird" (tuning case studies).
+DECISION: **the new WidowMaker mechanism STAYS, the new CardPlayer
+STAYS** — the game-scale wash is accepted as a small-positive-effect +
+v0-calibration story, not a mechanism failure. Option B (fleet-days on
+the marginal) rejected. Direction: the New AlphaRook ships all three
+structured systems — BidBot, WidowMaker, CardPlayer — validated
+together; BidBot (P2 training) is the next phase, in a new thread.

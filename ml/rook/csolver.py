@@ -47,7 +47,25 @@ _L.rk_solve.argtypes = [ctypes.c_uint64] * 4 + [ctypes.c_int] * 7 + \
 _L.rk_play_values.restype = None
 _L.rk_play_values.argtypes = [ctypes.c_uint64] * 4 + [ctypes.c_int] * 7 + \
     [ctypes.c_int, _I32, _I32, ctypes.POINTER(ctypes.c_int8), _I32]
+_L.rk_set_node_budget.argtypes = [ctypes.c_long]
+_L.rk_set_node_budget.restype = None
+_L.rk_nodes.argtypes = []
+_L.rk_nodes.restype = ctypes.c_long
+_L.rk_aborted.argtypes = []
+_L.rk_aborted.restype = ctypes.c_int
 _L.rk_init(0)
+
+
+class SolveAbort(Exception):
+    """The node budget ran out mid-solve. Deterministic: the same position
+    with the same budget aborts at the same node on every machine, which is
+    what keeps anytime-searcher decisions replay-reproducible. The partial
+    values of an aborted call are garbage by contract — discard the world."""
+
+
+def nodes() -> int:
+    """Search nodes consumed by the most recent solve/play_values call."""
+    return int(_L.rk_nodes())
 
 
 def _mask(h) -> int:
@@ -63,18 +81,26 @@ def _trick_arrays(trick):
 
 def solve(hands, trump, leader: int, go_down_pts: int = 0, *,
           t0_tricks: int = 0, tricks_done: int = 0, trick: tuple = (),
-          bonus_at: int = 5, bonus: int = TAKING_TRICKS_BONUS) -> int:
+          bonus_at: int = 5, bonus: int = TAKING_TRICKS_BONUS,
+          node_budget: int = 0) -> int:
     h = [_mask(x) for x in hands]
     n, ts, tc = _trick_arrays(trick)
-    return _L.rk_solve(h[0], h[1], h[2], h[3],
-                       -1 if trump is None else trump, leader, go_down_pts,
-                       t0_tricks, tricks_done, bonus_at, bonus, n, ts, tc)
+    _L.rk_set_node_budget(node_budget)
+    try:
+        v = _L.rk_solve(h[0], h[1], h[2], h[3],
+                        -1 if trump is None else trump, leader, go_down_pts,
+                        t0_tricks, tricks_done, bonus_at, bonus, n, ts, tc)
+    finally:
+        _L.rk_set_node_budget(0)
+    if node_budget and _L.rk_aborted():
+        raise SolveAbort(f"node budget {node_budget} spent")
+    return v
 
 
 def play_values(hands, trump, leader: int, go_down_pts: int = 0, *,
                 t0_tricks: int = 0, tricks_done: int = 0, trick: tuple = (),
                 bonus_at: int = 5, bonus: int = TAKING_TRICKS_BONUS,
-                only=None):
+                only=None, node_budget: int = 0):
     h = [_mask(x) for x in hands]
     n, ts, tc = _trick_arrays(trick)
     out = (ctypes.c_int32 * 40)()
@@ -84,10 +110,16 @@ def play_values(hands, trump, leader: int, go_down_pts: int = 0, *,
         oarr = (ctypes.c_int8 * 40)()
         for c in only:
             oarr[c] = 1
-    _L.rk_play_values(h[0], h[1], h[2], h[3],
-                      -1 if trump is None else trump, leader, go_down_pts,
-                      t0_tricks, tricks_done, bonus_at, bonus, n, ts, tc,
-                      oarr, out)
+    _L.rk_set_node_budget(node_budget)
+    try:
+        _L.rk_play_values(h[0], h[1], h[2], h[3],
+                          -1 if trump is None else trump, leader, go_down_pts,
+                          t0_tricks, tricks_done, bonus_at, bonus, n, ts, tc,
+                          oarr, out)
+    finally:
+        _L.rk_set_node_budget(0)
+    if node_budget and _L.rk_aborted():
+        raise SolveAbort(f"node budget {node_budget} spent")
     return {c: int(out[c]) for c in range(40) if out[c] >= 0}
 
 

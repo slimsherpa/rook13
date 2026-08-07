@@ -242,12 +242,16 @@ def _setup(hands, trump, go_down_pts, tricks_done, trick, bonus_at, bonus):
 
 def solve(hands, trump, leader: int, go_down_pts: int = 0, *,
           t0_tricks: int = 0, tricks_done: int = 0, trick: tuple = (),
-          bonus_at: int = 5, bonus: int = TAKING_TRICKS_BONUS) -> int:
+          bonus_at: int = 5, bonus: int = TAKING_TRICKS_BONUS,
+          node_budget: int = 0) -> int:
     """Team 0's points from HERE to the end under perfect play by both
     teams (points already banked are the caller's to add).
 
     Works mid-hand: pass the tricks already completed, team 0's trick count
     so far, and any cards already on the table this trick.
+
+    node_budget: accepted for C-oracle signature compatibility, ignored
+    (see play_values).
     """
     h, s = _setup(hands, trump, go_down_pts, tricks_done, trick,
                   bonus_at, bonus)
@@ -295,13 +299,19 @@ def best_play(hands, trump, leader: int, go_down_pts: int = 0, *,
 def play_values(hands, trump, leader: int, go_down_pts: int = 0, *,
                 t0_tricks: int = 0, tricks_done: int = 0, trick: tuple = (),
                 bonus_at: int = 5, bonus: int = TAKING_TRICKS_BONUS,
-                only=None):
+                only=None, node_budget: int = 0):
     """{card: exact team-0 points from here} for EVERY legal play.
 
     This is what the blunder audit wants: not just the best card but the
     exact cost of each alternative, so "how much did that play give away"
     is a measured number instead of a rollout estimate. Equivalent cards
     are collapsed, so only one representative of a run is reported.
+
+    node_budget is accepted for signature compatibility with the C oracle
+    (csolver.play_values) and IGNORED here: node counts differ between the
+    two implementations by construction, so a Python-side budget would not
+    reproduce the C solver's deterministic aborts anyway. The anytime
+    searcher's replay guarantee holds per solver implementation.
     """
     h, s = _setup(hands, trump, go_down_pts, tricks_done, trick,
                   bonus_at, bonus)

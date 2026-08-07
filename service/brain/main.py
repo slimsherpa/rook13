@@ -73,6 +73,21 @@ def get_agent(style: str):
     elif style == "godrook":
         net = load_qnet("models/gen21-cand1.pt")
         agent = ("agent", net, TimeboxedGod(net))
+    elif style == "anytime":
+        # P1.4 DARK PLUMBING (campaign charter, 2026-08-05): the P1.1
+        # anytime searcher, ported but OFF in production until the P3
+        # launch flips ANYTIME_ENABLED. No client requests this style
+        # today; the flag is the second lock on the door.
+        if not os.environ.get("ANYTIME_ENABLED"):
+            raise HTTPException(403, "anytime style is dark (ANYTIME_ENABLED unset)")
+        from alpharook.anytime import AnytimeRookAgent
+        from alpharook.beliefs import BeliefOracle
+        net = load_qnet("models/gen21-cand1.pt")
+        agent = ("agent", net, AnytimeRookAgent(
+            net, BeliefOracle("runs/gen15/best_duel.pt", temp=0.5),
+            budget_scale=float(os.environ.get("ANYTIME_SCALE", "1.0")),
+            world_nodes=int(os.environ.get("ANYTIME_NODES", "32000000")),
+            seed=int(os.environ.get("ANYTIME_SEED", "0"))))
     else:
         raise HTTPException(400, f"unknown server style: {style}")
     _agents[style] = agent
@@ -463,7 +478,14 @@ def decide(req: DecideReq):
     if dtype == D_BID:
         return {"action": {"type": "BID", "seat": sname,
                            "bid": "pass" if choice == PASS else choice}}
-    return {"action": {"type": "PLAY_CARD", "seat": sname, "card": choice}}
+    out = {"action": {"type": "PLAY_CARD", "seat": sname, "card": choice}}
+    # Interview-audit hook (P1.4): the anytime searcher reports how it
+    # thought — k worlds, stop reason, state-derived seed — so an audit
+    # can replay the decision bit-exactly in the lab (AnytimeRookAgent
+    # .replay with the same k). The driver passes unknown keys through.
+    if spec[0] == "agent" and getattr(spec[2], "last_think", None):
+        out["think"] = spec[2].last_think
+    return out
 
 
 @app.get("/healthz")
