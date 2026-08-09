@@ -2,10 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "bidgym-report",
+      "name": "rook13-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "scratch-preview",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8477", "-d", "ml/runs/gen24"],
-      "port": 8477
+      "runtimeArgs": ["-m", "http.server", "8123", "-d", "/private/tmp/claude-501/-Users-rileyadamson-Documents-GitHub-rook13/95080f9a-2353-40d4-ab33-6212308d5768/scratchpad"],
+      "port": 8123
     }
   ]
 }
