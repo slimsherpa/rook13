@@ -26,7 +26,7 @@ class SelfPlayGame:
     """
 
     def __init__(self, seed: int | None = None, deck_fn=None, dealer: int | None = None,
-                 win_score: int = 500, lose_score: int = -250):
+                 win_score: int = 505, lose_score: int = -250):
         """deck_fn(i) -> the i-th deal's 40-card deck. Passing the same
         deck_fn to two games gives them identical deal sequences regardless
         of how play unfolds — duplicate-bridge style evaluation."""

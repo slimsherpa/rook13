@@ -58,7 +58,10 @@ class Side:
                  plan_lines: int = 0, god: bool = False,
                  solve_tail: int = 0, mortal: int = 0, mrook: int = 0,
                  anytime: float = 0.0, mwidow: float = 0.0,
-                 proposer: str | None = None):
+                 proposer: str | None = None,
+                 bidbot: str | None = None, bidbot_tau: float = 0.05,
+                 contam: float = 0.0,
+                 winprob: str = "models/winprob25.json"):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
         self.net = net
@@ -87,6 +90,7 @@ class Side:
         self.mrook = mrook
         self.anytime = anytime
         self.mwidow = mwidow
+        self.contam = contam
         if anytime:
             assert self.net is not None and belief_ckpt
             assert worlds == 0 and not god and not mortal and not mrook
@@ -94,7 +98,8 @@ class Side:
             from .anytime import AnytimeRookAgent
             belief = BeliefOracle(belief_ckpt, temp=belief_temp)
             self.agent = AnytimeRookAgent(self.net, belief,
-                                          budget_scale=anytime)
+                                          budget_scale=anytime,
+                                          contam_p=contam)
             if mwidow:
                 # THE ASSEMBLED CANDIDATE (P3): anytime card core +
                 # MortalWidow burial (proposer-shortlisted when given)
@@ -110,6 +115,14 @@ class Side:
                 self.agent = MortalWidowAgent(
                     self.net, belief, play_agent=self.agent,
                     budget_s=mwidow, k_min=16, proposer=prop)
+            if bidbot:
+                # THE FULL ASSEMBLY (P2+P3): BidBot on the auction —
+                # house proposes, the net overrides only past tau
+                from .bidbot import BidBot, BidBotAgent
+                self.bidbot_spec = (bidbot, bidbot_tau)
+                self.agent = BidBotAgent(
+                    self.agent, self.net,
+                    BidBot(bidbot, winprob, bidbot_tau))
         elif mrook:
             assert self.net is not None and belief_ckpt
             assert worlds == 0 and not god and not mortal
@@ -155,10 +168,16 @@ class Side:
 
     def name(self) -> str:
         base = self.spec.split("/")[-1]
+        bb = (f", bid:{self.bidbot_spec[0].split('/')[-1]}"
+              f"@tau{self.bidbot_spec[1]:g}"
+              if getattr(self, "bidbot_spec", None) else "")
+        contam = (f", CONTAM p={self.contam:g}"
+                  if getattr(self, "contam", 0) else "")
         if self.anytime and self.mwidow:
             return (f"{base}+ASSEMBLED(any x{self.anytime:g}, "
-                    f"widow {self.mwidow:g}s, "
-                    f"B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g})")
+                    f"widow {self.mwidow:g}s{bb}, "
+                    f"B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g}"
+                    f"{contam})")
         if self.anytime:
             return (f"{base}+ANYTIME(x{self.anytime:g},"
                     f"B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g})")
@@ -191,7 +210,7 @@ def deck_stream(pair_seed: int):
 
 @torch.no_grad()
 def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
-                   win_score: int = 500, lose_score: int = -250,
+                   win_score: int = 505, lose_score: int = -250,
                    record: bool = False):
     """side0 is team A unless flip. Returns (winning_side_idx, diff_for_side0,
     per-side auction stats).
@@ -345,7 +364,7 @@ def _worker_pair(pair_seed: int):
 
 
 def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
-         verbose: bool = True, win_score: int = 500, lose_score: int = -250,
+         verbose: bool = True, win_score: int = 505, lose_score: int = -250,
          workers: int = 1, side_args: tuple | None = None,
          dump_path: str | None = None,
          dump_actions_path: str | None = None):
@@ -453,7 +472,7 @@ def main():
                     choices=list(SCRIPT_MODES))
     ap.add_argument("--pairs", type=int, default=100)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--win-score", type=int, default=500,
+    ap.add_argument("--win-score", type=int, default=505,
                     help="marathon evals (e.g. 2000) pack more hands per "
                          "game — less card luck, sharper skill signal")
     ap.add_argument("--lose-score", type=int, default=None)
@@ -523,6 +542,19 @@ def main():
     ap.add_argument("--proposer-a", default=None,
                     help="WidowProp ckpt for --mwidow-a's shortlist")
     ap.add_argument("--proposer-b", default=None)
+    ap.add_argument("--bidbot-a", default=None,
+                    help="P2 BidBot ckpt: overrides the house bid where "
+                         "its claimed swing clears --bidbot-tau-a (needs "
+                         "--anytime-a; full-assembly candidate)")
+    ap.add_argument("--bidbot-b", default=None)
+    ap.add_argument("--bidbot-tau-a", type=float, default=0.05)
+    ap.add_argument("--bidbot-tau-b", type=float, default=0.05)
+    ap.add_argument("--contam-a", type=float, default=0.0,
+                    help="ORACLE CONTAMINATION instrument (never ships): "
+                         "probability a search world is the TRUE deal "
+                         "instead of a belief sample. Kill-switch dose-"
+                         "response only; see FINAL-WEEK-PLAN.md")
+    ap.add_argument("--contam-b", type=float, default=0.0)
     ap.add_argument("--god-a", action="store_true",
                     help="ALPHAGODROOK: side A plays cards with the exact "
                          "omniscient solver (bids stay with --a's net)")
@@ -541,19 +573,23 @@ def main():
                          "hands, per-side contracts/made/bids) for "
                          "gauntlet-style stat tables")
     args = ap.parse_args()
-    lose = args.lose_score if args.lose_score is not None else -args.win_score // 2
+    # win 505 = production's "strictly more than 500" house rule (scores are
+    # multiples of 5); the cliff stays -250 — never derive it from win_score.
+    lose = args.lose_score if args.lose_score is not None else -250
     a_args = (args.a, args.script_a, None, args.worlds_a, args.search_a,
               args.prior_a, args.min_trick_a, args.infer_a, args.bid_infer_a,
               args.belief_a, args.belief_temp_a, args.fork_depth_a,
               args.fork_width_a, args.plan_lines_a, args.god_a,
               args.solve_tail_a, args.mortal_a, args.mrook_a, args.anytime_a,
-              args.mwidow_a, args.proposer_a)
+              args.mwidow_a, args.proposer_a,
+              args.bidbot_a, args.bidbot_tau_a, args.contam_a)
     b_args = (args.b, args.script_b, None, args.worlds_b, args.search_b,
               args.prior_b, args.min_trick_b, args.infer_b, args.bid_infer_b,
               args.belief_b, args.belief_temp_b, args.fork_depth_b,
               args.fork_width_b, args.plan_lines_b, args.god_b,
               args.solve_tail_b, args.mortal_b, args.mrook_b, args.anytime_b,
-              args.mwidow_b, args.proposer_b)
+              args.mwidow_b, args.proposer_b,
+              args.bidbot_b, args.bidbot_tau_b, args.contam_b)
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
          workers=args.workers, side_args=(a_args, b_args),

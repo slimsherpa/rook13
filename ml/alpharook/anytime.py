@@ -175,9 +175,18 @@ class AnytimeRookAgent:
                  early_tricks: int = 2, k_check_min: int = 12,
                  k_max: int = 384, eval_worlds: int = 24,
                  eval_min: int = 12,
-                 world_nodes: int = 32_000_000, seed: int = 0):
+                 world_nodes: int = 32_000_000, seed: int = 0,
+                 contam_p: float = 0.0):
         self.net = net
         self.belief = belief
+        # ORACLE CONTAMINATION (instrument only, never ships): with
+        # probability contam_p a "sampled" world is the TRUE deal. The
+        # dose-response curve p in {0,.25,.5,1} is the belief program's
+        # kill switch — flat curve means better imagination can't help
+        # this searcher. One-sided evidence by design (injecting truth is
+        # not the same move as redistributing mass among plausible
+        # worlds), so it can kill the program but never promote a net.
+        self.contam_p = contam_p
         self.budget_scale = budget_scale
         self.z_stop = z_stop
         self.tau = tau
@@ -223,7 +232,10 @@ class AnytimeRookAgent:
         """One shared world: {cand: family value} or None (sampling
         failed / node budget spent — the whole world is discarded)."""
         try:
-            if probs is not None:
+            if self.contam_p and rng.random() < self.contam_p:
+                hands = [list(h) for h in g0.hands]
+                gd = list(g0.go_down)
+            elif probs is not None:
                 hands, gd = sample_world_weighted(o, rng, probs)
             else:
                 hands, gd = sample_world(o, rng)
