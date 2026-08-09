@@ -91,9 +91,56 @@ def mill_widow(paths, want, rng):
     return items
 
 
+def mill_firstcard(paths, want_per_seat, rng):
+    """Opening leads, balanced across the buyer's four relative seats.
+    The user IS the leader (left of dealer); rc1 = the card RC1 led."""
+    from .encoder import D_PLAY
+    buckets = {0: [], 1: [], 2: [], 3: []}
+    for path in paths:
+        lines = open(path).read().splitlines()
+        rng.shuffle(lines)
+        for line in lines:
+            if all(len(v) >= want_per_seat for v in buckets.values()):
+                return [x for v in buckets.values() for x in v]
+            rec = json.loads(line)
+            env = SelfPlayGame(seed=rec["seed"],
+                              deck_fn=deck_stream(rec["seed"]),
+                              dealer=rec["seed"] % 4,
+                              win_score=rec.get("win", 500),
+                              lose_score=rec.get("lose", -250))
+            target = rng.randrange(0, 12)
+            try:
+                for (seat, dtype, action, reflex, searched, side0) in rec["d"]:
+                    e_seat, e_dtype, cands = env.decision()
+                    if e_seat != seat or e_dtype != dtype:
+                        break
+                    g = env.g
+                    if (dtype == D_PLAY and g.hand_number >= target
+                            and len(g.completed_tricks) == 0
+                            and len(g.trick_plays) == 0 and len(cands) > 1):
+                        rel = (g.bid_winner - seat) % 4
+                        if len(buckets[rel]) < want_per_seat:
+                            t = seat % 2
+                            buckets[rel].append(dict(
+                                seed=rec["seed"], hand=g.hand_number,
+                                seat=seat,
+                                cards=sorted(g.hands[seat]),
+                                trump=int(g.trump), bid=int(g.high_bid),
+                                buyerRel=rel,
+                                declarer=int((g.bid_winner % 2) == (seat % 2)),
+                                scores=[int(g.scores[t]),
+                                        int(g.scores[1 - t])],
+                                rc1=dict(card=int(action))))
+                        break
+                    env.apply(action)
+            except Exception:
+                continue
+    return [x for v in buckets.values() for x in v]
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["widow"])
+    ap.add_argument("mode", choices=["widow", "firstcard"])
     ap.add_argument("--corpus", default="runs/belief/soak_box*_acts.jsonl")
     ap.add_argument("--n", type=int, default=320)
     ap.add_argument("--seed", type=int, default=99)
@@ -101,16 +148,16 @@ def main():
     args = ap.parse_args()
     rng = random.Random(args.seed)
     paths = sorted(glob.glob(args.corpus))
-    items = mill_widow(paths, args.n, rng)
+    if args.mode == "firstcard":
+        items = mill_firstcard(paths, args.n // 4, rng)
+    else:
+        items = mill_widow(paths, args.n, rng)
     rng.shuffle(items)
     for i, it in enumerate(items):
         it["id"] = i + 1
     with open(args.out, "w") as f:
         json.dump(items, f)
-    trumps = {}
-    for it in items:
-        trumps[it["rc1"]["trump"]] = trumps.get(it["rc1"]["trump"], 0) + 1
-    print(f"{len(items)} widow items -> {args.out}; rc1 trump mix {trumps}")
+    print(f"{len(items)} {args.mode} items -> {args.out}")
 
 
 if __name__ == "__main__":

@@ -51,8 +51,8 @@ export default function LabPage() {
                     <Game
                         href="/lab/firstcard"
                         title="First Card Player"
-                        blurb="The opening lead from all four seats — the biggest card of the hand. Play the first two tricks; the bot takes it from there."
-                        live={false}
+                        blurb="The opening lead from all four seats — the biggest card of the hand. You lead; the bot takes it from there. 400 leads, 100 per seat."
+                        live
                     />
                     <Game
                         href="/lab/bidbot"
