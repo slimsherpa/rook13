@@ -180,7 +180,8 @@ class Side:
                     f"{contam})")
         if self.anytime:
             return (f"{base}+ANYTIME(x{self.anytime:g},"
-                    f"B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g})")
+                    f"B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g}"
+                    f"{contam})")
         if self.mrook:
             return f"{base}+MORTALROOK(K{self.mrook},confirm24,tau2)"
         if self.mortal:
