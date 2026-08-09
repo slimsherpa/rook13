@@ -1,0 +1,326 @@
+[
+ {
+  "display": 1,
+  "seed": 153099495,
+  "hand": 9,
+  "buyer_rel": "partner",
+  "grade": "Bad",
+  "score": 3,
+  "note": "bot full circle on 3 other 14s! Play those!! ideal partner hand and the bot messed it up"
+ },
+ {
+  "display": 2,
+  "seed": 91075189,
+  "hand": 3,
+  "buyer_rel": "partner",
+  "grade": "Fine",
+  "score": 5,
+  "note": "like Black 11; 10 of trump ok but risky"
+ },
+ {
+  "display": 3,
+  "seed": 219570867,
+  "hand": 9,
+  "buyer_rel": "partner",
+  "grade": "Fine",
+  "score": 5,
+  "note": "12 yellow ok, trump probably best, either trump good; kinda like green 11"
+ },
+ {
+  "display": 4,
+  "seed": 90125978,
+  "hand": 6,
+  "buyer_rel": "partner",
+  "grade": "Bad",
+  "score": 3,
+  "note": "Black 14 solid lead, then the 12 of trump next"
+ },
+ {
+  "display": 5,
+  "seed": 148596148,
+  "hand": 4,
+  "buyer_rel": "partner",
+  "grade": "Good",
+  "score": 6,
+  "note": "habit Green 5 TERRIBLE; any trump pretty good"
+ },
+ {
+  "display": 6,
+  "seed": 279764184,
+  "hand": 7,
+  "buyer_rel": "partner",
+  "grade": "Very good",
+  "score": 7,
+  "note": null
+ },
+ {
+  "display": 7,
+  "seed": 253267747,
+  "hand": 5,
+  "buyer_rel": "partner",
+  "grade": "Meh",
+  "score": 4,
+  "note": "Black 12 best - at least you know where the 13 is"
+ },
+ {
+  "display": 8,
+  "seed": 73271259,
+  "hand": 4,
+  "buyer_rel": "partner",
+  "grade": "Fine",
+  "score": 5,
+  "note": "Play the 14!! tells partner you have it. Then the 12"
+ },
+ {
+  "display": 9,
+  "seed": 85629281,
+  "hand": 7,
+  "buyer_rel": "partner",
+  "grade": "Meh",
+  "score": 4,
+  "note": null
+ },
+ {
+  "display": 10,
+  "seed": 262169712,
+  "hand": 4,
+  "buyer_rel": "partner",
+  "grade": "Meh",
+  "score": 4,
+  "note": "my vote 9 of trump"
+ },
+ {
+  "display": 11,
+  "seed": 272537883,
+  "hand": 4,
+  "buyer_rel": "me",
+  "grade": "Good",
+  "score": 6,
+  "note": null
+ },
+ {
+  "display": 12,
+  "seed": 147444129,
+  "hand": 3,
+  "buyer_rel": "me",
+  "grade": "Very good",
+  "score": 7,
+  "note": null
+ },
+ {
+  "display": 13,
+  "seed": 78193522,
+  "hand": 3,
+  "buyer_rel": "me",
+  "grade": "Fine",
+  "score": 5,
+  "note": null
+ },
+ {
+  "display": 14,
+  "seed": 276517585,
+  "hand": 7,
+  "buyer_rel": "me",
+  "grade": "Good",
+  "score": 6,
+  "note": null
+ },
+ {
+  "display": 15,
+  "seed": 165562246,
+  "hand": 5,
+  "buyer_rel": "me",
+  "grade": "Very good",
+  "score": 7,
+  "note": null
+ },
+ {
+  "display": 16,
+  "seed": 197996693,
+  "hand": 5,
+  "buyer_rel": "me",
+  "grade": "Very good",
+  "score": 7,
+  "note": null
+ },
+ {
+  "display": 17,
+  "seed": 104578580,
+  "hand": 8,
+  "buyer_rel": "me",
+  "grade": "Very good",
+  "score": 7,
+  "note": null
+ },
+ {
+  "display": 18,
+  "seed": 71490866,
+  "hand": 3,
+  "buyer_rel": "lho",
+  "grade": "Good",
+  "score": 6,
+  "note": null
+ },
+ {
+  "display": 19,
+  "seed": 95571886,
+  "hand": 4,
+  "buyer_rel": "lho",
+  "grade": "Fine",
+  "score": 5,
+  "note": null
+ },
+ {
+  "display": 20,
+  "seed": 274108818,
+  "hand": 3,
+  "buyer_rel": "lho",
+  "grade": "Good",
+  "score": 6,
+  "note": null
+ },
+ {
+  "display": 21,
+  "seed": 272433154,
+  "hand": 6,
+  "buyer_rel": "lho",
+  "grade": "Good",
+  "score": 6,
+  "note": null
+ },
+ {
+  "display": 22,
+  "seed": 84896178,
+  "hand": 9,
+  "buyer_rel": "lho",
+  "grade": "Very good",
+  "score": 7,
+  "note": null
+ },
+ {
+  "display": 23,
+  "seed": 167552097,
+  "hand": 3,
+  "buyer_rel": "lho",
+  "grade": "Good",
+  "score": 6,
+  "note": null
+ },
+ {
+  "display": 24,
+  "seed": 162210918,
+  "hand": 3,
+  "buyer_rel": "lho",
+  "grade": "Good",
+  "score": 6,
+  "note": null
+ },
+ {
+  "display": 25,
+  "seed": 205746639,
+  "hand": 3,
+  "buyer_rel": "rho",
+  "grade": "Fine",
+  "score": 5,
+  "note": "kinda like Black 12 - can trump in if black/red played"
+ },
+ {
+  "display": 26,
+  "seed": 90963810,
+  "hand": 5,
+  "buyer_rel": "rho",
+  "grade": "Meh",
+  "score": 4,
+  "note": "Yellow 8 most - get out, hope yellow comes back for trump 7"
+ },
+ {
+  "display": 27,
+  "seed": 270862219,
+  "hand": 9,
+  "buyer_rel": "rho",
+  "grade": "Fine",
+  "score": 5,
+  "note": "mostly guessing their loser suit, idk"
+ },
+ {
+  "display": 28,
+  "seed": 109081927,
+  "hand": 5,
+  "buyer_rel": "rho",
+  "grade": "Very good",
+  "score": 7,
+  "note": null
+ },
+ {
+  "display": 29,
+  "seed": 109605572,
+  "hand": 3,
+  "buyer_rel": "rho",
+  "grade": "Bad",
+  "score": 3,
+  "note": "trump for them seems just bad; anything else"
+ },
+ {
+  "display": 30,
+  "seed": 163258208,
+  "hand": 5,
+  "buyer_rel": "rho",
+  "grade": "Very good",
+  "score": 7,
+  "note": "plenty of count, get out of a suit, fine"
+ },
+ {
+  "display": 31,
+  "seed": 198415609,
+  "hand": 7,
+  "buyer_rel": "rho",
+  "grade": "Good",
+  "score": 6,
+  "note": "Green 14 maybe best? Black 7 ok"
+ },
+ {
+  "display": 32,
+  "seed": 161058899,
+  "hand": 3,
+  "buyer_rel": "rho",
+  "grade": "Meh",
+  "score": 4,
+  "note": "plenty of count; cause more chaos than a 12 would"
+ },
+ {
+  "display": 33,
+  "seed": 100186612,
+  "hand": 7,
+  "buyer_rel": "rho",
+  "grade": "Very good",
+  "score": 7,
+  "note": "Yep. Best."
+ },
+ {
+  "display": 34,
+  "seed": 171322341,
+  "hand": 8,
+  "buyer_rel": "rho",
+  "grade": "Meh",
+  "score": 4,
+  "note": "it's your ONLY count - play Red 14; Green 5 not best"
+ },
+ {
+  "display": 35,
+  "seed": 162420376,
+  "hand": 7,
+  "buyer_rel": "rho",
+  "grade": "Good",
+  "score": 6,
+  "note": "getting out of a suit good; not an obvious best"
+ },
+ {
+  "display": 36,
+  "seed": 143569156,
+  "hand": 7,
+  "buyer_rel": "rho",
+  "grade": "Good",
+  "score": 6,
+  "note": null
+ }
+]
