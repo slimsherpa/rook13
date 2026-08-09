@@ -14,6 +14,10 @@ PAIRS=${PAIRS:-250}
 PY=/root/torch-env/bin/python
 cd /root/rook13/ml || exit 1
 mkdir -p runs/contam
+# single-instance lock: a second copy of this script exits instead of
+# racing the first to the launch line when the soak ends
+exec 9>runs/contam/arm.lock
+flock -n 9 || { echo "another contam_arm holds the lock, exiting"; exit 0; }
 for i in $(seq 1 240); do
   pgrep -f "[a]lpharook.duel" > /dev/null || break
   sleep 30
