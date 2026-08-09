@@ -41,7 +41,7 @@ class WinProb:
             self.coef = json.load(f)["coef"]
 
     def __call__(self, my: float, opp: float,
-                 win_score: int = 505, lose_score: int = -250) -> float:
+                 win_score: int = 505, lose_score: int = -255) -> float:
         # terminal states first: the engine ends the game on any crossing
         # unless the scores are tied
         if my != opp:

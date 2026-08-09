@@ -612,11 +612,13 @@ const scoreHand = (g: GameDoc, lastTrickWinner: Seat): void => {
     };
     g.handHistory = [...g.handHistory, summary];
 
-    // game over? Winning takes STRICTLY more than 500 — land exactly on the
-    // number and you're still playing (house rule, 2026-08-03).
+    // game over? Winning takes STRICTLY more than 500, and the cliff takes
+    // STRICTLY less than -250 — land exactly on either number and you're
+    // still playing (house rules: >500 set 2026-08-03, <-250 set 2026-08-09;
+    // the -250 boundary is family-debated, Riley's ruling stands).
     const over =
         g.scores.A > WIN_SCORE || g.scores.B > WIN_SCORE ||
-        g.scores.A <= LOSE_SCORE || g.scores.B <= LOSE_SCORE;
+        g.scores.A < LOSE_SCORE || g.scores.B < LOSE_SCORE;
 
     if (over && g.scores.A !== g.scores.B) {
         g.winner = g.scores.A > g.scores.B ? 'A' : 'B';

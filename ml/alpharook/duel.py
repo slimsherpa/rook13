@@ -211,7 +211,7 @@ def deck_stream(pair_seed: int):
 
 @torch.no_grad()
 def play_duel_game(side0: Side, side1: Side, pair_seed: int, flip: bool,
-                   win_score: int = 505, lose_score: int = -250,
+                   win_score: int = 505, lose_score: int = -255,
                    record: bool = False):
     """side0 is team A unless flip. Returns (winning_side_idx, diff_for_side0,
     per-side auction stats).
@@ -365,7 +365,7 @@ def _worker_pair(pair_seed: int):
 
 
 def duel(side_a: Side, side_b: Side, n_pairs: int, seed: int = 0,
-         verbose: bool = True, win_score: int = 505, lose_score: int = -250,
+         verbose: bool = True, win_score: int = 505, lose_score: int = -255,
          workers: int = 1, side_args: tuple | None = None,
          dump_path: str | None = None,
          dump_actions_path: str | None = None):
@@ -574,9 +574,11 @@ def main():
                          "hands, per-side contracts/made/bids) for "
                          "gauntlet-style stat tables")
     args = ap.parse_args()
-    # win 505 = production's "strictly more than 500" house rule (scores are
-    # multiples of 5); the cliff stays -250 — never derive it from win_score.
-    lose = args.lose_score if args.lose_score is not None else -250
+    # Riley's house rules (he sets them): win takes STRICTLY more than 500,
+    # lose takes STRICTLY less than -250. Scores are multiples of 5, so
+    # win_score=505 / lose_score=-255 with the engine's >= / <= reproduce
+    # both exactly. Never derive the cliff from win_score.
+    lose = args.lose_score if args.lose_score is not None else -255
     a_args = (args.a, args.script_a, None, args.worlds_a, args.search_a,
               args.prior_a, args.min_trick_a, args.infer_a, args.bid_infer_a,
               args.belief_a, args.belief_temp_a, args.fork_depth_a,
