@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PlayingCard from '@/components/ui/PlayingCard';
 import { Card, Suit, SUITS } from '@/lib/game/types';
+import { sortHand } from '@/lib/game/deck';
 
 interface WidowItem {
     id: number; seed: number; hand: number; buyer: number;
@@ -22,8 +23,7 @@ interface WidowItem {
 }
 
 const toCard = (c: number): Card => ({ suit: SUITS[Math.floor(c / 10)], number: (c % 10) + 5 });
-const bySuitDesc = (a: number, b: number) =>
-    Math.floor(a / 10) - Math.floor(b / 10) || (b % 10) - (a % 10);
+const toInt = (c: Card): number => SUITS.indexOf(c.suit) * 10 + (c.number - 5);
 
 const GRADES: Array<[string, string, string]> = [
     ['vg', 'Very good', 'bg-green-600'], ['g', 'Good', 'bg-green-700'],
@@ -86,9 +86,16 @@ export default function WidowMakerLab() {
     }, []);
 
     const item = items[idx];
-    const all13 = useMemo(() => item
-        ? [...item.dealt, ...item.widow].sort(bySuitDesc) : [], [item]);
+    // production sort: trump first (once called), then longest suit,
+    // high-to-low within each — re-sorts live when trump is picked
+    const all13 = useMemo(() => {
+        if (!item) return [] as number[];
+        const cards = [...item.dealt, ...item.widow].map(toCard);
+        return sortHand(cards, trump === null ? null : SUITS[trump]).map(toInt);
+    }, [item, trump]);
     const widowSet = useMemo(() => new Set(item?.widow ?? []), [item]);
+    const botSet = useMemo(() => new Set(revealed ? item?.rc1.godown ?? [] : []),
+        [revealed, item]);
 
     if (!item) {
         return <main className="min-h-screen bg-navy-950 flex items-center justify-center text-white/60">
@@ -174,20 +181,29 @@ export default function WidowMakerLab() {
                 <div className="mb-1 text-white/50 text-xs uppercase tracking-wider">
                     2 · Bury four <span className="normal-case">(dot = came from the widow)</span>
                 </div>
-                <div className="flex flex-wrap gap-1.5 mb-4">
+                <div className="flex flex-nowrap gap-1 mb-4 overflow-x-auto pb-3">
                     {all13.map(c => (
-                        <div key={c} className="relative">
+                        <div key={c} className="relative flex-shrink-0">
                             <PlayingCard
-                                card={toCard(c)} trump={trumpSuit} size="md"
+                                card={toCard(c)} trump={trumpSuit} size="sm"
                                 onClick={() => togglePick(c)}
                                 selected={picked.includes(c)}
                             />
                             {widowSet.has(c) && (
                                 <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-sky-400 border border-navy-950" />
                             )}
+                            {botSet.has(c) && (
+                                <span className="pointer-events-none absolute -inset-0.5 rounded-lg ring-2 ring-pink-400" />
+                            )}
                         </div>
                     ))}
                 </div>
+                {revealed && (
+                    <div className="text-xs text-white/60 -mt-2 mb-3">
+                        <span className="text-sky-300 font-bold">blue raised</span> = your burial ·{' '}
+                        <span className="text-pink-300 font-bold">pink ring</span> = the bot&apos;s
+                    </div>
+                )}
 
                 {!revealed ? (
                     <button
@@ -199,15 +215,10 @@ export default function WidowMakerLab() {
                     </button>
                 ) : (
                     <div className="rounded-xl border border-pink-400/40 bg-navy-950/60 p-4">
-                        <div className="text-pink-300 font-orbitron text-sm font-bold mb-2">
+                        <div className="text-pink-300 font-orbitron text-sm font-bold mb-3">
                             Gen25-RC1 called {SUITS[item.rc1.trump]}
                             {item.rc1.trump === trump ? ' (same as you)' : ` (you called ${trumpSuit})`}
-                            {' '}and buried:
-                        </div>
-                        <div className="flex gap-1.5 mb-3">
-                            {item.rc1.godown.map(c => (
-                                <PlayingCard key={c} card={toCard(c)} trump={SUITS[item.rc1.trump]} size="sm" />
-                            ))}
+                            {' '}and buried the pink-ringed cards above.
                         </div>
                         <div className="text-white/50 text-xs uppercase tracking-wider mb-1.5">Grade the bot&apos;s call</div>
                         <div className="flex flex-wrap gap-1.5 mb-3">
