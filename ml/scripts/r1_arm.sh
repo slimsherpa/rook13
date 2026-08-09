@@ -5,7 +5,10 @@
 # no keeper. Waits up to 3h for any running duel/twins to exit first.
 set -u
 B=${BOX:?set BOX=1..5}
-GAMES=${GAMES:-40}
+GAMES=${GAMES:-15}
+KSEL=${KSEL:-48}
+KEVAL=${KEVAL:-16}
+SAMPLEP=${SAMPLEP:-0.25}
 PY=/root/torch-env/bin/python
 cd /root/rook13/ml || exit 1
 mkdir -p runs/r1
@@ -17,7 +20,8 @@ for i in $(seq 1 1440); do   # up to 12h — queues behind contam/twins
 done
 nohup nice -n 5 $PY -m alpharook.r1_shortlist \
   --corpus "runs/belief/soak_box${B}_acts.jsonl" \
-  --games "$GAMES" --workers 14 --sample-p 0.5 \
+  --games "$GAMES" --workers 14 --sample-p "$SAMPLEP" \
+  --k-sel "$KSEL" --k-eval "$KEVAL" \
   --out runs/r1/r1_box${B}.jsonl \
   >> runs/r1/r1_box${B}.log 2>&1 &
 echo "box $B R1 shard launched (pid $!, $GAMES games/worker)"

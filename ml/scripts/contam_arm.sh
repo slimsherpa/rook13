@@ -18,11 +18,11 @@ mkdir -p runs/contam
 # racing the first to the launch line when the soak ends
 exec 9>runs/contam/arm.lock
 flock -n 9 || { echo "another contam_arm holds the lock, exiting"; exit 0; }
-for i in $(seq 1 240); do
-  pgrep -f "[a]lpharook.duel" > /dev/null || break
+for i in $(seq 1 480); do   # up to 4h — also queues behind twins
+  pgrep -f "[a]lpharook.duel|[b]idtwins" > /dev/null || break
   sleep 30
 done
-pgrep -f "[a]lpharook.duel" > /dev/null && { echo "duel still busy after 2h, aborting"; exit 1; }
+pgrep -f "[a]lpharook.duel|[b]idtwins" > /dev/null && { echo "box still busy after 4h, aborting"; exit 1; }
 TAG=p$(echo "$P" | tr -d '.')_box${B}
 RC1_A="--a models/gen21-cand1.pt --script-a none --anytime-a 1.0 --mwidow-a 60 \
   --proposer-a models/widowprop-v0.pt --bidbot-a models/bidbot-v0.pt \
