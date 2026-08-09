@@ -13,8 +13,8 @@ VALID_BIDS = (65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120)
 CARDS_PER_PLAYER = 9
 WIDOW_SIZE = 4
 TRICKS_PER_HAND = 9
-WIN_SCORE = 500
-LOSE_SCORE = -250
+WIN_SCORE = 505   # win takes STRICTLY >500 (house rule 2026-08-03)
+LOSE_SCORE = -255  # cliff takes STRICTLY <-250 (Riley's ruling 2026-08-09)
 TAKING_TRICKS_BONUS = 20
 
 PASS = 0  # bid sentinel ('pass' in TS); real bids are >= 65
