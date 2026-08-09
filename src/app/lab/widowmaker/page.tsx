@@ -181,27 +181,36 @@ export default function WidowMakerLab() {
                 <div className="mb-1 text-white/50 text-xs uppercase tracking-wider">
                     2 · Bury four <span className="normal-case">(dot = came from the widow)</span>
                 </div>
-                <div className="flex flex-nowrap gap-1 mb-4 overflow-x-auto pb-3">
-                    {all13.map(c => (
-                        <div key={c} className="relative flex-shrink-0">
-                            <PlayingCard
-                                card={toCard(c)} trump={trumpSuit} size="sm"
-                                onClick={() => togglePick(c)}
-                                selected={picked.includes(c)}
-                            />
-                            {widowSet.has(c) && (
-                                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-sky-400 border border-navy-950" />
-                            )}
-                            {botSet.has(c) && (
-                                <span className="pointer-events-none absolute -inset-0.5 rounded-lg ring-2 ring-pink-400" />
-                            )}
-                        </div>
-                    ))}
+                <div className="flex flex-nowrap items-end gap-1.5 mb-4 overflow-x-auto pt-5 pb-2">
+                    {all13.map(c => {
+                        const mine = picked.includes(c);
+                        const bots = botSet.has(c);
+                        // after reveal nothing raises — marks become calm
+                        // rings: blue inner (you), pink outer (bot), both
+                        // stack when you agreed on a card
+                        const marks = revealed
+                            ? `rounded-lg ${mine ? 'ring-2 ring-sky-400' : ''} ` +
+                              `${bots ? 'outline outline-2 outline-offset-2 outline-pink-400' : ''}`
+                            : 'rounded-lg';
+                        return (
+                            <div key={c} className={`relative flex-shrink-0 ${marks}`}>
+                                <PlayingCard
+                                    card={toCard(c)} trump={trumpSuit} size="sm"
+                                    onClick={() => togglePick(c)}
+                                    selected={!revealed && mine}
+                                />
+                                {widowSet.has(c) && (
+                                    <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-sky-400 border border-navy-950 z-10" />
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
                 {revealed && (
-                    <div className="text-xs text-white/60 -mt-2 mb-3">
-                        <span className="text-sky-300 font-bold">blue raised</span> = your burial ·{' '}
-                        <span className="text-pink-300 font-bold">pink ring</span> = the bot&apos;s
+                    <div className="text-xs text-white/60 -mt-1 mb-3">
+                        <span className="text-sky-300 font-bold">blue ring</span> = your burial ·{' '}
+                        <span className="text-pink-300 font-bold">pink ring</span> = the bot&apos;s ·
+                        double ring = you agreed
                     </div>
                 )}
 
@@ -217,8 +226,9 @@ export default function WidowMakerLab() {
                     <div className="rounded-xl border border-pink-400/40 bg-navy-950/60 p-4">
                         <div className="text-pink-300 font-orbitron text-sm font-bold mb-3">
                             Gen25-RC1 called {SUITS[item.rc1.trump]}
-                            {item.rc1.trump === trump ? ' (same as you)' : ` (you called ${trumpSuit})`}
-                            {' '}and buried the pink-ringed cards above.
+                            {item.rc1.trump === trump ? ' — same as you' : ` — you called ${trumpSuit}`}
+                            {' · '}burial matched yours on{' '}
+                            {item.rc1.godown.filter(c => picked.includes(c)).length}/4
                         </div>
                         <div className="text-white/50 text-xs uppercase tracking-wider mb-1.5">Grade the bot&apos;s call</div>
                         <div className="flex flex-wrap gap-1.5 mb-3">
