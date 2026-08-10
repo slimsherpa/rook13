@@ -70,6 +70,8 @@ export default function FirstCardLab() {
     const [grade, setGrade] = useState<string | null>(null);
     const [chips, setChips] = useState<string[]>([]);
     const [note, setNote] = useState('');
+    // optional per-card throttles: how much SHOULD each card be considered
+    const [ranks, setRanks] = useState<Record<number, string>>({});
     const [saved, setSaved] = useState(0);
 
     useEffect(() => {
@@ -107,12 +109,23 @@ export default function FirstCardLab() {
         return t === undefined ? 0 : Math.max(0.05, (t - tmin) / (tmax - tmin));
     };
 
+    const RANK_CYCLE = [null, 'top', 'ok', 'no'] as const;
+    const cycleRank = (c: number) => {
+        setRanks(r => {
+            const cur = (r[c] ?? null) as typeof RANK_CYCLE[number];
+            const next = RANK_CYCLE[(RANK_CYCLE.indexOf(cur) + 1) % RANK_CYCLE.length];
+            const out = { ...r };
+            if (next === null) delete out[c]; else out[c] = next;
+            return out;
+        });
+    };
+
     const submit = async () => {
         const payload = {
             game: 'firstcard', id: item.id, seed: item.seed, hand: item.hand,
             seat: item.seat, buyerRel: item.buyerRel,
             grader: grader || 'anon',
-            rc1: item.rc1,
+            rc1: item.rc1, ranks,
             grade, chips, note, ts: Date.now(),
         };
         const key = 'lab_fc_picks';
@@ -130,7 +143,7 @@ export default function FirstCardLab() {
         localStorage.setItem('lab_fc_saved', String(saved + 1));
         setSaved(s => s + 1);
         setIdx(i => i + 1);
-        setGrade(null); setChips([]); setNote('');
+        setGrade(null); setChips([]); setNote(''); setRanks({});
     };
 
     return (
@@ -167,6 +180,12 @@ export default function FirstCardLab() {
                     The leader&apos;s hand — <span className="text-pink-300">pink ring</span> = the
                     card RC1 led · the fill circle is how hot its search ran on each card
                 </div>
+                <div className="mb-2 text-[11px] text-white/40">
+                    Optional: tap the little box under a card to rate it yourself —
+                    <span className="text-green-400 font-bold"> ★ top pick</span> ·
+                    <span className="text-lime-300 font-bold"> ✓ fine contender</span> ·
+                    <span className="text-red-400 font-bold"> ✕ shouldn&apos;t consider</span>
+                </div>
                 <div className="flex flex-nowrap items-start gap-1.5 mb-4 overflow-x-auto pt-1 pb-2">
                     {hand9.map(c => {
                         const bots = item.rc1.card === c;
@@ -184,6 +203,18 @@ export default function FirstCardLab() {
                                             : 'rgba(255,255,255,.08)',
                                     }}
                                 />
+                                <button
+                                    onClick={() => cycleRank(c)}
+                                    className={`w-7 h-6 rounded border text-xs font-bold transition
+                                        ${ranks[c] === 'top' ? 'border-green-400 text-green-400'
+                                        : ranks[c] === 'ok' ? 'border-lime-300 text-lime-300'
+                                        : ranks[c] === 'no' ? 'border-red-400 text-red-400'
+                                        : 'border-white/15 text-white/25 hover:border-white/40'}`}
+                                    title="tap to cycle: top / fine / never"
+                                >
+                                    {ranks[c] === 'top' ? '★' : ranks[c] === 'ok' ? '✓'
+                                        : ranks[c] === 'no' ? '✕' : '·'}
+                                </button>
                             </div>
                         );
                     })}
