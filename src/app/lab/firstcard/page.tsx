@@ -62,10 +62,14 @@ function BuyerMap({ rel }: { rel: number }) {
     );
 }
 
+const SEAT_TABS: Array<[number, string]> = [
+    [2, 'Partner'], [0, 'I bought'], [1, 'On my left'], [3, 'On my right']];
+
 export default function FirstCardLab() {
     const router = useRouter();
     const [items, setItems] = useState<FirstCardItem[]>([]);
-    const [idx, setIdx] = useState(0);
+    const [seat, setSeat] = useState(2);
+    const [done, setDone] = useState<Set<number>>(new Set());
     const [grader, setGrader] = useState('');
     const [grade, setGrade] = useState<string | null>(null);
     const [chips, setChips] = useState<string[]>([]);
@@ -78,26 +82,68 @@ export default function FirstCardLab() {
     const [saved, setSaved] = useState(0);
 
     useEffect(() => {
-        // Riley's ordering: partner-buys first, buyer-on-right LAST (the
-        // most subjective seat to judge); stable within each group
         const SEAT_ORDER = [2, 0, 1, 3];
-        fetch('/lab/firstcard_items.json').then(r => r.json()).then(all =>
-            setItems(SEAT_ORDER.flatMap(rel =>
-                (all as FirstCardItem[]).filter(it => it.buyerRel === rel))));
+        fetch('/lab/firstcard_items.json').then(r => r.json()).then(raw => {
+            const ordered = SEAT_ORDER.flatMap(rel =>
+                (raw as FirstCardItem[]).filter(it => it.buyerRel === rel));
+            setItems(ordered);
+            // graded-id set; migrate from the old linear index if present
+            const stored = localStorage.getItem('lab_fc_done');
+            if (stored) {
+                setDone(new Set(JSON.parse(stored)));
+            } else {
+                const oldIdx = parseInt(localStorage.getItem('lab_fc_idx') || '0', 10);
+                const migrated = new Set(ordered.slice(0, oldIdx).map(it => it.id));
+                setDone(migrated);
+                localStorage.setItem('lab_fc_done',
+                    JSON.stringify(Array.from(migrated)));
+            }
+        });
         setGrader(localStorage.getItem('lab_grader') || '');
-        setIdx(parseInt(localStorage.getItem('lab_fc_idx') || '0', 10));
+        setSeat(parseInt(localStorage.getItem('lab_fc_seat') || '2', 10));
         setSaved(parseInt(localStorage.getItem('lab_fc_saved') || '0', 10));
     }, []);
 
-    const item = items[idx];
+    const seatItems = useMemo(() =>
+        items.filter(it => it.buyerRel === seat), [items, seat]);
+    const item = seatItems.find(it => !done.has(it.id));
+    const seatDone = seatItems.filter(it => done.has(it.id)).length;
     const hand9 = useMemo(() => {
         if (!item) return [] as number[];
         return sortHand(item.cards.map(toCard), SUITS[item.trump]).map(toInt);
     }, [item]);
 
+    const seatTabs = (
+        <div className="flex gap-1.5 mb-4 flex-wrap">
+            {SEAT_TABS.map(([rel, label]) => {
+                const grp = items.filter(it => it.buyerRel === rel);
+                const n = grp.filter(it => done.has(it.id)).length;
+                return (
+                    <button key={rel}
+                        onClick={() => { setSeat(rel); localStorage.setItem('lab_fc_seat', String(rel)); }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition
+                            ${seat === rel
+                                ? 'border-yellow-400 text-yellow-300 bg-white/5'
+                                : 'border-white/15 text-white/50 hover:text-white'}`}>
+                        {label} <span className="font-normal opacity-70">{n}/{grp.length}</span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+
     if (!item) {
-        return <main className="min-h-screen bg-navy-950 flex items-center justify-center text-white/60">
-            {items.length ? 'All done — that was the whole bank!' : 'Loading leads…'}
+        return <main className="min-h-screen bg-gradient-to-b from-navy-900 to-navy-950 px-3 py-5">
+            <div className="max-w-2xl mx-auto">
+                <div className="flex items-center gap-3 mb-4">
+                    <button onClick={() => router.push('/lab')} className="text-white/50 text-sm hover:text-white">← Lab</button>
+                    <h1 className="font-orbitron text-yellow-400 text-lg font-bold">First Card Player</h1>
+                </div>
+                {items.length ? seatTabs : null}
+                <div className="text-white/60 text-sm">
+                    {items.length ? 'This seat is fully graded — pick another above.' : 'Loading leads…'}
+                </div>
+            </div>
         </main>;
     }
 
@@ -147,10 +193,11 @@ export default function FirstCardLab() {
                 body: JSON.stringify(payload),
             });
         } catch { /* localStorage still has it */ }
-        localStorage.setItem('lab_fc_idx', String(idx + 1));
+        const nd = new Set(done); nd.add(item.id);
+        setDone(nd);
+        localStorage.setItem('lab_fc_done', JSON.stringify(Array.from(nd)));
         localStorage.setItem('lab_fc_saved', String(saved + 1));
         setSaved(s => s + 1);
-        setIdx(i => i + 1);
         setGrade(null); setChips([]); setNote(''); setRanks({}); setSeq({});
     };
 
@@ -161,9 +208,10 @@ export default function FirstCardLab() {
                     <button onClick={() => router.push('/lab')} className="text-white/50 text-sm hover:text-white">← Lab</button>
                     <h1 className="font-orbitron text-yellow-400 text-lg font-bold">First Card Player</h1>
                     <span className="text-white/40 text-xs ml-auto">
-                        lead {idx + 1}/{items.length} · {saved} saved
+                        this seat {seatDone + 1}/{seatItems.length} · {saved} saved total
                     </span>
                 </div>
+                {seatTabs}
 
                 <div className="flex items-center gap-3 mb-2">
                     <input
