@@ -164,7 +164,8 @@ def hand_result():
     row = dict(game="line", posId=f"{STATE['rec']['seed']}:{STATE['hand']}",
                seed=STATE["rec"]["seed"], hand=STATE["hand"], seat=seat,
                grader=STATE.get("grader") or "anon",
-               line=STATE["plays"], myPts=my_pts, made=made,
+               line=STATE["plays"], humanPlays=STATE.get("human_n"),
+               myPts=my_pts, made=made,
                recPts=STATE["rec_pts"], recMade=STATE["rec_made"])
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "a") as f:
@@ -204,6 +205,22 @@ class H(BaseHTTPRequestHandler):
                 os.makedirs(os.path.dirname(SKIP), exist_ok=True)
                 json.dump(done, open(SKIP, "w"))
             self._json({"ok": True})
+        elif self.path == "/finish":
+            # bot autoplays Riley's seat to hand end — "only the first
+            # 2-3 cards matter"; rows record how many tricks were human
+            sim = STATE.get("sim")
+            if sim is None:
+                self._json({"error": "no hand in progress"}, 400)
+                return
+            with torch.no_grad():
+                while not sim.hand_over:
+                    s0, dt, cs = sim.decision()
+                    pick = cs[0] if len(cs) == 1 else CORE.choose(sim, s0, dt, cs)
+                    sim.apply(pick)
+                    if dt == D_PLAY and s0 == STATE["seat"]:
+                        STATE["plays"].append(int(pick))
+            self._json(dict(**hand_result(),
+                            humanTricks=len(STATE["plays"])))
         elif self.path == "/play":
             sim = STATE.get("sim")
             if sim is None:
@@ -216,6 +233,7 @@ class H(BaseHTTPRequestHandler):
                 return
             sim.apply(card)
             STATE["plays"].append(card)
+            STATE["human_n"] = len(STATE["plays"])
             made, waiting = advance_bots()
             g = sim.g
             last = g.completed_tricks[-1] if g.completed_tricks else None

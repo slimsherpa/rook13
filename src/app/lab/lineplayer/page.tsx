@@ -1,29 +1,28 @@
 'use client';
 
 // LINE PLAYER LAB — play the whole hand; prove the line.
-// You sit in the leader's chair on partner-bought hands from the corpus;
-// the other three chairs are the live frozen bot (each move is real
-// thinking via the local sidecar on :8124 — start it with
-//   cd ml && ~/torch-env/bin/python -m alpharook.lineserve
-// ). Skip dud hands freely. At hand end: your line's points vs what the
-// bot's recorded line scored on the same deal. Completed lines are the
-// continuation-included vision corpus.
+// Production-style trick flow: cards land one at a time, the finished
+// trick sits on the table with its winner named, then clears. You play
+// the first few cards that matter, then hit fast-forward and the bot
+// finishes your seat. Sidecar on :8124 does the live bot thinking
+// (start: cd ml && ~/torch-env/bin/python -m alpharook.lineserve).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PlayingCard from '@/components/ui/PlayingCard';
 import { Card, SUITS } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
 
 const SIDECAR = 'http://127.0.0.1:8124';
-
 const toCard = (c: number): Card => ({ suit: SUITS[Math.floor(c / 10)], number: (c % 10) + 5 });
 const toInt = (c: Card): number => SUITS.indexOf(c.suit) * 10 + (c.number - 5);
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 interface HandState {
     posId: string; seat: number; trump: number; bid: number; buyer: number;
     scores: [number, number]; cards: number[]; recPts: number | null;
 }
+interface Result { myPts: number; made: number; recPts: number | null; recMade: number | null }
 
 const REL = ['ME', 'left', 'partner', 'right'];
 
@@ -31,28 +30,39 @@ export default function LinePlayerLab() {
     const router = useRouter();
     const [hand, setHand] = useState<HandState | null>(null);
     const [cards, setCards] = useState<number[]>([]);
-    const [trick, setTrick] = useState<Array<[number, number]>>([]);
-    const [lastTrick, setLastTrick] = useState<{ plays: Array<[number, number]>; winner: number; points: number } | null>(null);
+    const [display, setDisplay] = useState<Array<[number, number]>>([]);
+    const [banner, setBanner] = useState('');
     const [tricksDone, setTricksDone] = useState(0);
     const [thinking, setThinking] = useState(false);
-    const [result, setResult] = useState<{ myPts: number; made: number; recPts: number | null; recMade: number | null } | null>(null);
+    const [result, setResult] = useState<Result | null>(null);
     const [totals, setTotals] = useState({ hands: 0, mine: 0, bot: 0 });
     const [err, setErr] = useState('');
-    const [grader, setGrader] = useState('');
+    const graderRef = useRef('');
 
     useEffect(() => {
-        setGrader(localStorage.getItem('lab_grader') || '');
+        graderRef.current = localStorage.getItem('lab_grader') || '';
         setTotals(JSON.parse(localStorage.getItem('lab_line_totals')
             || '{"hands":0,"mine":0,"bot":0}'));
     }, []);
 
+    const relOf = (s: number) => hand ? REL[(s - hand.seat + 4) % 4] : '';
+
+    const bankTotals = (r: Result) => {
+        setTotals(t => {
+            const nt = { hands: t.hands + 1, mine: t.mine + r.myPts,
+                         bot: t.bot + (r.recPts ?? 0) };
+            localStorage.setItem('lab_line_totals', JSON.stringify(nt));
+            return nt;
+        });
+    };
+
     const nextHand = async () => {
-        setErr(''); setResult(null); setTrick([]); setLastTrick(null);
+        setErr(''); setResult(null); setDisplay([]); setBanner('');
         setTricksDone(0); setThinking(true);
         try {
             const r = await fetch(`${SIDECAR}/next`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ grader }),
+                body: JSON.stringify({ grader: graderRef.current }),
             }).then(x => x.json());
             if (r.error) { setErr(r.error); setHand(null); }
             else { setHand(r); setCards(r.cards); }
@@ -74,34 +84,63 @@ export default function LinePlayerLab() {
     const play = async (c: number) => {
         if (!hand || thinking || result) return;
         setThinking(true); setErr('');
+        const before = [...display, [hand.seat, c] as [number, number]];
+        setDisplay(before);
+        setCards(cs => cs.filter(x => x !== c));
         try {
             const r = await fetch(`${SIDECAR}/play`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ card: c }),
             }).then(x => x.json());
             if (r.error) { setErr(r.error); setThinking(false); return; }
+            // animate: land each bot card; when the trick fills, hold it
+            // with the winner named, then clear and continue
+            let cur = before;
+            for (const [s, pc] of (r.botPlays ?? []) as Array<[number, number]>) {
+                if (cur.length === 4) {
+                    cur = [];
+                }
+                await sleep(550);
+                cur = [...cur, [s, pc] as [number, number]];
+                setDisplay(cur);
+                if (cur.length === 4 && r.lastTrick) {
+                    setBanner(`${relOf(r.lastTrick.winner)} took it${r.lastTrick.points ? ` · +${r.lastTrick.points} pts` : ''}`);
+                    await sleep(2000);
+                    setBanner('');
+                }
+            }
+            if (cur.length === 4 && r.lastTrick && !r.over) {
+                await sleep(400);
+                setDisplay(r.trick ?? []);
+            }
             setCards(r.myCards);
-            setTrick(r.trick ?? []);
-            setLastTrick(r.lastTrick ?? null);
             setTricksDone(r.tricksDone ?? 0);
             if (r.over) {
-                setResult(r);
-                const t = {
-                    hands: totals.hands + 1,
-                    mine: totals.mine + r.myPts,
-                    bot: totals.bot + (r.recPts ?? 0),
-                };
-                setTotals(t);
-                localStorage.setItem('lab_line_totals', JSON.stringify(t));
+                if (r.lastTrick) {
+                    setBanner(`${relOf(r.lastTrick.winner)} took the last trick`);
+                }
+                setResult(r); bankTotals(r);
             }
         } catch { setErr('lost the sidecar mid-hand'); }
         setThinking(false);
     };
 
+    const fastForward = async () => {
+        if (!hand || thinking || result) return;
+        setThinking(true); setBanner('bot finishing your hand…');
+        try {
+            const r = await fetch(`${SIDECAR}/finish`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            }).then(x => x.json());
+            if (r.error) { setErr(r.error); }
+            else { setResult(r); bankTotals(r); setBanner(''); setDisplay([]); }
+        } catch { setErr('lost the sidecar mid-hand'); }
+        setThinking(false);
+    };
+
     const trumpSuit = hand ? SUITS[hand.trump] : null;
-    const sorted = hand
-        ? sortHand(cards.map(toCard), trumpSuit).map(toInt) : [];
-    const relOf = (s: number) => hand ? REL[(s - hand.seat + 4) % 4] : '';
+    const sorted = hand ? sortHand(cards.map(toCard), trumpSuit).map(toInt) : [];
 
     return (
         <main className="min-h-screen bg-gradient-to-b from-navy-900 to-navy-950 px-3 py-5">
@@ -117,9 +156,9 @@ export default function LinePlayerLab() {
                 {!hand && !thinking && (
                     <div className="text-center py-10">
                         <p className="text-white/70 text-sm mb-6 max-w-md mx-auto">
-                            Partner bought it — you lead, and play the whole hand.
-                            The other three chairs are the real bot, thinking live.
-                            Skip any dud hand.
+                            Partner bought it — you lead. Play the two or three cards
+                            that matter, then fast-forward and let the bot finish your
+                            seat. Skip any dud hand.
                         </p>
                         {err && <p className="text-red-400 text-xs mb-4">{err}</p>}
                         <button onClick={nextHand}
@@ -138,18 +177,18 @@ export default function LinePlayerLab() {
                             </span>
                             <span>partner bought at <b className="text-white">{hand.bid}</b></span>
                             <span>score <b className="text-white">{hand.scores[0]}–{hand.scores[1]}</b></span>
-                            <span className="ml-auto text-white/40 text-xs">trick {tricksDone + 1}/9</span>
+                            <span className="ml-auto text-white/40 text-xs">trick {Math.min(tricksDone + 1, 9)}/9</span>
                         </div>
 
-                        {/* the table: current trick */}
-                        <div className="rounded-xl border border-white/10 bg-navy-950/50 p-4 mb-3 min-h-[7rem]">
-                            <div className="flex gap-3 items-end justify-center">
-                                {trick.length === 0 && !result && (
+                        {/* the table */}
+                        <div className="rounded-xl border border-white/10 bg-navy-950/50 p-4 mb-3 min-h-[9rem]">
+                            <div className="flex gap-3 items-end justify-center min-h-[5.5rem]">
+                                {display.length === 0 && !result && (
                                     <span className="text-white/40 text-sm py-6">
-                                        {thinking ? 'bots thinking…' : 'your lead'}
+                                        {thinking ? 'thinking…' : 'your lead'}
                                     </span>
                                 )}
-                                {trick.map(([s, c]) => (
+                                {display.map(([s, c]) => (
                                     <div key={`${s}-${c}`} className="flex flex-col items-center gap-1">
                                         <PlayingCard card={toCard(c)} trump={trumpSuit} size="sm" />
                                         <span className={`text-[10px] ${s === hand.seat ? 'text-sky-300 font-bold' : 'text-white/50'}`}>
@@ -157,16 +196,10 @@ export default function LinePlayerLab() {
                                         </span>
                                     </div>
                                 ))}
-                                {thinking && trick.length > 0 && (
-                                    <span className="text-white/40 text-xs pb-4">thinking…</span>
-                                )}
                             </div>
-                            {lastTrick && (
-                                <div className="text-center text-[11px] text-white/40 mt-2">
-                                    last trick: {relOf(lastTrick.winner)} took it
-                                    {lastTrick.points ? ` (+${lastTrick.points} pts)` : ''}
-                                </div>
-                            )}
+                            <div className="text-center text-xs text-yellow-300/90 mt-2 h-4">
+                                {banner}
+                            </div>
                         </div>
 
                         {/* my hand */}
@@ -186,10 +219,18 @@ export default function LinePlayerLab() {
                         {err && <p className="text-red-400 text-xs mb-3">{err}</p>}
 
                         {!result ? (
-                            <button onClick={skip} disabled={thinking}
-                                className="text-white/40 text-xs border border-white/15 rounded-lg px-4 py-2 hover:text-white">
-                                Skip this hand — nothing interesting here
-                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={skip} disabled={thinking}
+                                    className="text-white/40 text-xs border border-white/15 rounded-lg px-4 py-2 hover:text-white">
+                                    Skip hand
+                                </button>
+                                {tricksDone >= 1 && (
+                                    <button onClick={fastForward} disabled={thinking}
+                                        className="text-sky-300 text-xs border border-sky-500/40 rounded-lg px-4 py-2 hover:border-sky-400">
+                                        Fast-forward — bot finishes my seat
+                                    </button>
+                                )}
+                            </div>
                         ) : (
                             <div className="rounded-xl border border-sky-400/40 bg-navy-950/60 p-4">
                                 <div className="font-orbitron text-sm font-bold mb-2 text-white">
