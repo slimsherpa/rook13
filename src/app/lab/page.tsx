@@ -55,6 +55,12 @@ export default function LabPage() {
                         live
                     />
                     <Game
+                        href="/lab/lineplayer"
+                        title="Line Player"
+                        blurb="Partner bought it — you lead and play the WHOLE hand against the live bot. Prove the line. Skip dud hands freely."
+                        live
+                    />
+                    <Game
                         href="/lab/bidbot"
                         title="BidBot"
                         blurb="What would you bid? Score, dealer, and the auction so far."
