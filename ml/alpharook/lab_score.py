@@ -98,57 +98,61 @@ def replay_to_widow(rec, hand_no):
     return None, None
 
 
-def widow_arms(env_seed_rec, hand_no, arms, core):
-    """arms: list of (tag, trump, godown). Replays each; returns
-    {tag: buyer_team_pts}. env re-created per arm (cheap vs playout)."""
+def widow_arms(env_seed_rec, hand_no, arms, cores):
+    """arms: list of (tag, trump, godown). Each arm played once per core
+    (different decision seeds) and averaged — kills playout-path noise."""
     out = {}
     for tag, tr, gd in arms:
-        env, _rest = replay_to_widow(env_seed_rec, hand_no)
-        if env is None:
-            return None
-        g = env.g
-        b = g.bid_winner
-        with torch.no_grad():
-            env.apply(tr)                    # trump intent
-            for c in gd:                      # the four discards
-                s2, d2, cands = env.decision()
-                if d2 != D_DISCARD or c not in cands:
-                    return None
-                env.apply(c)
-            # play the hand out with the frozen core
-            h = play_out(g, core)
-        bt = b % 2
-        out[tag] = int(h[4] if bt == 0 else h[5])
+        vals = []
+        for core in cores:
+            env, _rest = replay_to_widow(env_seed_rec, hand_no)
+            if env is None:
+                return None
+            g = env.g
+            b = g.bid_winner
+            with torch.no_grad():
+                env.apply(tr)
+                for c in gd:
+                    s2, d2, cands = env.decision()
+                    if d2 != D_DISCARD or c not in cands:
+                        return None
+                    env.apply(c)
+                h = play_out(g, core)
+            vals.append(int(h[4] if b % 2 == 0 else h[5]))
+        out[tag] = sum(vals) / len(vals)
     return out
 
 
-def lead_arms(rec, hand_no, seat, arms, core):
-    """arms: list of (tag, lead_card). Returns {tag: leader_team_pts}."""
+def lead_arms(rec, hand_no, seat, arms, cores):
+    """arms: list of (tag, lead_card); rep-averaged over cores."""
     out = {}
     for tag, lead in arms:
-        env = SelfPlayGame(seed=rec["seed"], deck_fn=deck_stream(rec["seed"]),
-                           dealer=rec["seed"] % 4,
-                           win_score=rec.get("win", 500),
-                           lose_score=rec.get("lose", -250))
-        ok = False
-        with torch.no_grad():
-            for (s0, dt, action, *_r) in rec["d"]:
-                e_seat, e_dtype, cands = env.decision()
-                if e_seat != s0 or e_dtype != dt:
-                    break
-                g = env.g
-                if (dt == D_PLAY and g.hand_number == hand_no and s0 == seat
-                        and not g.completed_tricks and not g.trick_plays):
-                    if lead not in cands:
-                        return None
-                    env.apply(lead)
-                    h = play_out(g, core)
-                    out[tag] = int(h[4] if seat % 2 == 0 else h[5])
-                    ok = True
-                    break
-                env.apply(action)
-        if not ok:
-            return None
+        vals = []
+        for core in cores:
+            env = SelfPlayGame(seed=rec["seed"], deck_fn=deck_stream(rec["seed"]),
+                               dealer=rec["seed"] % 4,
+                               win_score=rec.get("win", 500),
+                               lose_score=rec.get("lose", -250))
+            ok = False
+            with torch.no_grad():
+                for (s0, dt, action, *_r) in rec["d"]:
+                    e_seat, e_dtype, cands = env.decision()
+                    if e_seat != s0 or e_dtype != dt:
+                        break
+                    g = env.g
+                    if (dt == D_PLAY and g.hand_number == hand_no and s0 == seat
+                            and not g.completed_tricks and not g.trick_plays):
+                        if lead not in cands:
+                            return None
+                        env.apply(lead)
+                        h = play_out(g, core)
+                        vals.append(int(h[4] if seat % 2 == 0 else h[5]))
+                        ok = True
+                        break
+                    env.apply(action)
+            if not ok:
+                return None
+        out[tag] = sum(vals) / len(vals)
     return out
 
 
@@ -210,12 +214,14 @@ def build_tasks(mode, n, rng):
 
 
 def _worker(t):
-    wid, nw, tasks, mode = t
+    wid, nw, tasks, mode, reps = t
     torch.set_num_threads(1)
     net = load_qnet("models/gen21-cand1.pt")
     net.eval()
-    core = make_core("anytime", net,
-                     BeliefOracle("models/gen15.pt", temp=0.5))
+    from .anytime import AnytimeRookAgent
+    belief = BeliefOracle("models/gen15.pt", temp=0.5)
+    cores = [AnytimeRookAgent(net, belief, seed=1000 + r).choose
+             for r in range(reps)]
     idx = corpus_index()
     out = []
     for i, task in enumerate(tasks):
@@ -228,10 +234,10 @@ def _worker(t):
         try:
             if task["kind"] == "widow":
                 res = widow_arms(rec, task["hand"],
-                                 [task["a"], task["b"]], core)
+                                 [task["a"], task["b"]], cores)
             else:
                 res = lead_arms(rec, task["hand"], task["seat"],
-                                [task["a"], task["b"]], core)
+                                [task["a"], task["b"]], cores)
         except Exception as e:
             res = None
         if res is None:
@@ -248,6 +254,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("mode", choices=["riley-widow", "dominance", "convention"])
     ap.add_argument("--n", type=int, default=200)
+    ap.add_argument("--reps", type=int, default=3,
+                    help="playouts per arm (different core seeds), averaged")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
@@ -257,7 +265,8 @@ def main():
     print(f"{args.mode}: {len(tasks)} tasks, {n_div} divergent (played), "
           f"{len(tasks) - n_div} identical (free zeros)")
     import multiprocessing as mp
-    jobs = [(w, args.workers, tasks, args.mode) for w in range(args.workers)]
+    jobs = [(w, args.workers, tasks, args.mode, args.reps)
+            for w in range(args.workers)]
     with mp.get_context("spawn").Pool(args.workers) as pool:
         results = pool.map(_worker, jobs)
     rows = [r for chunk in results for r in chunk]
