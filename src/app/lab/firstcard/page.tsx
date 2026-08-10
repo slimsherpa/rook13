@@ -19,6 +19,7 @@ interface FirstCardItem {
     cards: number[]; trump: number; bid: number;
     buyerRel: number; declarer: number; scores: [number, number];
     rc1: { card: number };
+    temps?: Record<string, number> | null;
 }
 
 const toCard = (c: number): Card => ({ suit: SUITS[Math.floor(c / 10)], number: (c % 10) + 5 });
@@ -66,15 +67,18 @@ export default function FirstCardLab() {
     const [items, setItems] = useState<FirstCardItem[]>([]);
     const [idx, setIdx] = useState(0);
     const [grader, setGrader] = useState('');
-    const [picked, setPicked] = useState<number | null>(null);
-    const [revealed, setRevealed] = useState(false);
     const [grade, setGrade] = useState<string | null>(null);
     const [chips, setChips] = useState<string[]>([]);
     const [note, setNote] = useState('');
     const [saved, setSaved] = useState(0);
 
     useEffect(() => {
-        fetch('/lab/firstcard_items.json').then(r => r.json()).then(setItems);
+        // Riley's ordering: partner-buys first, buyer-on-right LAST (the
+        // most subjective seat to judge); stable within each group
+        const SEAT_ORDER = [2, 0, 1, 3];
+        fetch('/lab/firstcard_items.json').then(r => r.json()).then(all =>
+            setItems(SEAT_ORDER.flatMap(rel =>
+                (all as FirstCardItem[]).filter(it => it.buyerRel === rel))));
         setGrader(localStorage.getItem('lab_grader') || '');
         setIdx(parseInt(localStorage.getItem('lab_fc_idx') || '0', 10));
         setSaved(parseInt(localStorage.getItem('lab_fc_saved') || '0', 10));
@@ -93,14 +97,22 @@ export default function FirstCardLab() {
     }
 
     const trumpSuit = SUITS[item.trump];
-    const agree = revealed && picked === item.rc1.card;
+    const temps = item.temps ?? null;
+    const tvals = temps ? Object.values(temps) : [];
+    const tmin = tvals.length ? Math.min(...tvals) : 0;
+    const tmax = tvals.length ? Math.max(...tvals) : 0;
+    const frac = (c: number) => {
+        if (!temps || tmax === tmin) return 0;
+        const t = temps[String(c)];
+        return t === undefined ? 0 : Math.max(0.05, (t - tmin) / (tmax - tmin));
+    };
 
     const submit = async () => {
         const payload = {
             game: 'firstcard', id: item.id, seed: item.seed, hand: item.hand,
             seat: item.seat, buyerRel: item.buyerRel,
             grader: grader || 'anon',
-            human: { card: picked }, rc1: item.rc1,
+            rc1: item.rc1,
             grade, chips, note, ts: Date.now(),
         };
         const key = 'lab_fc_picks';
@@ -118,7 +130,6 @@ export default function FirstCardLab() {
         localStorage.setItem('lab_fc_saved', String(saved + 1));
         setSaved(s => s + 1);
         setIdx(i => i + 1);
-        setPicked(null); setRevealed(false);
         setGrade(null); setChips([]); setNote('');
     };
 
@@ -153,51 +164,34 @@ export default function FirstCardLab() {
                 <div className="text-yellow-300/90 text-sm mb-3">{BUYER_LABEL[item.buyerRel]}</div>
 
                 <div className="mb-1 text-white/50 text-xs uppercase tracking-wider">
-                    You lead trick one — tap your card
+                    The leader&apos;s hand — <span className="text-pink-300">pink ring</span> = the
+                    card RC1 led · the fill circle is how hot its search ran on each card
                 </div>
-                <div className="flex flex-nowrap items-end gap-1.5 mb-4 overflow-x-auto pt-5 pb-2">
+                <div className="flex flex-nowrap items-start gap-1.5 mb-4 overflow-x-auto pt-1 pb-2">
                     {hand9.map(c => {
-                        const mine = picked === c;
-                        const bots = revealed && item.rc1.card === c;
-                        const marks = revealed
-                            ? `rounded-lg ${mine ? 'ring-2 ring-sky-400' : ''} ` +
-                              `${bots ? 'outline outline-2 outline-offset-2 outline-pink-400' : ''}`
-                            : 'rounded-lg';
+                        const bots = item.rc1.card === c;
                         return (
-                            <div key={c} className={`relative flex-shrink-0 ${marks}`}>
-                                <PlayingCard
-                                    card={toCard(c)} trump={trumpSuit} size="sm"
-                                    onClick={() => !revealed && setPicked(mine ? null : c)}
-                                    selected={!revealed && mine}
+                            <div key={c} className="relative flex-shrink-0 flex flex-col items-center gap-1">
+                                <div className={bots ? 'rounded-lg outline outline-2 outline-offset-2 outline-pink-400' : 'rounded-lg'}>
+                                    <PlayingCard card={toCard(c)} trump={trumpSuit} size="sm" />
+                                </div>
+                                <span
+                                    className="w-4 h-4 rounded-full"
+                                    title={temps ? `search value ${temps[String(c)]}` : 'no temps yet'}
+                                    style={{
+                                        background: temps
+                                            ? `conic-gradient(#e85d8a ${(frac(c) * 360).toFixed(0)}deg, rgba(255,255,255,.15) 0)`
+                                            : 'rgba(255,255,255,.08)',
+                                    }}
                                 />
                             </div>
                         );
                     })}
                 </div>
-                {revealed && (
-                    <div className="text-xs text-white/60 -mt-1 mb-3">
-                        <span className="text-sky-300 font-bold">blue</span> = your lead ·{' '}
-                        <span className="text-pink-300 font-bold">pink</span> = the bot&apos;s
-                        {agree && <span className="text-green-400 font-bold"> · same card!</span>}
-                    </div>
-                )}
 
-                {!revealed ? (
-                    <button
-                        onClick={() => picked !== null && setRevealed(true)}
-                        disabled={picked === null}
-                        className={`w-full py-3 rounded-xl font-orbitron text-sm transition
-                            ${picked !== null ? 'bg-sky-600 hover:bg-sky-500 text-white' : 'bg-white/10 text-white/30'}`}>
-                        {picked !== null ? 'Lock it in — show me the bot' : 'Tap the card you would lead'}
-                    </button>
-                ) : (
                     <div className="rounded-xl border border-pink-400/40 bg-navy-950/60 p-4">
-                        <div className="text-pink-300 font-orbitron text-sm font-bold mb-3">
-                            {agree
-                                ? 'Gen25-RC1 led the same card as you.'
-                                : 'Gen25-RC1 led the pink-ringed card.'}
-                        </div>
-                        <div className="text-white/50 text-xs uppercase tracking-wider mb-1.5">Grade the bot&apos;s lead</div>
+                        <div className="text-white/50 text-xs uppercase tracking-wider mb-1.5">
+                            Grade the bot&apos;s lead &amp; its temperature spread</div>
                         <div className="flex flex-wrap gap-1.5 mb-3">
                             {GRADES.map(([k, label, color]) => (
                                 <button key={k} onClick={() => setGrade(grade === k ? null : k)}
@@ -228,7 +222,6 @@ export default function FirstCardLab() {
                             {grade ? 'Save & next lead' : 'Pick a grade first'}
                         </button>
                     </div>
-                )}
             </div>
         </main>
     );
