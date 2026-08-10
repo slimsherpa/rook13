@@ -72,6 +72,9 @@ export default function FirstCardLab() {
     const [note, setNote] = useState('');
     // optional per-card throttles: how much SHOULD each card be considered
     const [ranks, setRanks] = useState<Record<number, string>>({});
+    // optional line: the card I'd play on trick 2 / trick 3, assuming I
+    // keep winning — Riley's "there is an order these should be played"
+    const [seq, setSeq] = useState<Record<number, number>>({});
     const [saved, setSaved] = useState(0);
 
     useEffect(() => {
@@ -109,13 +112,18 @@ export default function FirstCardLab() {
         return t === undefined ? 0 : Math.max(0.05, (t - tmin) / (tmax - tmin));
     };
 
-    const RANK_CYCLE = [null, 'top', 'ok', 'no'] as const;
-    const cycleRank = (c: number) => {
+    const setRank = (c: number, v: string) => {
         setRanks(r => {
-            const cur = (r[c] ?? null) as typeof RANK_CYCLE[number];
-            const next = RANK_CYCLE[(RANK_CYCLE.indexOf(cur) + 1) % RANK_CYCLE.length];
             const out = { ...r };
-            if (next === null) delete out[c]; else out[c] = next;
+            if (out[c] === v) delete out[c]; else out[c] = v;
+            return out;
+        });
+    };
+    const setSeqN = (n: number, c: number) => {
+        setSeq(sq => {
+            const out = { ...sq };
+            if (out[n] === c) { delete out[n]; return out; }
+            out[n] = c;
             return out;
         });
     };
@@ -125,7 +133,7 @@ export default function FirstCardLab() {
             game: 'firstcard', id: item.id, seed: item.seed, hand: item.hand,
             seat: item.seat, buyerRel: item.buyerRel,
             grader: grader || 'anon',
-            rc1: item.rc1, ranks,
+            rc1: item.rc1, ranks, seq,
             grade, chips, note, ts: Date.now(),
         };
         const key = 'lab_fc_picks';
@@ -143,7 +151,7 @@ export default function FirstCardLab() {
         localStorage.setItem('lab_fc_saved', String(saved + 1));
         setSaved(s => s + 1);
         setIdx(i => i + 1);
-        setGrade(null); setChips([]); setNote(''); setRanks({});
+        setGrade(null); setChips([]); setNote(''); setRanks({}); setSeq({});
     };
 
     return (
@@ -180,11 +188,13 @@ export default function FirstCardLab() {
                     The leader&apos;s hand — <span className="text-pink-300">pink ring</span> = the
                     card RC1 led · the fill circle is how hot its search ran on each card
                 </div>
-                <div className="mb-2 text-[11px] text-white/40">
-                    Optional: tap the little box under a card to rate it yourself —
+                <div className="mb-2 text-[11px] text-white/40 leading-relaxed">
+                    Optional, per card: rate it as a FIRST lead —
                     <span className="text-green-400 font-bold"> ★ top pick</span> ·
-                    <span className="text-lime-300 font-bold"> ✓ fine contender</span> ·
-                    <span className="text-red-400 font-bold"> ✕ shouldn&apos;t consider</span>
+                    <span className="text-lime-300 font-bold"> ✓ fine</span> ·
+                    <span className="text-red-400 font-bold"> ✕ never</span>.
+                    Below the line: your LINE — tap <b className="text-white/70">2</b> on
+                    the card you&apos;d play next (if you win), <b className="text-white/70">3</b> after that.
                 </div>
                 <div className="flex flex-nowrap items-start gap-1.5 mb-4 overflow-x-auto pt-1 pb-2">
                     {hand9.map(c => {
@@ -203,18 +213,28 @@ export default function FirstCardLab() {
                                             : 'rgba(255,255,255,.08)',
                                     }}
                                 />
-                                <button
-                                    onClick={() => cycleRank(c)}
-                                    className={`w-7 h-6 rounded border text-xs font-bold transition
-                                        ${ranks[c] === 'top' ? 'border-green-400 text-green-400'
-                                        : ranks[c] === 'ok' ? 'border-lime-300 text-lime-300'
-                                        : ranks[c] === 'no' ? 'border-red-400 text-red-400'
-                                        : 'border-white/15 text-white/25 hover:border-white/40'}`}
-                                    title="tap to cycle: top / fine / never"
-                                >
-                                    {ranks[c] === 'top' ? '★' : ranks[c] === 'ok' ? '✓'
-                                        : ranks[c] === 'no' ? '✕' : '·'}
-                                </button>
+                                <div className="flex flex-col gap-0.5">
+                                    {([['top', '★', 'border-green-400 text-green-400 bg-white/5'],
+                                       ['ok', '✓', 'border-lime-300 text-lime-300 bg-white/5'],
+                                       ['no', '✕', 'border-red-400 text-red-400 bg-white/5']] as const).map(([v, glyph, on]) => (
+                                        <button key={v}
+                                            onClick={() => setRank(c, v)}
+                                            className={`w-7 h-5 rounded border text-[11px] font-bold transition
+                                                ${ranks[c] === v ? on
+                                                    : 'border-white/10 text-white/20 hover:border-white/40 hover:text-white/50'}`}
+                                        >{glyph}</button>
+                                    ))}
+                                    <div className="h-px bg-white/15 my-0.5" />
+                                    {[2, 3].map(n => (
+                                        <button key={n}
+                                            onClick={() => setSeqN(n, c)}
+                                            className={`w-7 h-5 rounded border text-[11px] font-bold transition
+                                                ${seq[n] === c
+                                                    ? 'border-sky-400 text-sky-300 bg-white/5'
+                                                    : 'border-white/10 text-white/20 hover:border-white/40 hover:text-white/50'}`}
+                                        >{n}</button>
+                                    ))}
+                                </div>
                             </div>
                         );
                     })}
