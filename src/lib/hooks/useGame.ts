@@ -245,7 +245,9 @@ export const useGame = (gameId: string | null): UseGameResult => {
             const jitter = Math.random() * 400;
             // a known-down service gets normal bot pacing, not the long grace
             const delay = serverDriven && botServiceHealthy()
-                ? (turnInfo!.botStyle === 'godrook' ? GODROOK_COVER_MS : SERVER_COVER_MS)
+                // gardner rides the anytime searcher — opening leads can
+                // breach the 20s grace, so it gets godrook's roomier clock
+                ? (turnInfo!.botStyle === 'godrook' || turnInfo!.botStyle === 'gardner' ? GODROOK_COVER_MS : SERVER_COVER_MS)
                     + (isHost ? 0 : FALLBACK_EXTRA_MS)
                 : paced(baseDelay + jitter) + (isHost ? 0 : paced(FALLBACK_EXTRA_MS));
             const expected = serverGame.actionCount;

@@ -88,6 +88,27 @@ def get_agent(style: str):
             budget_scale=float(os.environ.get("ANYTIME_SCALE", "1.0")),
             world_nodes=int(os.environ.get("ANYTIME_NODES", "32000000")),
             seed=int(os.environ.get("ANYTIME_SEED", "0"))))
+    elif style == "gardner":
+        # GARDNER v2 (2026-08-12): the RC1 anytime core at the serving
+        # clock, wearing the family-convention shape layer. Gate lineage:
+        # v2 gate Δ −0.15 ± 0.43 vs vanilla RC1, mechanism bar passed
+        # (ml/GARDNER-FLAVOR.md). Shares the ANYTIME_ENABLED lock — this
+        # style must not go live before the receipt duel's verdict.
+        if not os.environ.get("ANYTIME_ENABLED"):
+            raise HTTPException(403, "gardner style is dark (ANYTIME_ENABLED unset)")
+        from alpharook.anytime import AnytimeRookAgent
+        from alpharook.beliefs import BeliefOracle
+        from alpharook.gardner import GardnerAgent
+        net = load_qnet("models/gen21-cand1.pt")
+        core = AnytimeRookAgent(
+            net, BeliefOracle("runs/gen15/best_duel.pt", temp=0.5),
+            budget_scale=float(os.environ.get("ANYTIME_SCALE", "0.25")),
+            world_nodes=int(os.environ.get("ANYTIME_NODES", "32000000")),
+            seed=int(os.environ.get("ANYTIME_SEED", "0")))
+        agent = ("agent", net, GardnerAgent(
+            core, mode=os.environ.get("GARDNER_MODE", "shape"),
+            tau_style=float(os.environ.get("GARDNER_TAU", "4.0")),
+            telemetry_path=os.environ.get("GARDNER_TELEMETRY") or None))
     else:
         raise HTTPException(400, f"unknown server style: {style}")
     _agents[style] = agent

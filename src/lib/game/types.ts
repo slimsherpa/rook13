@@ -43,7 +43,7 @@ export interface Card {
 //                (bots.ts PERSONALITIES); 'basic' is also the fallback brain
 //                for gen7/gen8 go-down/trump and for neural seats if weights
 //                fail to load
-export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen11' | 'gen13' | 'gen16' | 'gen19' | 'gen21' | 'gen23' | 'teacher' | 'godrook';
+export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen11' | 'gen13' | 'gen16' | 'gen19' | 'gen21' | 'gen23' | 'teacher' | 'godrook' | 'gardner';
 
 export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     random: 'Easy',
@@ -63,18 +63,22 @@ export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     gen23: 'AlphaRook Gen23',
     teacher: 'AlphaRook Gen21+t0',
     godrook: 'AlphaGodRook',
+    gardner: 'AlphaRook RC1 · Gardner',
 };
 
 // Styles whose thinking runs in the Cloud Run bot service (service/), not in
 // the browser: the teacher's K24 search and godrook's solver are too heavy
 // for a phone. Clients still handle their DEAL / ACK_REDEAL shuffles and
 // cover with a local brain if the service stays silent (useGame.ts).
-export const SERVER_STYLES: BotStyle[] = ['teacher', 'godrook', 'gen21', 'gen23'];
+export const SERVER_STYLES: BotStyle[] = ['teacher', 'godrook', 'gen21', 'gen23', 'gardner'];
 export const isServerStyle = (s: BotStyle | undefined): boolean =>
     !!s && SERVER_STYLES.includes(s);
 
 /** What the lobby's bot picker offers (strongest first); legacy styles live on only in old games. */
-export const PLAYABLE_BOT_STYLES: BotStyle[] = ['teacher', 'gen19', 'gen16', 'gen13', 'gen11', 'gen10', 'gen9'];
+// 'gardner' (Gen25 RC1 + family conventions) sits at the BOTTOM on
+// purpose — prod soak test, not the family default. Promotion to the top
+// waits on the receipt duel + prod latency read (Gen26 decides).
+export const PLAYABLE_BOT_STYLES: BotStyle[] = ['teacher', 'gen19', 'gen16', 'gen13', 'gen11', 'gen10', 'gen9', 'gardner'];
 
 /** The humbling machine rides along only after the secret unlock (SeatLobby). */
 export const SECRET_BOT_STYLE: BotStyle = 'godrook';

@@ -60,7 +60,7 @@ class Side:
                  anytime: float = 0.0, mwidow: float = 0.0,
                  proposer: str | None = None,
                  bidbot: str | None = None, bidbot_tau: float = 0.05,
-                 contam: float = 0.0,
+                 contam: float = 0.0, gardner: float = 0.0,
                  winprob: str = "models/winprob25.json"):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
@@ -100,6 +100,17 @@ class Side:
             self.agent = AnytimeRookAgent(self.net, belief,
                                           budget_scale=anytime,
                                           contam_p=contam)
+            if gardner:
+                # GARDNER FLAVOR: family-legible conventions inside a
+                # tau_style price gate (see gardner.py). Negative value =
+                # v2 "shape" mode at |tau| (Riley's amendment: codebook
+                # nominates candidates, search judges vs the whole hand).
+                import os as _os
+                from .gardner import GardnerAgent
+                self.agent = GardnerAgent(
+                    self.agent, tau_style=abs(gardner),
+                    mode="shape" if gardner < 0 else "card",
+                    telemetry_path=_os.environ.get("GARDNER_TELEMETRY"))
             if mwidow:
                 # THE ASSEMBLED CANDIDATE (P3): anytime card core +
                 # MortalWidow burial (proposer-shortlisted when given)
@@ -550,6 +561,13 @@ def main():
     ap.add_argument("--bidbot-b", default=None)
     ap.add_argument("--bidbot-tau-a", type=float, default=0.05)
     ap.add_argument("--bidbot-tau-b", type=float, default=0.05)
+    ap.add_argument("--gardner-a", type=float, default=0.0,
+                    help="GARDNER FLAVOR: family-convention style layer "
+                         "over --anytime-a; value = tau_style in family "
+                         "points (0 = off). Partner boss-14/trump-return "
+                         "leads + defender no-trump-lead rule, each gated "
+                         "by the priced worlds.")
+    ap.add_argument("--gardner-b", type=float, default=0.0)
     ap.add_argument("--contam-a", type=float, default=0.0,
                     help="ORACLE CONTAMINATION instrument (never ships): "
                          "probability a search world is the TRUE deal "
@@ -585,14 +603,16 @@ def main():
               args.fork_width_a, args.plan_lines_a, args.god_a,
               args.solve_tail_a, args.mortal_a, args.mrook_a, args.anytime_a,
               args.mwidow_a, args.proposer_a,
-              args.bidbot_a, args.bidbot_tau_a, args.contam_a)
+              args.bidbot_a, args.bidbot_tau_a, args.contam_a,
+              args.gardner_a)
     b_args = (args.b, args.script_b, None, args.worlds_b, args.search_b,
               args.prior_b, args.min_trick_b, args.infer_b, args.bid_infer_b,
               args.belief_b, args.belief_temp_b, args.fork_depth_b,
               args.fork_width_b, args.plan_lines_b, args.god_b,
               args.solve_tail_b, args.mortal_b, args.mrook_b, args.anytime_b,
               args.mwidow_b, args.proposer_b,
-              args.bidbot_b, args.bidbot_tau_b, args.contam_b)
+              args.bidbot_b, args.bidbot_tau_b, args.contam_b,
+              args.gardner_b)
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
          workers=args.workers, side_args=(a_args, b_args),

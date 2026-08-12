@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:gardner": "NEXT_PUBLIC_BOT_SERVICE_URL=http://localhost:8080 next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

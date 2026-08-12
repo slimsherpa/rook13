@@ -44,6 +44,17 @@ NET = load_qnet("models/gen21-cand1.pt")
 NET.eval()
 BELIEF = BeliefOracle("models/gen15.pt", temp=0.5)
 CORE = AnytimeRookAgent(NET, BELIEF, seed=4242)
+# GARDNER FEEL-TEST (2026-08-12): GARDNER_MODE=shape (v2) or card (v1)
+# wraps the bot seats in the family-convention layer — so Riley can play
+# hands WITH the Gardner partner before it goes anywhere near production.
+_gm = os.environ.get("GARDNER_MODE")
+if _gm:
+    from .gardner import GardnerAgent
+    CORE = GardnerAgent(
+        CORE, mode=_gm,
+        tau_style=float(os.environ.get("GARDNER_TAU", "4.0")))
+    print(f"gardner flavor ON ({_gm}, tau "
+          f"{os.environ.get('GARDNER_TAU', '4.0')})", flush=True)
 print("organs ready", flush=True)
 
 
@@ -164,6 +175,7 @@ def hand_result():
     row = dict(game="line", posId=f"{STATE['rec']['seed']}:{STATE['hand']}",
                seed=STATE["rec"]["seed"], hand=STATE["hand"], seat=seat,
                grader=STATE.get("grader") or "anon",
+               flavor=_gm or "vanilla",
                line=STATE["plays"], humanPlays=STATE.get("human_n"),
                myPts=my_pts, made=made,
                recPts=STATE["rec_pts"], recMade=STATE["rec_made"])

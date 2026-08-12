@@ -203,6 +203,7 @@ class AnytimeRookAgent:
         self.seed = seed
         self.last_search = None
         self.last_think = None
+        self.last_confirm = None   # confirm-round arithmetic (telemetry)
         # telemetry: {trick: [decisions, overrides, worlds, timeouts, secs]}
         self.stats: dict = {}
 
@@ -277,6 +278,7 @@ class AnytimeRookAgent:
         split-sample law, unchanged from MortalRook. Confirm ignores the
         deadline (bounded by eval_worlds); honesty is not budgetable."""
         g0 = env.g
+        self.last_confirm = None
         o = observe(g0, seat)
         probs = None
         if self.belief is not None:
@@ -379,6 +381,12 @@ class AnytimeRookAgent:
             ev_i.append(wv[incumbent])
             ke += 1
         ok = ke >= self.eval_min and (sum(ev_c) - sum(ev_i)) / ke >= self.tau
+        # telemetry only (spot-check narration): the confirm arithmetic
+        self.last_confirm = dict(
+            challenger=int(challenger), incumbent=int(incumbent),
+            ke=ke, ev_challenger=round(sum(ev_c) / ke, 2) if ke else None,
+            ev_incumbent=round(sum(ev_i) / ke, 2) if ke else None,
+            passed=bool(ok))
         return (challenger if ok else incumbent), k, ke, timeouts, stop, means
 
     def choose(self, env, seat, dtype, cands):
