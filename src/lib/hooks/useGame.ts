@@ -190,6 +190,9 @@ export const useGame = (gameId: string | null): UseGameResult => {
     const [serverThinking, setServerThinking] = useState<{ seat: Seat; since: number } | null>(null);
     // the armed cover move, exposed so hurryUp() can fire it early
     const coverRef = useRef<{ expected: number; fire: (viaHurry: boolean) => void } | null>(null);
+    // last snapshot, for naming the CLOUD brain when its move lands — the
+    // eager "🧠 gen19 …" lines are only the local backup being warmed
+    const prevSnapRef = useRef<GameDoc | null>(null);
     useEffect(() => {
         if (botTimer.current) {
             clearTimeout(botTimer.current);
@@ -198,6 +201,30 @@ export const useGame = (gameId: string | null): UseGameResult => {
         coverRef.current = null;
         setServerThinking(null);
         if (!serverGame || !gameId || !user || serverGame.status !== 'active') return;
+
+        // name the cloud brain when its move arrives: if the previous
+        // snapshot was a server bot's turn and the log advanced, the move
+        // that landed was the CLOUD's (a local cover logs itself loudly)
+        const prevSnap = prevSnapRef.current;
+        prevSnapRef.current = serverGame;
+        if (prevSnap && prevSnap.turn && serverGame.actionCount > prevSnap.actionCount) {
+            const info = prevSnap.seats[prevSnap.turn];
+            if (info?.kind === 'bot' && isServerStyle(info.botStyle)) {
+                let what = 'moved';
+                const np = serverGame.trickPlays;
+                const done = serverGame.completedTricks;
+                const played = np.length > prevSnap.trickPlays.length
+                    ? np[np.length - 1]
+                    : (done.length > prevSnap.completedTricks.length
+                        ? done[done.length - 1].plays[done[done.length - 1].plays.length - 1]
+                        : null);
+                if (played && played.seat === prevSnap.turn) {
+                    what = `plays ${played.card.suit} ${played.card.number}`;
+                }
+                console.info(`☁️ ${info.botStyle} ${prevSnap.turn} ${what} (cloud brain — the 🧠 gen19 lines are the standby backup)`);
+            }
+        }
+
         if (!mySeat && !isHost) return; // spectators never drive bots
         if (tableHeld) return; // the player is counting — resume on release
 
