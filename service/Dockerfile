@@ -22,6 +22,14 @@ RUN cd service/driver && npm install --omit=dev
 # the lab engine + agents + weights the brain needs
 COPY ml/rook ml/rook
 COPY ml/alpharook ml/alpharook
+# Compile the C oracle NOW — the runtime image has no `cc`, and the Python
+# fallback is ~60x slower (an opening-lead world solve goes 1s -> 60s,
+# blowing the 90s request timeout; found the hard way, 2026-08-13). gcc
+# lives and dies inside this one layer so the image stays slim.
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev \
+    && cd ml && python -c "from rook import csolver; print('C oracle compiled:', csolver.__name__)" \
+    && apt-get purge -y gcc libc6-dev && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
 COPY ml/models/gen21-cand1.pt ml/models/gen21-cand1.pt
 COPY ml/models/gen23-cand1.pt ml/models/gen23-cand1.pt
 COPY ml/models/widowbrain-v2.pt ml/models/widowbrain-v2.pt
