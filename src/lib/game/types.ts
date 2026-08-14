@@ -173,6 +173,9 @@ export interface SeatInfo {
     photoURL?: string;
     botStyle?: BotStyle;
     assist?: boolean; // this human has the AI trainer switched on (table-visible)
+    /** this human has the card counter grid up (table-visible; single-select
+     *  with assist — the client never sets both). Absent on older games. */
+    counter?: boolean;
 }
 
 export type Phase =
@@ -193,6 +196,9 @@ export interface TrickPlay {
      *  stamped per play (assist can be flipped mid-game), shown as the
      *  trainer's pink dot in the recaps. Absent on older games. */
     assist?: boolean;
+    /** same idea for the card counter grid — stamped per play, shown as the
+     *  counter's orange dot in the recaps. Absent on older games. */
+    counter?: boolean;
 }
 
 export interface TrickRecord {
@@ -323,7 +329,10 @@ export type GameAction =
     | { type: 'SELECT_TRUMP'; seat: Seat; suit: Suit }
     | { type: 'PLAY_CARD'; seat: Seat; card: Card }
     | { type: 'LAYDOWN'; seat: Seat }     // every remaining card is a lock — claim the rest
-    | { type: 'SET_ASSIST'; seat: Seat; on: boolean } // toggle the AI trainer (table-visible)
+    // sync this seat's table-visible help flags: `on` is the AI trainer,
+    // `counter` the card counter grid (absent on actions from older clients,
+    // which reads as off — the two are single-select, never both true)
+    | { type: 'SET_ASSIST'; seat: Seat; on: boolean; counter?: boolean }
     // host flips the whole-table turn clock on or off (lobby or mid-game —
     // the Disneyland rule: last one able to play before the ride wins)
     | { type: 'SET_CLOCK'; uid: string; on: boolean }

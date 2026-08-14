@@ -2,6 +2,7 @@
 
 import { Seat, SeatInfo, teamOf } from '@/lib/game/types';
 import { ASSIST_PINK } from './AssistDial';
+import { COUNTER_ORANGE } from './CardCounter';
 import BotAvatar from './BotAvatar';
 
 interface PlayerBadgeProps {
@@ -65,6 +66,15 @@ export default function PlayerBadge({ seat, info, isDealer, isTurn, bid, horizon
                         style={{ backgroundColor: ASSIST_PINK }}
                         title={`${firstName} has the AI trainer on`}>
                         <span className="material-symbols-outlined text-white" style={{ fontSize: 14 }}>neurology</span>
+                    </div>
+                )}
+                {/* card counter: this player is running the count — orange,
+                    the counter's signature color (single-select with assist) */}
+                {info.kind === 'human' && !info.assist && info.counter && (
+                    <div className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full border-2 border-white/70 flex items-center justify-center shadow-md"
+                        style={{ backgroundColor: COUNTER_ORANGE }}
+                        title={`${firstName} has the card counter on`}>
+                        <span className="material-symbols-outlined text-white" style={{ fontSize: 14 }}>grid_on</span>
                     </div>
                 )}
             </div>

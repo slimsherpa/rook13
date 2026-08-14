@@ -882,6 +882,23 @@ describe('per-play AI-trainer stamps', () => {
             g = applyAction(g, { type: 'PLAY_CARD', seat: g.turn!, card: legalCards(g, g.turn!)[0] });
         }
         expect(g.completedTricks[1].plays.find((p) => p.seat === 'A1')!.assist).toBeUndefined();
+
+        // card counter for trick 3 — the counter stamp, never the assist one
+        // (single-select: the action carries counter without assist)
+        g = applyAction(g, { type: 'SET_ASSIST', seat: 'A1', on: false, counter: true });
+        expect(g.seats.A1.counter).toBe(true);
+        expect(g.seats.A1.assist).toBe(false);
+        while (g.completedTricks.length < 3) {
+            g = applyAction(g, { type: 'PLAY_CARD', seat: g.turn!, card: legalCards(g, g.turn!)[0] });
+        }
+        const t3 = g.completedTricks[2];
+        expect(t3.plays.find((p) => p.seat === 'A1')!.counter).toBe(true);
+        expect(t3.plays.find((p) => p.seat === 'A1')!.assist).toBeUndefined();
+        for (const p of t3.plays.filter((p) => p.seat !== 'A1')) expect(p.counter).toBeUndefined();
+
+        // an old client's action (no counter field) clears the flag
+        g = applyAction(g, { type: 'SET_ASSIST', seat: 'A1', on: false });
+        expect(g.seats.A1.counter).toBe(false);
     });
 });
 

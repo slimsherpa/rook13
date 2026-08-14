@@ -16,6 +16,7 @@ import { BlunderTarget, targetKey } from '@/lib/game/blunders';
 import PlayingCard from '@/components/ui/PlayingCard';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
 import { ASSIST_PINK } from './AssistDial';
+import { COUNTER_ORANGE } from './CardCounter';
 import {
     BlunderFlag, BlunderProvider, BlunderTrigger, blunderArmedClass, blunderFlaggedClass, useBlunderMode,
 } from '@/components/review/BlunderReport';
@@ -363,7 +364,7 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
                             )}
                         </div>
                         <div className="grid grid-cols-4 gap-1.5 flex-1">
-                            {trick.plays.map(({ seat, card, assist }) => {
+                            {trick.plays.map(({ seat, card, assist, counter }) => {
                                 const isWinner = seat === trick.winner;
                                 const target: BlunderTarget = { kind: 'play', seat, card, trick: idx };
                                 const flagged = blunder?.reportedKeys.has(targetKey(target)) ?? false;
@@ -379,6 +380,15 @@ export function TrickByTrick({ seats, tricks, trump, h, mySeat, compact, laydown
                                                     className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                                                     style={{ backgroundColor: ASSIST_PINK }}
                                                     title={`${firstName(seats, seat)} had the AI trainer on for this play`}
+                                                />
+                                            )}
+                                            {/* the counter's signature orange: this card was
+                                                played with the card counter up */}
+                                            {counter && !assist && (
+                                                <span
+                                                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                                    style={{ backgroundColor: COUNTER_ORANGE }}
+                                                    title={`${firstName(seats, seat)} had the card counter on for this play`}
                                                 />
                                             )}
                                         </span>

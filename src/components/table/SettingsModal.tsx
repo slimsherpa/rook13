@@ -9,8 +9,9 @@
 // except Bot Thinking and the Turn Clock, the whole-table rules: they live
 // on the game doc and only the host can flip them.
 
-import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist, useSuperTrainer } from '@/lib/settings';
+import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist, useSuperTrainer, useCardCounter } from '@/lib/settings';
 import { ASSIST_PINK } from './AssistDial';
+import { COUNTER_ORANGE } from './CardCounter';
 
 const PACES: { id: TablePace; label: string; blurb: string; icon: string }[] = [
     { id: 'auto',   label: 'Auto',   blurb: 'Tricks sweep away on their own',                icon: 'play_circle' },
@@ -30,6 +31,50 @@ export default function SettingsModal({ onClose, clock, botThink }: SettingsModa
     const [pace, setPace] = useTablePace();
     const [assist, setAssist] = useAiAssist();
     const [superTrainer, setSuperTrainer] = useSuperTrainer();
+    const [counter, setCounter] = useCardCounter();
+
+    // trainer and counter are single-select — the setters clear each other,
+    // so this derived mode is never ambiguous
+    const helpMode: 'off' | 'trainer' | 'counter' = assist ? 'trainer' : counter ? 'counter' : 'off';
+    const pickHelp = (mode: 'off' | 'trainer' | 'counter') => {
+        if (mode === 'trainer') setAssist(true);
+        else if (mode === 'counter') setCounter(true);
+        else { setAssist(false); setCounter(false); }
+    };
+
+    // a colored single-select row (the trainer's pink / the counter's orange)
+    const helpOption = (mode: 'off' | 'trainer' | 'counter', color: string | null, icon: string, label: string, blurb: string) => {
+        const selected = helpMode === mode;
+        return (
+            <button
+                key={mode}
+                onClick={() => pickHelp(mode)}
+                className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition hover:border-white/30 ${
+                    selected && !color ? 'border-sky-400 bg-sky-500/15' : ''
+                }`}
+                style={selected && color
+                    ? { borderColor: color, backgroundColor: `${color}26` }
+                    : selected ? undefined
+                    : { borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)' }}
+            >
+                <span className={`material-symbols-outlined text-xl ${selected && !color ? 'text-sky-300' : ''}`}
+                    style={{ color: selected ? (color ?? undefined) : 'rgba(255,255,255,0.5)' }}>
+                    {icon}
+                </span>
+                <span className="flex-1 min-w-0">
+                    <span className={`block font-orbitron text-sm ${selected ? 'text-white font-bold' : 'text-white/85'}`}>
+                        {label}
+                    </span>
+                    <span className="block text-white/50 text-[11px]">{blurb}</span>
+                </span>
+                {selected && (
+                    <span className={`material-symbols-outlined text-lg ${!color ? 'text-sky-300' : ''}`} style={{ color: color ?? undefined }}>
+                        check_circle
+                    </span>
+                )}
+            </button>
+        );
+    };
 
     const option = (selected: boolean, icon: string, label: string, blurb: string, onPick: () => void) => (
         <button
@@ -143,35 +188,23 @@ export default function SettingsModal({ onClose, clock, botThink }: SettingsModa
                 {/* ---- the coach ---- */}
                 {section('AI Trainer')}
 
-                <div className="flex items-center gap-2 font-orbitron text-sm mb-1" style={{ color: assist ? ASSIST_PINK : 'white' }}>
-                    <span className="material-symbols-outlined text-lg">neurology</span>
+                <div className="flex items-center gap-2 font-orbitron text-sm mb-1"
+                    style={{ color: assist ? ASSIST_PINK : counter ? COUNTER_ORANGE : 'white' }}>
+                    <span className="material-symbols-outlined text-lg">{counter && !assist ? 'grid_on' : 'neurology'}</span>
                     AI Trainer
                 </div>
                 <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
-                    A coach over your shoulder: every choice shows a hot-pink dial for how likely the
-                    latest AlphaRook brain would be to pick it. The rest of the table can see the
-                    trainer is on — flip it any time.
+                    Pick one kind of help (the table can see which). The trainer puts hot-pink dials
+                    on every choice — how likely the latest AlphaRook brain would be to pick it. The
+                    card counter keeps a tiny 40-card grid on the felt showing the cards you can&apos;t
+                    account for — your own hand starts punched out, and every card played punches
+                    out too. Flip it any time.
                 </p>
-                <button
-                    onClick={() => setAssist(!assist)}
-                    className="w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition hover:border-white/30"
-                    style={assist
-                        ? { borderColor: ASSIST_PINK, backgroundColor: `${ASSIST_PINK}26` }
-                        : { borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)' }}
-                >
-                    <span className="material-symbols-outlined text-xl" style={{ color: assist ? ASSIST_PINK : 'rgba(255,255,255,0.5)' }}>
-                        {assist ? 'toggle_on' : 'toggle_off'}
-                    </span>
-                    <span className="flex-1 min-w-0">
-                        <span className={`block font-orbitron text-sm ${assist ? 'text-white font-bold' : 'text-white/85'}`}>
-                            {assist ? 'Trainer on' : 'Trainer off'}
-                        </span>
-                        <span className="block text-white/50 text-[11px]">
-                            {assist ? 'Pick-likelihood dials are showing' : 'Play unassisted'}
-                        </span>
-                    </span>
-                    {assist && <span className="material-symbols-outlined text-lg" style={{ color: ASSIST_PINK }}>check_circle</span>}
-                </button>
+                <div className="space-y-1.5">
+                    {helpOption('off', null, 'visibility_off', 'No help', 'Play unassisted')}
+                    {helpOption('trainer', ASSIST_PINK, 'neurology', 'AI Trainer', 'Pick-likelihood dials on every choice')}
+                    {helpOption('counter', COUNTER_ORANGE, 'grid_on', 'Card Counter', 'A 40-card grid tracks the cards still out there')}
+                </div>
 
                 {/* super-trainer: only offered while the trainer itself is on */}
                 {assist && (

@@ -58,6 +58,18 @@ html.msym-ready .material-symbols-outlined {
   animation: card-reveal 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* A card-counter chip punches out of the grid: a bright flare, then it
+   shrinks into its socket and stays gone (forwards keeps the end state). */
+@keyframes counter-punch {
+  0%   { opacity: 1; transform: scale(1);    filter: brightness(1); }
+  30%  { opacity: 1; transform: scale(1.45); filter: brightness(2); }
+  100% { opacity: 0; transform: scale(0);    filter: brightness(1); }
+}
+
+.animate-counter-punch {
+  animation: counter-punch 0.5s cubic-bezier(0.55, 0, 0.7, 0.4) forwards;
+}
+
 /* The hand-points ticker "bings" when a team captures counters. */
 @keyframes points-bing {
   0%   { transform: scale(1);    filter: brightness(1); }

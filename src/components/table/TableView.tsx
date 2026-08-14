@@ -26,7 +26,8 @@ import TableChat from './TableChat';
 import { useWatchers } from '@/lib/hooks/useWatchers';
 import { useForfeitClock, CLOCK_SHOW_S, CLOCK_PANIC_S } from '@/lib/hooks/useForfeitClock';
 import { requestHandAudit, subscribeAudits, HandAudit } from '@/lib/firebase/auditService';
-import { paced, useTablePace, useAiAssist, useSuperTrainer } from '@/lib/settings';
+import { paced, useTablePace, useAiAssist, useSuperTrainer, useCardCounter } from '@/lib/settings';
+import CardCounter from './CardCounter';
 import { armTableHold, releaseTableHold, useTableHold } from '@/lib/tableHold';
 import { useModelAdvice } from '@/lib/hooks/useModelAdvice';
 import SettingsModal from './SettingsModal';
@@ -135,17 +136,19 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
     // ---- AI trainer: device-local dials, plus a table-visible seat flag ----
     const [aiAssist] = useAiAssist();
     const [superTrainer] = useSuperTrainer();
+    const [cardCounter] = useCardCounter();
     const { advice, deepPending, deepApplied } = useModelAdvice(game, mySeat, aiAssist, superTrainer);
-    // reflect my local toggle into the shared game doc so the rest of the
-    // table can see the trainer is on (or off) — synced whenever they differ
+    // reflect my local toggles into the shared game doc so the rest of the
+    // table can see the trainer/counter is on (or off) — synced on any drift
     useEffect(() => {
         if (!mySeat) return;
         const seatAssist = game.seats[mySeat].assist ?? false;
-        if (seatAssist !== aiAssist && game.seats[mySeat].kind === 'human') {
-            act({ type: 'SET_ASSIST', seat: mySeat, on: aiAssist }).catch(() => {});
+        const seatCounter = game.seats[mySeat].counter ?? false;
+        if ((seatAssist !== aiAssist || seatCounter !== cardCounter) && game.seats[mySeat].kind === 'human') {
+            act({ type: 'SET_ASSIST', seat: mySeat, on: aiAssist, counter: cardCounter }).catch(() => {});
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [aiAssist, mySeat, game.seats[mySeat ?? 'A1']?.assist]);
+    }, [aiAssist, cardCounter, mySeat, game.seats[mySeat ?? 'A1']?.assist, game.seats[mySeat ?? 'A1']?.counter]);
 
     // ---- manual table pace: hold the theater while the player counts ----
     const [pace] = useTablePace();
@@ -402,6 +405,14 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">{badge(pos.right)}</div>
 
                 <TrickArea game={game} bottomSeat={bottomSeat} trump={game.trump} message={centerMessage} />
+
+                {/* the card counter grid, top-left under the ROOK13 mark —
+                    trump block on top, chips punch out as cards are seen */}
+                {mySeat !== null && cardCounter && game.phase === 'playing' && (
+                    <div className="absolute top-2 left-2 z-10">
+                        <CardCounter game={game} mySeat={mySeat} />
+                    </div>
+                )}
 
                 {/* the turn clock — visible countdown once someone's stalling */}
                 {clock.seat && clock.remaining <= CLOCK_SHOW_S && !(clockMine && clock.remaining <= CLOCK_PANIC_S) && (

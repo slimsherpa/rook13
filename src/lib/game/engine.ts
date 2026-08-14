@@ -355,8 +355,14 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
             return next;
         }
         case 'SET_ASSIST': {
-            // preserve everything about the seat, just flip the trainer flag
-            next.seats[action.seat] = { ...next.seats[action.seat], assist: action.on };
+            // preserve everything about the seat, just flip the help flags
+            // (no undefined for Firestore: absent counter on the action — an
+            // older client — writes false)
+            next.seats[action.seat] = {
+                ...next.seats[action.seat],
+                assist: action.on,
+                counter: action.counter ?? false,
+            };
             return next;
         }
         case 'SET_CLOCK': {
@@ -542,11 +548,13 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
 /** Play `card` from `seat` on the draft: trick bookkeeping + end-of-hand scoring. */
 const playCardOnDraft = (next: GameDoc, seat: Seat, card: Card): void => {
     next.hands[seat] = next.hands[seat].filter((c) => !sameCard(c, card));
-    // stamp the trainer state onto the play itself — assist flips mid-game,
-    // so the recaps need per-play truth (no undefined: Firestore rejects it)
+    // stamp the trainer/counter state onto the play itself — both flip
+    // mid-game, so the recaps need per-play truth (no undefined: Firestore
+    // rejects it)
     next.trickPlays = [...next.trickPlays, {
         seat, card,
         ...(next.seats[seat].assist ? { assist: true } : {}),
+        ...(next.seats[seat].counter ? { counter: true } : {}),
     }];
 
     if (next.trickPlays.length < 4) {

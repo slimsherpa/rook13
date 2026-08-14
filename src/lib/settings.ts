@@ -90,6 +90,7 @@ export const useTablePace = (): [TablePace, (p: TablePace) => void] => {
 // ---------------------------------------------------------------------------
 
 const ASSIST_KEY = 'rook13-ai-assist';
+const COUNTER_KEY = 'rook13-card-counter';
 
 export const getAiAssist = (): boolean => {
     if (typeof window === 'undefined') return false;
@@ -98,12 +99,39 @@ export const getAiAssist = (): boolean => {
 
 export const setAiAssist = (on: boolean): void => {
     window.localStorage.setItem(ASSIST_KEY, on ? 'on' : 'off');
+    // trainer and card counter are a single-select — one help at a time
+    if (on) window.localStorage.setItem(COUNTER_KEY, 'off');
     window.dispatchEvent(new Event(EVT));
 };
 
 export const useAiAssist = (): [boolean, (on: boolean) => void] => {
     const on = useSyncExternalStore(subscribe, getAiAssist, () => false);
     const set = useCallback((v: boolean) => setAiAssist(v), []);
+    return [on, set];
+};
+
+// ---------------------------------------------------------------------------
+// Card counter: the family scorekeeper's pencil, digitized. When on, a tiny
+// 40-slot grid rides the top-left of the table and cards punch out of it as
+// they hit the felt. Single-select with the AI trainer — you get the coach
+// OR the count, never both (setters clear each other). Device-local, and a
+// table-visible flag (orange, vs the trainer's pink) tells the others.
+// ---------------------------------------------------------------------------
+
+export const getCardCounter = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(COUNTER_KEY) === 'on';
+};
+
+export const setCardCounter = (on: boolean): void => {
+    window.localStorage.setItem(COUNTER_KEY, on ? 'on' : 'off');
+    if (on) window.localStorage.setItem(ASSIST_KEY, 'off');
+    window.dispatchEvent(new Event(EVT));
+};
+
+export const useCardCounter = (): [boolean, (on: boolean) => void] => {
+    const on = useSyncExternalStore(subscribe, getCardCounter, () => false);
+    const set = useCallback((v: boolean) => setCardCounter(v), []);
     return [on, set];
 };
 
