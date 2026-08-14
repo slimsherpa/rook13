@@ -11,9 +11,9 @@
 //              float32[out_dim*in_dim] weight (torch [out,in] row-major)
 //              float32[out_dim] bias
 
-import { STATE_DIM, STATE_DIM_V2, ACTION_DIM } from './encoder';
+import { STATE_DIM, STATE_DIM_V2, STATE_DIM_V3, STATE_DIM_V4, ACTION_DIM } from './encoder';
 
-export type NeuralGen = 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen13';
+export type NeuralGen = 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen13' | 'gen26';
 
 interface Layer {
     inDim: number;
@@ -47,8 +47,10 @@ export const parseWeights = (buf: ArrayBuffer): QNetWeights => {
     }
     if (off !== buf.byteLength) throw new Error('trailing bytes in weight file');
     const inDim = layers[0].inDim;
-    if (inDim !== STATE_DIM + ACTION_DIM && inDim !== STATE_DIM_V2 + ACTION_DIM) {
-        throw new Error(`weight file expects input ${inDim}; encoders produce ${STATE_DIM + ACTION_DIM} (v1) or ${STATE_DIM_V2 + ACTION_DIM} (v2)`);
+    const known = [STATE_DIM, STATE_DIM_V2, STATE_DIM_V3, STATE_DIM_V4]
+        .map((d) => d + ACTION_DIM);
+    if (!known.includes(inDim)) {
+        throw new Error(`weight file expects input ${inDim}; encoders produce ${known.join('/')} (v1/v2/v3/v4)`);
     }
     return { layers };
 };

@@ -63,23 +63,28 @@ def partner_convention(hand, trump, cands):
 
 
 def legible_candidates(hand, trump, cands):
-    """v2 (Riley's shape amendment, 2026-08-11): the codebook nominates
-    CANDIDATES, not a card — every off-trump boss 14, the top of trump,
-    the bottom of trump, and the 13-of-trump signal when holding 13+14.
-    The search judges them against the whole hand shape; the flavor only
-    guarantees they are PRICED and preferred on near-ties."""
+    """v2 (Riley's shape amendment, 2026-08-11) / v2.1 ORDERING
+    (2026-08-13): the codebook nominates CANDIDATES in family-preference
+    order — off-trump boss 14s first (longest suit first: "always lead
+    14s to your partner"), then the 13-of-trump signal, then top of
+    trump, then bottom of trump. The search judges them against the
+    whole hand shape; the flavor guarantees they are PRICED, and v2.1
+    plays the HIGHEST-PREFERENCE one within tau of the search pick."""
     cset = set(cands)
     out = []
-    out.extend(c for c in cset
-               if num_of(c) == 14 and suit_of(c) != trump)
+    bosses = [c for c in cset if num_of(c) == 14 and suit_of(c) != trump]
+    suit_len = {s: sum(1 for c in hand if suit_of(c) == s)
+                for s in range(4)}
+    out.extend(sorted(bosses, key=lambda c: -suit_len[suit_of(c)]))
     trumps = sorted((c for c in cset if suit_of(c) == trump), key=num_of)
     if trumps:
-        out.append(trumps[-1])
-        if trumps[0] != trumps[-1]:
-            out.append(trumps[0])
         nums = {num_of(c): c for c in trumps}
-        if 13 in nums and 14 in nums and nums[13] not in out:
+        if 13 in nums and 14 in nums:
             out.append(nums[13])
+        if trumps[-1] not in out:
+            out.append(trumps[-1])
+        if trumps[0] not in out:
+            out.append(trumps[0])
     return out
 
 
@@ -196,26 +201,28 @@ class GardnerAgent:
         pick, means = self._priced_think_multi(env, seat, cands, legible)
         row = dict(spot="partner_lead", seat=seat,
                    trick=len(g.completed_tricks),
-                   legible=sorted(legible), pick=int(pick),
+                   legible=[int(c) for c in legible], pick=int(pick),
                    means={str(c): round(v, 2) for c, v in means.items()})
-        if pick in legible:
-            self.style_stats["merit"] += 1
-            self.style_stats["conv_played"] += 1
-            row["mech"] = "merit"
-            self._log(row)
-            return pick
-        priced = [c for c in legible if c in means]
-        if priced:
-            best = max(priced, key=lambda c: means[c])
-            gap = means.get(pick, 0.0) - means[best]
-            row["best_legible"] = int(best)
-            row["gap"] = round(gap, 2)
+        # v2.1: play the HIGHEST-PREFERENCE legible card within tau of
+        # the search pick (codebook order, boss-14 first). The pick
+        # itself qualifies at gap 0, so merit picks stand unless a
+        # higher-preference card is close enough.
+        for c in legible:
+            if c not in means:
+                continue
+            gap = means.get(pick, 0.0) - means[c]
             if gap <= self.tau_style:
-                self.style_stats["tiebreak"] += 1
+                row["gap"] = round(gap, 2)
+                if c == pick:
+                    self.style_stats["merit"] += 1
+                    row["mech"] = "merit"
+                else:
+                    self.style_stats["tiebreak"] += 1
+                    row["mech"] = "tiebreak"
                 self.style_stats["conv_played"] += 1
-                row["mech"] = "tiebreak"
+                row["played"] = int(c)
                 self._log(row)
-                return best
+                return c
         self.style_stats["search_override"] += 1
         row["mech"] = "override"
         self._log(row)

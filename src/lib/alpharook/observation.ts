@@ -19,6 +19,9 @@ export interface Observation {
 
     // auction (fully public)
     bids: Partial<Record<Seat, number | 'pass'>>;
+    /** the auction transcript in table order (v4 nets read the story;
+     *  absent on game docs from before it was recorded) */
+    bidLog?: { seat: Seat; bid: number | 'pass' }[];
     highBid: number | null;
     bidWinner: Seat | null;
     trump: Suit | null;
@@ -45,6 +48,7 @@ export const observe = (g: GameDoc, seat: Seat): Observation => ({
     handNumber: g.handNumber,
     dealer: g.dealer,
     bids: { ...g.bids },
+    bidLog: (g.bidLog ?? []).map((b) => ({ ...b })),
     highBid: g.highBid,
     bidWinner: g.bidWinner,
     trump: g.trump,

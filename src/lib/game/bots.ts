@@ -237,6 +237,13 @@ export const PERSONALITIES: Record<BotStyle, BotPersonality> = {
         pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
         feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
     },
+    // Gen26 decides everything neurally in the browser (v4 encoder); these
+    // knobs are only the whole-seat fallback if the weights can't be fetched.
+    gen26: {
+        bidCushion: 3, minBidTricks: 0.8, widowTricks: 0, warStretch: 0, jumpGap: 20, jumpReserve: 5, partnerOverbidMargin: 15,
+        pullsTrumpOnDefense: false, huntsBareTricks: false, eagerRuffer: true,
+        feedsBossPartner: true, ruffsLikelyCount: true, goDownBuryPenalty: -0.06,
+    },
 };
 
 // ---------------------------------------------------------------------------

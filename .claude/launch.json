@@ -5,7 +5,15 @@
       "name": "rook13-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "rook13-gardner",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:gardner"],
+      "port": 3000,
+      "autoPort": true
     },
     {
       "name": "scratch-preview",

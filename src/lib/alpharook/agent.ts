@@ -53,7 +53,8 @@ export type NeuralStyle = NeuralGen | 'gen11' | 'gen16' | 'gen19';
 
 export const isNeuralStyle = (s: BotStyle | undefined): s is NeuralStyle =>
     s === 'gen7' || s === 'gen8' || s === 'gen9' || s === 'gen10'
-    || s === 'gen11' || s === 'gen13' || s === 'gen16' || s === 'gen19';
+    || s === 'gen11' || s === 'gen13' || s === 'gen16' || s === 'gen19'
+    || s === 'gen26';
 
 /** Which weight file a neural style runs on. */
 export const weightsGenFor = (s: NeuralStyle): NeuralGen =>
@@ -67,7 +68,7 @@ export const usesBelief = (s: BotStyle | undefined): boolean =>
 /** Generations whose go-down/trump are ALSO net decisions (gen9+). */
 export const isFullyNeural = (s: BotStyle | undefined): boolean =>
     s === 'gen9' || s === 'gen10' || s === 'gen11' || s === 'gen13'
-    || s === 'gen16' || s === 'gen19';
+    || s === 'gen16' || s === 'gen19' || s === 'gen26';
 
 export interface NeuralChoice {
     dtype: number;

@@ -6,7 +6,7 @@
 // to move the bots) — except the Turn Clock, the one whole-table rule here:
 // it lives on the game doc and only the host can flip it.
 
-import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist, useBlunderDetector } from '@/lib/settings';
+import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist, useSuperTrainer, useBlunderDetector } from '@/lib/settings';
 import { ASSIST_PINK } from './AssistDial';
 
 const PACES: { id: TablePace; label: string; blurb: string; icon: string }[] = [
@@ -18,12 +18,15 @@ interface SettingsModalProps {
     onClose: () => void;
     /** the whole-table turn clock — absent outside a live game */
     clock?: { on: boolean; isHost: boolean; onToggle: (on: boolean) => void };
+    /** whole-table DayDream bot thinking — absent when the table has no Gen26 bots */
+    botThink?: { on: boolean; isHost: boolean; onToggle: (on: boolean) => void };
 }
 
-export default function SettingsModal({ onClose, clock }: SettingsModalProps) {
+export default function SettingsModal({ onClose, clock, botThink }: SettingsModalProps) {
     const [speed, setSpeed] = useGameSpeed();
     const [pace, setPace] = useTablePace();
     const [assist, setAssist] = useAiAssist();
+    const [superTrainer, setSuperTrainer] = useSuperTrainer();
     const [blunders, setBlunders] = useBlunderDetector();
 
     const option = (selected: boolean, icon: string, label: string, blurb: string, onPick: () => void) => (
@@ -111,6 +114,39 @@ export default function SettingsModal({ onClose, clock }: SettingsModalProps) {
                     {assist && <span className="material-symbols-outlined text-lg" style={{ color: ASSIST_PINK }}>check_circle</span>}
                 </button>
 
+                {/* super-trainer: only offered while the trainer itself is on */}
+                {assist && (
+                    <>
+                        <p className="text-white/50 text-[11px] mt-3 mb-1.5 leading-relaxed">
+                            <span className="text-white/70 font-bold">Trainer thinks longer:</span> on
+                            your card plays, the dials start blurry — the instant instinct — while the
+                            cloud imagines how the hidden hands could lie. When it finishes, they
+                            sharpen into the searched answer. Tough spots can take a while; play any
+                            time, you never have to wait.
+                        </p>
+                        <button
+                            onClick={() => setSuperTrainer(!superTrainer)}
+                            className="w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition hover:border-white/30"
+                            style={superTrainer
+                                ? { borderColor: ASSIST_PINK, backgroundColor: `${ASSIST_PINK}26` }
+                                : { borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)' }}
+                        >
+                            <span className="material-symbols-outlined text-xl" style={{ color: superTrainer ? ASSIST_PINK : 'rgba(255,255,255,0.5)' }}>
+                                {superTrainer ? 'psychology' : 'bolt'}
+                            </span>
+                            <span className="flex-1 min-w-0">
+                                <span className={`block font-orbitron text-sm ${superTrainer ? 'text-white font-bold' : 'text-white/85'}`}>
+                                    {superTrainer ? 'Thinking longer' : 'Instinct only'}
+                                </span>
+                                <span className="block text-white/50 text-[11px]">
+                                    {superTrainer ? 'Dials sharpen when the cloud finishes' : 'Instant reflex dials'}
+                                </span>
+                            </span>
+                            {superTrainer && <span className="material-symbols-outlined text-lg" style={{ color: ASSIST_PINK }}>check_circle</span>}
+                        </button>
+                    </>
+                )}
+
                 <div className="flex items-center gap-2 text-white font-orbitron text-sm mt-5 mb-1">
                     <span className="material-symbols-outlined text-lg">search_insights</span>
                     Blunder Detector
@@ -126,6 +162,45 @@ export default function SettingsModal({ onClose, clock }: SettingsModalProps) {
                         blunders ? 'The review button shows in recaps' : 'Recaps stay judgment-free',
                         () => setBlunders(!blunders))}
                 </div>
+
+                {botThink && (
+                    <>
+                        <div className="flex items-center gap-2 text-white font-orbitron text-sm mt-5 mb-1">
+                            <span className="material-symbols-outlined text-lg">psychology</span>
+                            Bot Thinking
+                            <span className="ml-auto px-1.5 py-px rounded bg-yellow-500/15 text-yellow-300/90 text-[9px] uppercase tracking-wide font-orbitron">
+                                whole table
+                            </span>
+                        </div>
+                        <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
+                            Bots think longer but are a little smarter — they imagine how the hidden
+                            hands could lie before committing to a card. Games run a bit slower.
+                            Flip it any time, even mid-hand.{botThink.isHost ? '' : ' Only the host can flip this.'}
+                        </p>
+                        {botThink.isHost ? (
+                            <div className="space-y-1.5">
+                                {option(botThink.on, botThink.on ? 'psychology' : 'bolt',
+                                    botThink.on ? 'Thinking on' : 'Instant play',
+                                    botThink.on ? 'Bots take their time on the hard ones' : 'Bots play on instinct',
+                                    () => botThink.onToggle(!botThink.on))}
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-2.5">
+                                <span className="material-symbols-outlined text-xl text-white/50">
+                                    {botThink.on ? 'psychology' : 'bolt'}
+                                </span>
+                                <span className="flex-1 min-w-0">
+                                    <span className="block font-orbitron text-sm text-white/85">
+                                        {botThink.on ? 'Thinking on' : 'Instant play'}
+                                    </span>
+                                    <span className="block text-white/50 text-[11px]">
+                                        {botThink.on ? 'Bots take their time on the hard ones' : 'Bots play on instinct'}
+                                    </span>
+                                </span>
+                            </div>
+                        )}
+                    </>
+                )}
 
                 {clock && (
                     <>

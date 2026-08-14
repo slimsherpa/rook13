@@ -19,7 +19,7 @@ import { getAuth } from 'firebase-admin/auth';
 
 import {
     GameDoc, GameAction, Seat, SEATS, SUITS, Card,
-    isServerStyle,
+    isServerDriven, brainStyleFor,
 } from '../../src/lib/game/types';
 import { applyAction, isLaydown } from '../../src/lib/game/engine';
 
@@ -118,7 +118,7 @@ const maybeAct = async (gameId: string): Promise<string> => {
     if (game.status !== 'active' || !game.turn) return 'not active / no turn';
     const seat = game.turn;
     const info = game.seats[seat];
-    if (info.kind !== 'bot' || !isServerStyle(info.botStyle)) return 'not a server bot turn';
+    if (info.kind !== 'bot' || !isServerDriven(game, info.botStyle)) return 'not a server bot turn';
     if (!THINKING_PHASES.has(game.phase)) return 'not a thinking phase';
 
     const expected = game.actionCount;
@@ -155,7 +155,10 @@ const maybeAct = async (gameId: string): Promise<string> => {
                 body: JSON.stringify({
                     dealer: firstDealer(game.id),
                     actions,
-                    style: info.botStyle,
+                    // Gen26 seats think as 'daydream' while the table
+                    // toggle is on — the toggle can flip mid-game, so the
+                    // style is derived per decision, never cached
+                    style: brainStyleFor(game, info.botStyle),
                 }),
             });
             if (!res.ok) {
@@ -272,6 +275,36 @@ const runAudit = async (gameId: string, hand: number): Promise<Record<string, un
 };
 
 // ---------------------------------------------------------------------------
+// Super-trainer advice: DayDream the HUMAN's pending card decision. The
+// requester must own the seat on the turn (no scouting the opponents'
+// spots), and pays from a per-user quota — a deep think is seconds of
+// brain CPU, same order as one bot decision.
+// ---------------------------------------------------------------------------
+const runAdvise = async (gameId: string, uid: string): Promise<Record<string, unknown>> => {
+    const ref = db.collection('games').doc(gameId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new Error('no such game');
+    const game = snap.data() as GameDoc;
+    if (game.status !== 'active' || !game.turn) return { deep: false, why: 'no turn' };
+    const seat = game.turn;
+    const info = game.seats[seat];
+    if (info.kind !== 'human' || info.uid !== uid) {
+        return { deep: false, why: 'not your decision' };
+    }
+    const log = await ref.collection('actions').orderBy('index').get();
+    const actions = log.docs
+        .map((d) => toBrainAction((d.data() as { action: GameAction }).action))
+        .filter(Boolean);
+    const res = await fetch(`${BRAIN}/advise`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ dealer: firstDealer(game.id), actions, seat }),
+    });
+    if (!res.ok) throw new Error(`brain ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    return await res.json() as Record<string, unknown>;
+};
+
+// ---------------------------------------------------------------------------
 // Auth: verify the caller's Firebase ID token. Bots are only ever nudged by
 // signed-in players (GameRoom's auth wall), so an anonymous nudge is either
 // a stale client or an internet stranger burning our Cloud Run bill.
@@ -303,6 +336,21 @@ const underAuditQuota = (uid: string): boolean => {
     return true;
 };
 
+// super-trainer deep thinks: most resolve in well under a second (the
+// obvious-card stop), the rare opening lead costs tens of seconds — about
+// one bot-seat's worth of CPU per advised decision. ~13 decisions/hand,
+// so 120/hr covers a long assisted session without opening a cost hole.
+const ADVISE_QUOTA = 120;
+const adviseSpends = new Map<string, number[]>();
+const underAdviseQuota = (uid: string): boolean => {
+    const now = Date.now();
+    const spent = (adviseSpends.get(uid) ?? []).filter((t) => now - t < AUDIT_WINDOW_MS);
+    adviseSpends.set(uid, spent);
+    if (spent.length >= ADVISE_QUOTA) return false;
+    spent.push(now);
+    return true;
+};
+
 // ---------------------------------------------------------------------------
 // HTTP surface: POST /nudge {gameId}, POST /audit {gameId, hand}, GET /status
 // ---------------------------------------------------------------------------
@@ -328,7 +376,7 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ ok: true, decisions, covered, brain }));
         return;
     }
-    if (req.method === 'POST' && (url.pathname === '/nudge' || url.pathname === '/audit')) {
+    if (req.method === 'POST' && (url.pathname === '/nudge' || url.pathname === '/audit' || url.pathname === '/advise')) {
         let body = '';
         let dropped = false;
         req.on('data', (c) => {
@@ -356,11 +404,17 @@ const server = http.createServer(async (req, res) => {
                     res.writeHead(429).end('audit quota — try again in an hour');
                     return;
                 }
+                if (url.pathname === '/advise' && !underAdviseQuota(uid)) {
+                    res.writeHead(429).end('advice quota — try again in an hour');
+                    return;
+                }
                 // answer after the work so Cloud Run keeps CPU allocated
                 // for the whole think (request-based billing)
                 const payload = url.pathname === '/nudge'
                     ? { outcome: await maybeAct(gameId) }
-                    : await runAuditQueued(gameId, Number(hand));
+                    : url.pathname === '/advise'
+                        ? await runAdvise(gameId, uid)
+                        : await runAuditQueued(gameId, Number(hand));
                 res.writeHead(200, { 'content-type': 'application/json' });
                 res.end(JSON.stringify(payload));
             } catch (e: any) {

@@ -109,6 +109,26 @@ def get_agent(style: str):
             core, mode=os.environ.get("GARDNER_MODE", "shape"),
             tau_style=float(os.environ.get("GARDNER_TAU", "4.0")),
             telemetry_path=os.environ.get("GARDNER_TELEMETRY") or None))
+    elif style == "daydream":
+        # DAYDREAM (2026-08-13, the Gen26 ship): the anytime searcher on
+        # the Gen26 organ — same brain as the browser's instant tier, plus
+        # the imagined-deal search. prior_scale=48 is the QCAL fleet fit
+        # (48k decisions): Gen26's Q ranks in an arbitrary scale, and 48
+        # preserves the R3 prior's effective pseudo-point weight there.
+        # Battery: organ-gate parity vs the gen21 stack, tier ladder
+        # +112 pts/game over bare @0.25, styleprint retention 85%.
+        # No Gardner wrapper — the style lives in the organ.
+        if not os.environ.get("ANYTIME_ENABLED"):
+            raise HTTPException(403, "daydream style is dark (ANYTIME_ENABLED unset)")
+        from alpharook.anytime import AnytimeRookAgent
+        from alpharook.beliefs import BeliefOracle
+        net = load_qnet("models/gen26.pt")
+        agent = ("agent", net, AnytimeRookAgent(
+            net, BeliefOracle("runs/gen15/best_duel.pt", temp=0.5),
+            budget_scale=float(os.environ.get("DAYDREAM_SCALE", "0.25")),
+            prior_scale=float(os.environ.get("DAYDREAM_PRIOR", "48")),
+            world_nodes=int(os.environ.get("ANYTIME_NODES", "32000000")),
+            seed=int(os.environ.get("ANYTIME_SEED", "0"))))
     else:
         raise HTTPException(400, f"unknown server style: {style}")
     _agents[style] = agent
@@ -225,6 +245,58 @@ class AuditReq(BaseModel):
     dealer: str
     actions: list[dict]
     hand: int          # 1-based hand number to audit
+
+
+class AdviseReq(BaseModel):
+    dealer: str
+    actions: list[dict]
+    seat: str          # the human seat asking — must hold the turn
+
+
+@app.post("/advise")
+def advise(req: AdviseReq):
+    """SUPER-TRAINER (2026-08-13): DayDream the HUMAN's pending card
+    decision, exactly like a thinking-mode bot would — belief-sampled
+    worlds, exact solves, split-sample confirm — and return the searched
+    family-point values for the shortlist. The client shows the Gen26
+    reflex pies immediately (blurred, its own in-browser net) and
+    sharpens them with these values when they land.
+
+    Card play only: that's the only decision type the anytime searcher
+    deepens (bids/widow fall through to the reflex, which the browser
+    already has). Non-play turns answer {"deep": false} so the client
+    just un-blurs the reflex."""
+    g = replay(req.dealer, req.actions)
+    if g.turn is None or g.phase != PLAYING:
+        return {"deep": False, "why": "no play decision pending"}
+    seat = g.turn
+    if SEAT_NAME[seat] != req.seat:
+        raise HTTPException(409, "not this seat's turn")
+
+    from alpharook.env import SelfPlayGame
+    from alpharook.encoder import D_PLAY
+    env = SelfPlayGame.__new__(SelfPlayGame)
+    env.g = g
+    env.picks = []
+    env.trump_intent = None
+    _s, dtype, cands = env.decision()
+    if dtype != D_PLAY or len(cands) < 2:
+        return {"deep": False, "why": "forced or non-play decision"}
+
+    spec = get_agent("daydream")
+    ag = spec[2]
+    pick = int(ag.choose(env, seat, dtype, cands))
+    _state, _dt, use, means = ag.last_search
+    think = ag.last_think or {}
+    return {
+        "deep": True,
+        "cands": [int(c) for c in use],          # the searched shortlist
+        "values": [round(float(v), 2) for v in means],  # family points
+        "pick": pick,
+        "incumbent": think.get("incumbent"),
+        "overrode": think.get("overrode", 0),
+        "think": think,
+    }
 
 
 @app.post("/audit")

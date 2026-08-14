@@ -37,15 +37,15 @@ from rook.bots import next_bot_action, best_trump_suit
 from rook.engine import WIDOW as PHASE_WIDOW, DEALING, REDEAL
 from rook.observation import observe
 from .encoder import (
-    STATE_DIM, STATE_DIM_V2, ACTION_DIM, encode_state_for, encode_action,
-    state_dim_of, D_BID, D_DISCARD, D_TRUMP, D_PLAY,
+    STATE_DIM, STATE_DIM_V2, STATE_DIM_V4, ACTION_DIM, encode_state_for,
+    encode_action, state_dim_of, D_BID, D_DISCARD, D_TRUMP, D_PLAY,
 )
 from .env import SelfPlayGame
 from .model import QNet, load_qnet
 
 # gen9+ champions decide everything neurally (trump intent + go-down too);
 # gen7/gen8 were frozen with scripted openings and must replay that way.
-FULLY_NEURAL = {"gen9", "gen10", "gen13"}
+FULLY_NEURAL = {"gen9", "gen10", "gen13", "gen26"}
 NEURAL_DTYPES = {
     True: (D_BID, D_DISCARD, D_TRUMP, D_PLAY),
     False: (D_BID, D_PLAY),
@@ -213,6 +213,8 @@ def main():
     golden_vectors(nets, OUT_FIX / "qnet.golden.json", state_dim=STATE_DIM)
     golden_vectors(nets, OUT_FIX / "qnet.golden.v2.json",
                    state_dim=STATE_DIM_V2)
+    golden_vectors(nets, OUT_FIX / "qnet.golden.v4.json",
+                   state_dim=STATE_DIM_V4)
     for i, (gen, net) in enumerate(nets.items()):
         trace_game(gen, net, seed=13 + i, path=OUT_FIX / f"game.{gen}.json")
 

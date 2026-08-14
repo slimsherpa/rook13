@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 COPY ml/models/gen21-cand1.pt ml/models/gen21-cand1.pt
 COPY ml/models/gen23-cand1.pt ml/models/gen23-cand1.pt
+COPY ml/models/gen26.pt ml/models/gen26.pt
 COPY ml/models/widowbrain-v2.pt ml/models/widowbrain-v2.pt
 COPY ml/runs/gen15/best_duel.pt ml/runs/gen15/best_duel.pt
 

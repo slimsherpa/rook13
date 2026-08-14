@@ -61,6 +61,7 @@ class Side:
                  proposer: str | None = None,
                  bidbot: str | None = None, bidbot_tau: float = 0.05,
                  contam: float = 0.0, gardner: float = 0.0,
+                 prior_scale: float = 0.0,
                  winprob: str = "models/winprob25.json"):
         self.spec = spec
         self.script = SCRIPT_MODES[script]
@@ -91,15 +92,21 @@ class Side:
         self.anytime = anytime
         self.mwidow = mwidow
         self.contam = contam
+        self.prior_scale = prior_scale
         if anytime:
             assert self.net is not None and belief_ckpt
             assert worlds == 0 and not god and not mortal and not mrook
             from .beliefs import BeliefOracle
             from .anytime import AnytimeRookAgent
             belief = BeliefOracle(belief_ckpt, temp=belief_temp)
+            # prior_scale=0 keeps the class default (120, gen21-tuned);
+            # a Q-scale-swapped reflex (gen26+) passes its QCAL-fitted
+            # value here — the ONE number that ports the R3 prior.
             self.agent = AnytimeRookAgent(self.net, belief,
                                           budget_scale=anytime,
-                                          contam_p=contam)
+                                          contam_p=contam,
+                                          **({"prior_scale": prior_scale}
+                                             if prior_scale else {}))
             if gardner:
                 # GARDNER FLAVOR: family-legible conventions inside a
                 # tau_style price gate (see gardner.py). Negative value =
@@ -190,9 +197,11 @@ class Side:
                     f"B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g}"
                     f"{contam})")
         if self.anytime:
+            ps = (f",ps{self.prior_scale:g}"
+                  if getattr(self, "prior_scale", 0) else "")
             return (f"{base}+ANYTIME(x{self.anytime:g},"
                     f"B:{self.belief_ckpt.split('/')[-1]}@{self.belief_temp:g}"
-                    f"{contam})")
+                    f"{ps}{contam})")
         if self.mrook:
             return f"{base}+MORTALROOK(K{self.mrook},confirm24,tau2)"
         if self.mortal:
@@ -568,6 +577,11 @@ def main():
                          "leads + defender no-trump-lead rule, each gated "
                          "by the priced worlds.")
     ap.add_argument("--gardner-b", type=float, default=0.0)
+    ap.add_argument("--prior-scale-a", type=float, default=0.0,
+                    help="anytime prior_scale override (0 = the shipped "
+                         "120, gen21-tuned). Gen26+ reflexes pass their "
+                         "QCAL-fitted value — see alpharook/qcal.py")
+    ap.add_argument("--prior-scale-b", type=float, default=0.0)
     ap.add_argument("--contam-a", type=float, default=0.0,
                     help="ORACLE CONTAMINATION instrument (never ships): "
                          "probability a search world is the TRUE deal "
@@ -604,7 +618,7 @@ def main():
               args.solve_tail_a, args.mortal_a, args.mrook_a, args.anytime_a,
               args.mwidow_a, args.proposer_a,
               args.bidbot_a, args.bidbot_tau_a, args.contam_a,
-              args.gardner_a)
+              args.gardner_a, args.prior_scale_a)
     b_args = (args.b, args.script_b, None, args.worlds_b, args.search_b,
               args.prior_b, args.min_trick_b, args.infer_b, args.bid_infer_b,
               args.belief_b, args.belief_temp_b, args.fork_depth_b,
@@ -612,7 +626,7 @@ def main():
               args.solve_tail_b, args.mortal_b, args.mrook_b, args.anytime_b,
               args.mwidow_b, args.proposer_b,
               args.bidbot_b, args.bidbot_tau_b, args.contam_b,
-              args.gardner_b)
+              args.gardner_b, args.prior_scale_b)
     duel(Side(*a_args), Side(*b_args),
          args.pairs, args.seed, win_score=args.win_score, lose_score=lose,
          workers=args.workers, side_args=(a_args, b_args),

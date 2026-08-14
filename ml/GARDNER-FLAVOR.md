@@ -101,6 +101,17 @@ at the serving clock (anytime 0.25). GATE-pool seeds 5.9e9.
 clearly negative receipt blocks the launch.** Banked lab-budget
 baseline: +0.8 pts/hand ~ 51.2% (1,200 games).
 
+**RECEIPT (2026-08-12, stopped early at 383 pairs / 9,262 hands on
+Riley's deprioritization — the number is a talking point, not a
+launch gate): Gardner-v2-RC1 vs production Cosmo +0.78 pts/hand
+(SE 1.02), 51.2% game wins, contracts 65%/65% — reproduces the banked
+lab-budget edge AT THE SERVING CLOCK, wearing the flavor. Ship line
+satisfied (clearly not negative). Box flipped to the Gen26 corpus
+miner (scripts/gen26_mine.sh, Gardner-v2 self-play, --dump-actions,
+seeds 3.95e9) — teacher corpus for the Gardner-style reflex distill
+(pink-Trainer net; search organ stays gen21 until an organ-swap gate
+says otherwise).**
+
 Production path discovered 2026-08-12: the anytime searcher is ALREADY
 ported into service/brain/main.py behind ANYTIME_ENABLED (dark, P1.4
 plumbing) with ANYTIME_SCALE env. Launch = Gardner layer into the

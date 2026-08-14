@@ -26,7 +26,7 @@ import TableChat from './TableChat';
 import { useWatchers } from '@/lib/hooks/useWatchers';
 import { useForfeitClock, CLOCK_SHOW_S, CLOCK_PANIC_S } from '@/lib/hooks/useForfeitClock';
 import { requestHandAudit, subscribeAudits, HandAudit } from '@/lib/firebase/auditService';
-import { paced, useTablePace, useAiAssist, useBlunderDetector } from '@/lib/settings';
+import { paced, useTablePace, useAiAssist, useSuperTrainer, useBlunderDetector } from '@/lib/settings';
 import { armTableHold, releaseTableHold, useTableHold } from '@/lib/tableHold';
 import { useModelAdvice } from '@/lib/hooks/useModelAdvice';
 import SettingsModal from './SettingsModal';
@@ -135,7 +135,8 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
 
     // ---- AI trainer: device-local dials, plus a table-visible seat flag ----
     const [aiAssist] = useAiAssist();
-    const advice = useModelAdvice(game, mySeat, aiAssist);
+    const [superTrainer] = useSuperTrainer();
+    const { advice, deepPending, deepApplied } = useModelAdvice(game, mySeat, aiAssist, superTrainer);
     // reflect my local toggle into the shared game doc so the rest of the
     // table can see the trainer is on (or off) — synced whenever they differ
     useEffect(() => {
@@ -590,6 +591,8 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
                         selecting={selectingGoDown}
                         selected={selectedGoDown}
                         advice={aiAssist ? advice : undefined}
+                        advicePending={aiAssist && deepPending}
+                        adviceDeep={aiAssist && deepApplied}
                         onToggleSelect={toggleGoDown}
                         onPlay={(card) => act({ type: 'PLAY_CARD', seat: mySeat, card })}
                     />
@@ -631,6 +634,16 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
                             if (uid) act({ type: 'SET_CLOCK', uid, on }).catch(() => {});
                         },
                     } : undefined}
+                    botThink={mySeat !== null
+                        && Object.values(game.seats).some((s) => s.kind === 'bot' && s.botStyle === 'gen26')
+                        ? {
+                            on: game.botThink ?? false,
+                            isHost: game.seats[mySeat].uid === game.hostUid,
+                            onToggle: (on) => {
+                                const uid = game.seats[mySeat]?.uid;
+                                if (uid) act({ type: 'SET_BOT_THINK', uid, on }).catch(() => {});
+                            },
+                        } : undefined}
                 />
             )}
             {showTeamIntro && <TeamIntro game={game} onDone={() => setShowTeamIntro(false)} />}

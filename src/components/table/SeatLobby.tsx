@@ -236,6 +236,41 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     )}
                 </div>
 
+                {/* DayDream: the table's Gen26 bots imagine the hidden hands
+                    before committing. Host flips it; also lives in the
+                    in-game settings, flippable mid-hand. Only shown when a
+                    Gen26 (Cosmo) bot is actually seated. */}
+                {Object.values(game.seats).some((s) => s.kind === 'bot' && s.botStyle === 'gen26') && (
+                    <div className="mt-3 rounded-2xl border border-white/15 bg-navy-950/40 p-3 flex items-center gap-3">
+                        <span className={`material-symbols-outlined text-2xl ${game.botThink ? 'text-sky-300' : 'text-white/40'}`}>
+                            {game.botThink ? 'psychology' : 'bolt'}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                            <div className="text-white font-orbitron text-sm">
+                                Bot Thinking {game.botThink ? 'on' : 'off'}
+                            </div>
+                            <div className="text-white/50 text-[11px] leading-snug">
+                                {game.botThink
+                                    ? 'Bots think longer but are a little smarter — games run a bit slower'
+                                    : 'Bots play on instinct — instant moves'}
+                                {!isHost && ' · host sets this'}
+                            </div>
+                        </div>
+                        {isHost && (
+                            <button
+                                onClick={() => act({ type: 'SET_BOT_THINK', uid: myUid, on: !game.botThink })}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-orbitron whitespace-nowrap ${
+                                    game.botThink
+                                        ? 'bg-sky-500 hover:bg-sky-400 text-navy-950 font-bold'
+                                        : 'bg-gray-700 hover:bg-gray-600 text-white'
+                                }`}
+                            >
+                                {game.botThink ? 'Turn off' : 'Turn on'}
+                            </button>
+                        )}
+                    </div>
+                )}
+
                 {/* errors (e.g. Firestore rules not deployed) */}
                 {actionError && (
                     <div className="mt-4 rounded-xl bg-red-900/50 border border-red-500/50 p-3 text-red-200 text-xs font-orbitron text-center leading-relaxed">

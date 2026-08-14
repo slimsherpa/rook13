@@ -67,15 +67,16 @@ interface GameFixture {
 import * as fsGens from 'fs';
 const _have = (g: string) =>
     fsGens.existsSync(path.join(__dirname, '__fixtures__', `game.${g}.json`));
-const GENS = (['gen7', 'gen8', 'gen9', 'gen10', 'gen13'] as const)
+const GENS = (['gen7', 'gen8', 'gen9', 'gen10', 'gen13', 'gen26'] as const)
     .filter(_have);
 /** gen9+ make widow decisions neurally; earlier gens script them. */
-const FULLY_NEURAL = new Set<string>(['gen9', 'gen10', 'gen13']);
+const FULLY_NEURAL = new Set<string>(['gen9', 'gen10', 'gen13', 'gen26']);
 
 describe('QNet forward pass matches torch', () => {
     // v1 and v2 nets have different input widths, so each encoder version
     // gets its own golden file; a gen appears in exactly one of them
-    const files = ['qnet.golden.json', 'qnet.golden.v2.json'].filter((f) =>
+    const files = ['qnet.golden.json', 'qnet.golden.v2.json',
+        'qnet.golden.v4.json'].filter((f) =>
         fsGens.existsSync(path.join(__dirname, '__fixtures__', f)));
     for (const file of files) {
         const golden = loadFixture<GoldenFixture>(file);

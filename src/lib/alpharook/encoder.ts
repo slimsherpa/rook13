@@ -39,12 +39,21 @@ export interface AuctionContext {
     minNextBid: number | null;
 }
 
+/** Score-cliff normalization constants — part of each net's contract.
+ *  v1/v2 nets trained under 500/-250 cliffs; v3+ nets trained under the
+ *  lab's house-rule cliffs (win strictly over 500 / lose strictly under
+ *  -250 = 505/-255 in engine terms). */
+export interface ScoreCliffs { win: number; lose: number }
+const CLIFFS_V1: ScoreCliffs = { win: 500, lose: -250 };
+const CLIFFS_V3: ScoreCliffs = { win: 505, lose: -255 };
+
 export const encodeState = (
     o: Observation,
     picks: number[],               // my pending go-down picks, as card ints
     decisionType: number,
     ctx: AuctionContext,
     trumpIntent: number | null = null, // my OWN trump plan during widow decisions
+    cliffs: ScoreCliffs = CLIFFS_V1,
 ): Float32Array => {
     const me = seatToInt(o.seat);
     const rel = (s: Seat): number => (((seatToInt(s) - me) % 4) + 4) % 4;
@@ -132,15 +141,17 @@ export const encodeState = (
     x[base + 1] = f32(o.pointsTaken[oppTeam] / 100.0);
     base += 2;
 
-    // game context: the reason the net trained on full games (-250..500)
+    // game context: the reason the net trained on full games (lose..win)
     const mine = o.scores[myTeam];
     const theirs = o.scores[oppTeam];
-    x[base] = f32(mine / 500.0);
-    x[base + 1] = f32(theirs / 500.0);
-    x[base + 2] = f32((500 - mine) / 750.0);
-    x[base + 3] = f32((500 - theirs) / 750.0);
-    x[base + 4] = f32((mine + 250) / 750.0);
-    x[base + 5] = f32((theirs + 250) / 750.0);
+    const { win, lose } = cliffs;
+    const span = win - lose;
+    x[base] = f32(mine / win);
+    x[base + 1] = f32(theirs / win);
+    x[base + 2] = f32((win - mine) / span);
+    x[base + 3] = f32((win - theirs) / span);
+    x[base + 4] = f32((mine - lose) / span);
+    x[base + 5] = f32((theirs - lose) / span);
     x[base + 6] = f32(Math.min(o.handNumber, 20) / 20.0);
     base += 7;
 
@@ -233,10 +244,90 @@ export const encodeStateV2 = (
     decisionType: number,
     ctx: AuctionContext,
     trumpIntent: number | null = null,
+    cliffs?: ScoreCliffs,
 ): Float32Array => {
     const x = new Float32Array(STATE_DIM_V2);
-    x.set(encodeState(o, picks, decisionType, ctx, trumpIntent));
+    x.set(encodeState(o, picks, decisionType, ctx, trumpIntent, cliffs));
     x.set(beliefFeatures(o), STATE_DIM);
+    return x;
+};
+
+// ---------------------------------------------------------------------------
+// v3 (dealer-relative position) + v4 (auction transcript) — the mimic
+// student's "human-complete" observation, ported field-for-field from
+// encoder.py encode_state_v3/encode_state_v4. Gen26 (the Gardner-style
+// reflex) is the first browser net to read these.
+// ---------------------------------------------------------------------------
+
+export const DEALER_DIM = 4;
+export const STATE_DIM_V3 = STATE_DIM_V2 + DEALER_DIM;
+
+export const encodeStateV3 = (
+    o: Observation,
+    picks: number[],
+    decisionType: number,
+    ctx: AuctionContext,
+    trumpIntent: number | null = null,
+): Float32Array => {
+    const x = new Float32Array(STATE_DIM_V3);
+    x.set(encodeStateV2(o, picks, decisionType, ctx, trumpIntent, CLIFFS_V3));
+    if (o.dealer !== null) {
+        const me = seatToInt(o.seat);
+        x[STATE_DIM_V2 + (((seatToInt(o.dealer) - me) % 4) + 4) % 4] = 1.0;
+    }
+    return x;
+};
+
+// v4 layout (appended after the v3 block), seats relative to the observer:
+//   first value bid /120, per rel seat ........ 4   (0 = never bid)
+//   number of value bids /4, per rel seat ..... 4   (raise activity)
+//   opened the auction, per rel seat .......... 4
+//   bid then passed (backed out), per rel seat  4
+//   auction length so far /16 ................. 1
+//   total value bids so far /8 ................ 1
+export const AUCTION_DIM = 18;
+export const STATE_DIM_V4 = STATE_DIM_V3 + AUCTION_DIM;
+
+export const auctionFeatures = (o: Observation): Float32Array => {
+    const me = seatToInt(o.seat);
+    const rel = (s: Seat): number => (((seatToInt(s) - me) % 4) + 4) % 4;
+    const a = new Float32Array(AUCTION_DIM);
+    let opener: number | null = null;
+    let nValue = 0;
+    const firstBid = [0, 0, 0, 0];   // by rel seat
+    const nBids = [0, 0, 0, 0];
+    for (const { seat, bid } of o.bidLog ?? []) {
+        if (bid === 'pass') continue;
+        nValue += 1;
+        const r = rel(seat);
+        if (opener === null) opener = r;
+        if (firstBid[r] === 0) firstBid[r] = bid;
+        nBids[r] += 1;
+    }
+    for (let r = 0; r < 4; r++) {
+        a[r] = f32(firstBid[r] / 120.0);
+        a[4 + r] = f32(Math.min(nBids[r], 4) / 4.0);
+        if (opener !== null && r === opener) a[8 + r] = 1.0;
+    }
+    for (const s of SEATS) {
+        // bid, then backed out: standing PASS with value bids on record
+        if (o.bids[s] === 'pass' && nBids[rel(s)] > 0) a[12 + rel(s)] = 1.0;
+    }
+    a[16] = f32(Math.min((o.bidLog ?? []).length, 16) / 16.0);
+    a[17] = f32(Math.min(nValue, 8) / 8.0);
+    return a;
+};
+
+export const encodeStateV4 = (
+    o: Observation,
+    picks: number[],
+    decisionType: number,
+    ctx: AuctionContext,
+    trumpIntent: number | null = null,
+): Float32Array => {
+    const x = new Float32Array(STATE_DIM_V4);
+    x.set(encodeStateV3(o, picks, decisionType, ctx, trumpIntent));
+    x.set(auctionFeatures(o), STATE_DIM_V3);
     return x;
 };
 
@@ -248,8 +339,9 @@ export interface NetLike {
 export const stateDimOf = (net: NetLike): number =>
     net.layers[0].inDim - ACTION_DIM;
 
-/** Version-dispatching encode: v1 nets (gen7-gen10) and v2 belief nets
- *  (gen13+) share every driver — the weight file names its own encoder. */
+/** Version-dispatching encode: v1 nets (gen7-gen10), v2 belief nets
+ *  (gen13-gen19) and v4 auction-transcript nets (gen26+) share every
+ *  driver — the weight file names its own encoder. */
 export const encodeStateFor = (
     net: NetLike,
     o: Observation,
@@ -257,7 +349,11 @@ export const encodeStateFor = (
     decisionType: number,
     ctx: AuctionContext,
     trumpIntent: number | null = null,
-): Float32Array =>
-    stateDimOf(net) === STATE_DIM
-        ? encodeState(o, picks, decisionType, ctx, trumpIntent)
-        : encodeStateV2(o, picks, decisionType, ctx, trumpIntent);
+): Float32Array => {
+    const d = stateDimOf(net);
+    if (d === STATE_DIM) return encodeState(o, picks, decisionType, ctx, trumpIntent);
+    if (d === STATE_DIM_V2) return encodeStateV2(o, picks, decisionType, ctx, trumpIntent);
+    if (d === STATE_DIM_V3) return encodeStateV3(o, picks, decisionType, ctx, trumpIntent);
+    if (d !== STATE_DIM_V4) throw new Error(`unknown state dim ${d}`);
+    return encodeStateV4(o, picks, decisionType, ctx, trumpIntent);
+};

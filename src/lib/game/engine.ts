@@ -280,6 +280,11 @@ export const validateAction = (g: GameDoc, action: GameAction): string | null =>
             if (action.uid !== g.hostUid) return 'Only the host can change the turn clock';
             return null;
         }
+        case 'SET_BOT_THINK': {
+            if (g.status === 'completed') return 'Game is over';
+            if (action.uid !== g.hostUid) return 'Only the host can change bot thinking';
+            return null;
+        }
         case 'FORFEIT': {
             // The turn clock (useForfeitClock) is the sole legitimate caller;
             // the engine only checks the structural facts — the clock itself
@@ -356,6 +361,10 @@ export const applyAction = (g: GameDoc, action: GameAction, now?: number): GameD
         }
         case 'SET_CLOCK': {
             next.clockEnabled = action.on;
+            return next;
+        }
+        case 'SET_BOT_THINK': {
+            next.botThink = action.on;
             return next;
         }
         case 'START_GAME': {

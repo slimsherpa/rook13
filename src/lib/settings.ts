@@ -108,6 +108,31 @@ export const useAiAssist = (): [boolean, (on: boolean) => void] => {
 };
 
 // ---------------------------------------------------------------------------
+// Super-trainer ("Trainer thinks longer"): the trainer's card dials start
+// as the instant Gen26 reflex (blurred), then a cloud DayDream request —
+// the same imagined-deal search the thinking bots run — sharpens them into
+// searched values. Device-local, only meaningful while the trainer is on.
+// ---------------------------------------------------------------------------
+
+const SUPER_TRAINER_KEY = 'rook13-super-trainer';
+
+export const getSuperTrainer = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(SUPER_TRAINER_KEY) === 'on';
+};
+
+export const setSuperTrainer = (on: boolean): void => {
+    window.localStorage.setItem(SUPER_TRAINER_KEY, on ? 'on' : 'off');
+    window.dispatchEvent(new Event(EVT));
+};
+
+export const useSuperTrainer = (): [boolean, (on: boolean) => void] => {
+    const on = useSyncExternalStore(subscribe, getSuperTrainer, () => false);
+    const set = useCallback((v: boolean) => setSuperTrainer(v), []);
+    return [on, set];
+};
+
+// ---------------------------------------------------------------------------
 // Blunder detector: every hand recap offers an "Ask AI to review this hand"
 // button; on request the solver replays it in hindsight and marks the (at
 // most two) cards that truly cost points — with what should have been

@@ -15,6 +15,7 @@
 /ml/models/*
 !/ml/models/gen21-cand1.pt
 !/ml/models/gen23-cand1.pt
+!/ml/models/gen26.pt
 !/ml/runs
 /ml/runs/*
 !/ml/runs/gen15

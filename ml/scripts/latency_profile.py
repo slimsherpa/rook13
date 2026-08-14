@@ -36,11 +36,13 @@ def profile(scale, hands_target, threads):
     from alpharook.env import SelfPlayGame
     from alpharook.duel import deck_stream
 
-    net = load_qnet("models/gen21-cand1.pt")
+    net = load_qnet(NET_PATH)
     net.eval()
     belief = BeliefOracle("models/gen15.pt", temp=0.5)
-    agent = GardnerAgent(AnytimeRookAgent(net, belief,
-                                          budget_scale=scale, seed=31))
+    inner = AnytimeRookAgent(net, belief, budget_scale=scale, seed=31,
+                             **({"prior_scale": PRIOR_SCALE}
+                                if PRIOR_SCALE else {}))
+    agent = inner if NO_GARDNER else GardnerAgent(inner)
     times = {"open": [], "lead": [], "follow": []}
     seed = 8_800_000
     hands = 0
@@ -83,7 +85,15 @@ def main():
     ap.add_argument("--scales", default="0.15,0.25,0.5")
     ap.add_argument("--hands", type=int, default=12)
     ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--net", default="models/gen21-cand1.pt")
+    ap.add_argument("--prior-scale", type=float, default=0.0)
+    ap.add_argument("--no-gardner", action="store_true")
+    ap.add_argument("--out", default="runs/gardner/latency_profile.json")
     args = ap.parse_args()
+    global NET_PATH, PRIOR_SCALE, NO_GARDNER
+    NET_PATH = args.net
+    PRIOR_SCALE = args.prior_scale
+    NO_GARDNER = args.no_gardner
     out = {}
     for sc in [float(x) for x in args.scales.split(",")]:
         t0 = time.time()
@@ -91,8 +101,7 @@ def main():
         out[str(sc)] = rep
         print(f"scale {sc}: {json.dumps(rep)} "
               f"({time.time()-t0:.0f}s total)", flush=True)
-    json.dump(out, open("runs/gardner/latency_profile.json", "w"),
-              indent=1)
+    json.dump(out, open(args.out, "w"), indent=1)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@
 // works strictly from confirmed server state, never the optimistic overlay.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GameDoc, GameAction, Seat, SEATS, isServerStyle } from '../game/types';
+import { GameDoc, GameAction, Seat, SEATS, isServerStyle, isServerDriven } from '../game/types';
 import { validateAction } from '../game/engine';
 import { nextAgentActionAsync, preloadNets } from '../alpharook/agent';
 import { overlayPending, sameAction, PendingAction } from '../game/optimistic';
@@ -209,7 +209,7 @@ export const useGame = (gameId: string | null): UseGameResult => {
         prevSnapRef.current = serverGame;
         if (prevSnap && prevSnap.turn && serverGame.actionCount > prevSnap.actionCount) {
             const info = prevSnap.seats[prevSnap.turn];
-            if (info?.kind === 'bot' && isServerStyle(info.botStyle)) {
+            if (info?.kind === 'bot' && isServerDriven(prevSnap, info.botStyle)) {
                 let what = 'moved';
                 const np = serverGame.trickPlays;
                 const done = serverGame.completedTricks;
@@ -239,12 +239,21 @@ export const useGame = (gameId: string | null): UseGameResult => {
         // server answer and a cover from both landing.
         const turnInfo = serverGame.turn ? serverGame.seats[serverGame.turn] : null;
         const serverDriven = !!(turnInfo && turnInfo.kind === 'bot'
-            && isServerStyle(turnInfo.botStyle)
+            && isServerDriven(serverGame, turnInfo.botStyle)
             && ['bidding', 'widow', 'trump', 'playing'].includes(serverGame.phase));
+        // local standby brain while the cloud thinks: a DayDreaming Gen26
+        // seat covers with its OWN reflex (same organ, instant tier);
+        // permanent server styles cover with gen19, the strongest local stack
         const coverGame: GameDoc = serverDriven
             ? {
                 ...serverGame,
-                seats: { ...serverGame.seats, [serverGame.turn!]: { ...turnInfo!, botStyle: 'gen19' as const } },
+                seats: {
+                    ...serverGame.seats,
+                    [serverGame.turn!]: {
+                        ...turnInfo!,
+                        botStyle: turnInfo!.botStyle === 'gen26' ? ('gen26' as const) : ('gen19' as const),
+                    },
+                },
             }
             : serverGame;
         if (serverDriven) {
@@ -256,8 +265,37 @@ export const useGame = (gameId: string | null): UseGameResult => {
         // pacing timer is armed once the action is known; a newer snapshot
         // cancels both the wait and the timer.
         let cancelled = false;
+        const actionPromise = nextAgentActionAsync(coverGame);
+
+        // Arm the "best guess" button BEFORE the compute resolves: fire
+        // awaits the same promise, so there is NO window where the hurry
+        // banner shows but a click silently no-ops (Riley's report,
+        // 2026-08-14 — the old arming happened after the await).
+        const expected = serverGame.actionCount;
+        const fireCover = async (viaHurry: boolean) => {
+            const action = await actionPromise;
+            if (!action) {
+                if (viaHurry) console.warn('⏩ best guess: no local cover action — nothing to play');
+                return;
+            }
+            try {
+                if (serverDriven && !viaHurry) console.warn(`⚠️ bot service unreachable — local cover for ${serverGame.turn}`);
+                if (viaHurry) console.info(`⏩ best guess: local ${coverGame.seats[serverGame.turn!].botStyle} reflex plays for ${serverGame.turn}`);
+                // 'bot-cover' marks browser-backup moves for cloud seats in
+                // the audit log; the table shows a 💻 toast when one lands
+                await submitAction(gameId, action, serverDriven ? 'bot-cover' : 'bot', expected);
+                if (serverDriven && typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('rook13-bot-cover', { detail: { seat: serverGame.turn } }));
+                }
+            } catch (e) {
+                if (!isExpectedRaceError(e)) console.error('bot move failed', e);
+                else if (viaHurry) console.info('⏩ best guess: the cloud answered first — its move stands');
+            }
+        };
+        if (serverDriven) coverRef.current = { expected, fire: fireCover };
+
         (async () => {
-            const action = await nextAgentActionAsync(coverGame);
+            const action = await actionPromise;
             if (cancelled || !action) return;
 
             const leadsNextTrick =
@@ -272,27 +310,15 @@ export const useGame = (gameId: string | null): UseGameResult => {
             const jitter = Math.random() * 400;
             // a known-down service gets normal bot pacing, not the long grace
             const delay = serverDriven && botServiceHealthy()
-                // gardner rides the anytime searcher — opening leads can
-                // breach the 20s grace, so it gets godrook's roomier clock
-                ? (turnInfo!.botStyle === 'godrook' || turnInfo!.botStyle === 'gardner' ? GODROOK_COVER_MS : SERVER_COVER_MS)
+                // anytime-searcher styles (gardner, DayDreaming gen26) —
+                // opening leads can breach the 20s grace, so they get
+                // godrook's roomier clock
+                ? (turnInfo!.botStyle === 'godrook' || turnInfo!.botStyle === 'gardner'
+                    || (turnInfo!.botStyle === 'gen26' && serverGame.botThink)
+                    ? GODROOK_COVER_MS : SERVER_COVER_MS)
                     + (isHost ? 0 : FALLBACK_EXTRA_MS)
                 : paced(baseDelay + jitter) + (isHost ? 0 : paced(FALLBACK_EXTRA_MS));
-            const expected = serverGame.actionCount;
-
-            const fireCover = async (viaHurry: boolean) => {
-                try {
-                    if (serverDriven && !viaHurry) console.warn(`⚠️ bot service unreachable — local gen19 covers ${serverGame.turn}`);
-                    // 'bot-cover' marks browser-backup moves for cloud seats in
-                    // the audit log; the table shows a 💻 toast when one lands
-                    await submitAction(gameId, action, serverDriven ? 'bot-cover' : 'bot', expected);
-                    if (serverDriven && typeof window !== 'undefined') {
-                        window.dispatchEvent(new CustomEvent('rook13-bot-cover', { detail: { seat: serverGame.turn } }));
-                    }
-                } catch (e) {
-                    if (!isExpectedRaceError(e)) console.error('bot move failed', e);
-                }
-            };
-            if (serverDriven) coverRef.current = { expected, fire: fireCover };
+            if (cancelled) return;
             botTimer.current = setTimeout(() => fireCover(false), delay);
         })();
 

@@ -35,11 +35,15 @@ interface MyHandProps {
     onToggleSelect: (card: Card) => void;
     onPlay: (card: Card) => void;
     advice?: AdviceMap; // AI trainer: bury/play likelihood per card (undefined = off)
+    /** super-trainer: the cloud DayDream is still thinking — blur the dials */
+    advicePending?: boolean;
+    /** the dials now show searched (DayDream) values, not the instinct */
+    adviceDeep?: boolean;
 }
 
 const DRAG_THRESHOLD_PX = 8;
 
-export default function MyHand({ game, seat, selecting, selected, onToggleSelect, onPlay, advice }: MyHandProps) {
+export default function MyHand({ game, seat, selecting, selected, onToggleSelect, onPlay, advice, advicePending, adviceDeep }: MyHandProps) {
     const hand = game.hands[seat];
 
     // ---- local arrangement ----
@@ -235,10 +239,23 @@ export default function MyHand({ game, seat, selecting, selected, onToggleSelect
                             >
                                 {/* AI trainer dial: how likely the model is to
                                     bury (go-down) or play this card. Decorative,
-                                    so it never eats the tap. */}
+                                    so it never eats the tap. Super-trainer: the
+                                    instinct reads blurry while the cloud
+                                    DayDreams, then sharpens into the searched
+                                    values — the blur IS the thinking. */}
                                 {cardAdvice !== undefined && (
-                                    <span className="absolute -top-1 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                                    <span
+                                        className={`absolute -top-1 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-500 ${
+                                            advicePending ? 'blur-[2.5px] opacity-70 animate-pulse' : 'blur-0 opacity-100'
+                                        }`}
+                                    >
                                         <AssistDial p={cardAdvice} size={22} />
+                                        {adviceDeep && (
+                                            <span
+                                                className="absolute -bottom-1 -right-1 text-[8px]"
+                                                title="DayDream-searched"
+                                            >✨</span>
+                                        )}
                                     </span>
                                 )}
                                 {/* two faces on a card that rotates in 3D */}

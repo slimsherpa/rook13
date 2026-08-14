@@ -43,7 +43,7 @@ export interface Card {
 //                (bots.ts PERSONALITIES); 'basic' is also the fallback brain
 //                for gen7/gen8 go-down/trump and for neural seats if weights
 //                fail to load
-export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen11' | 'gen13' | 'gen16' | 'gen19' | 'gen21' | 'gen23' | 'teacher' | 'godrook' | 'gardner';
+export type BotStyle = 'random' | 'basic' | 'aggressive' | 'cautious' | 'alpharook' | 'gen7' | 'gen8' | 'gen9' | 'gen10' | 'gen11' | 'gen13' | 'gen16' | 'gen19' | 'gen21' | 'gen23' | 'gen26' | 'teacher' | 'godrook' | 'gardner';
 
 export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     random: 'Easy',
@@ -61,6 +61,7 @@ export const BOT_STYLE_LABELS: Record<BotStyle, string> = {
     gen19: 'AlphaRook Gen19',
     gen21: 'AlphaRook Gen21',
     gen23: 'AlphaRook Gen23',
+    gen26: 'AlphaRook Gen26',
     teacher: 'AlphaRook Gen21+t0',
     godrook: 'AlphaGodRook',
     gardner: 'AlphaRook RC1 · Gardner',
@@ -74,11 +75,25 @@ export const SERVER_STYLES: BotStyle[] = ['teacher', 'godrook', 'gen21', 'gen23'
 export const isServerStyle = (s: BotStyle | undefined): boolean =>
     !!s && SERVER_STYLES.includes(s);
 
+/** True when this seat's next thinking decision belongs to the Cloud Run
+ *  driver: a permanent server style, or a Gen26 seat while the table's
+ *  DayDream toggle (botThink) is on. */
+export const isServerDriven = (g: { botThink?: boolean }, s: BotStyle | undefined): boolean =>
+    isServerStyle(s) || (s === 'gen26' && !!g.botThink);
+
+/** The style string the brain service answers with for this seat right
+ *  now — Gen26 seats think as 'daydream' (gen26 + anytime searcher) while
+ *  the table toggle is on. */
+export const brainStyleFor = (g: { botThink?: boolean }, s: BotStyle | undefined): string =>
+    s === 'gen26' && g.botThink ? 'daydream' : (s ?? 'basic');
+
 /** What the lobby's bot picker offers (strongest first); legacy styles live on only in old games. */
-// 'gardner' (Gen25 RC1 + family conventions) sits at the BOTTOM on
-// purpose — prod soak test, not the family default. Promotion to the top
-// waits on the receipt duel + prod latency read (Gen26 decides).
-export const PLAYABLE_BOT_STYLES: BotStyle[] = ['teacher', 'gen19', 'gen16', 'gen13', 'gen11', 'gen10', 'gen9', 'gardner'];
+// 2026-08-13, the Gen26 ship: seven bots, all browser-served (zero cloud
+// cost per seat). Gen26 — the Gardner-style reflex, battery-cleared
+// (QCAL, organ gate parity, tier ladder, styleprint) — takes the Cosmo
+// throne. 'teacher' (server K24) and 'gardner' (prod soak) leave the
+// menu; their code and server styles stay for legacy docs + DayDream.
+export const PLAYABLE_BOT_STYLES: BotStyle[] = ['gen26', 'gen19', 'gen16', 'gen13', 'gen11', 'gen10', 'gen9'];
 
 /** The humbling machine rides along only after the secret unlock (SeatLobby). */
 export const SECRET_BOT_STYLE: BotStyle = 'godrook';
@@ -105,6 +120,10 @@ export const BOT_PERSONAS: Partial<Record<BotStyle, BotPersona>> = {
     // cascades down one rung; gen8 retires from the roster (legacy docs
     // still resolve it via personaFor's fallback). AlphaGodRook is the
     // omniscient solver — it only appears after the secret unlock.
+    // 2026-08-13: Cosmo's brain upgrades to Gen26 (the family-style reflex,
+    // distilled from the Gardner search stack). The teacher keeps the Cosmo
+    // face on legacy game docs — same character, earlier brain.
+    gen26: { name: 'Cosmo', emoji: '🐾', img: '/bots/07-Cosmo.jpg', tagline: 'the grandmaster' },
     teacher: { name: 'Cosmo', emoji: '🐾', img: '/bots/07-Cosmo.jpg', tagline: 'the grandmaster' },
     gen19: { name: 'Cougar', emoji: '🐅', img: '/bots/06-Cougar.jpg', tagline: 'seasoned prowler' },
     gen16: { name: 'Puma', emoji: '🐈‍⬛', img: '/bots/05-Puma.jpg', tagline: 'silent hunter' },
@@ -276,6 +295,11 @@ export interface GameDoc {
     // take the phone call, finish the sandwich. Absent on older game docs,
     // which reads as off.
     clockEnabled?: boolean;
+    // Whole-table rule, host-set (SET_BOT_THINK): when true, Gen26 bot
+    // seats route through the cloud DayDream searcher — "Bots think longer
+    // but are a little smarter." Flippable in the lobby AND mid-game (the
+    // searcher is stateless per decision). Absent on older docs = off.
+    botThink?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -300,6 +324,9 @@ export type GameAction =
     // host flips the whole-table turn clock on or off (lobby or mid-game —
     // the Disneyland rule: last one able to play before the ride wins)
     | { type: 'SET_CLOCK'; uid: string; on: boolean }
+    // host flips DayDream thinking for the table's Gen26 bots (lobby or
+    // mid-game — the next bot decision simply takes the other path)
+    | { type: 'SET_BOT_THINK'; uid: string; on: boolean }
     | { type: 'NEXT_HAND' }               // from hand_done -> dealing
     // competitive-lobby clock: a human who sits on their turn past the
     // deadline (useForfeitClock) loses the game for their team
