@@ -92,15 +92,15 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
     // and a toast whenever this device's browser backup plays a cloud seat
     const cloudHealthy = useSyncExternalStore(subscribeBotServiceHealth, botServiceHealthy, () => true);
     const hasCloudBots = SEATS.some((s) => game.seats[s].kind === 'bot' && isServerStyle(game.seats[s].botStyle));
-    const [coverToast, setCoverToast] = useState<string | null>(null);
+    const [coverToast, setCoverToast] = useState<{ name: string; viaHurry: boolean } | null>(null);
     const seatsRef = useRef(game.seats);
     seatsRef.current = game.seats;
     useEffect(() => {
         let t: ReturnType<typeof setTimeout> | null = null;
         const onCover = (e: Event) => {
-            const seat = (e as CustomEvent).detail?.seat as Seat | undefined;
-            const name = seat ? seatsRef.current[seat]?.name.split(' ')[0] : 'a bot';
-            setCoverToast(name ?? 'a bot');
+            const detail = (e as CustomEvent).detail as { seat?: Seat; viaHurry?: boolean } | undefined;
+            const name = detail?.seat ? seatsRef.current[detail.seat]?.name.split(' ')[0] : 'a bot';
+            setCoverToast({ name: name ?? 'a bot', viaHurry: !!detail?.viaHurry });
             if (t) clearTimeout(t);
             t = setTimeout(() => setCoverToast(null), 5000);
         };
@@ -556,12 +556,15 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
                 {/* table talk: bubbles + quick-message tray */}
                 <TableChat game={game} mySeat={mySeat} bottomSeat={bottomSeat} />
 
-                {/* the browser backup just played a cloud seat — say so */}
+                {/* the browser backup just played a cloud seat — say WHY:
+                    a hurry-up click is the player's call, not an outage */}
                 {coverToast && (
                     <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none animate-card-reveal">
                         <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/80 border border-amber-400/50 text-amber-200 font-orbitron text-[11px] shadow-lg whitespace-nowrap">
-                            <span className="material-symbols-outlined text-sm">computer</span>
-                            Backup brain played for {coverToast} — cloud unreachable
+                            <span className="material-symbols-outlined text-sm">{coverToast.viaHurry ? 'fast_forward' : 'computer'}</span>
+                            {coverToast.viaHurry
+                                ? `${coverToast.name} played their best guess — you called time`
+                                : `Backup brain played for ${coverToast.name} — cloud unreachable`}
                         </span>
                     </div>
                 )}

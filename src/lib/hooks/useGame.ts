@@ -285,7 +285,7 @@ export const useGame = (gameId: string | null): UseGameResult => {
                 // the audit log; the table shows a 💻 toast when one lands
                 await submitAction(gameId, action, serverDriven ? 'bot-cover' : 'bot', expected);
                 if (serverDriven && typeof window !== 'undefined') {
-                    window.dispatchEvent(new CustomEvent('rook13-bot-cover', { detail: { seat: serverGame.turn } }));
+                    window.dispatchEvent(new CustomEvent('rook13-bot-cover', { detail: { seat: serverGame.turn, viaHurry } }));
                 }
             } catch (e) {
                 if (!isExpectedRaceError(e)) console.error('bot move failed', e);
