@@ -95,11 +95,12 @@ export default function CardCounter({ game, mySeat }: { game: GameDoc; mySeat: S
     return (
         <div className="rounded-lg bg-black/35 backdrop-blur-sm border border-white/10 p-1.5 shadow-lg animate-card-reveal flex flex-col gap-[5px]">
             {suitOrder.map((suit) => (
-                /* trump block wears the gold bar; the others keep a clear one
-                   so all four blocks stay column-aligned */
+                /* no trump marker on purpose: any accent color reads as a suit
+                   color here — the top block simply IS trump, and the family
+                   learns that once */
                 <div
                     key={suit}
-                    className={`pl-[5px] border-l-2 ${suit === trump ? 'border-yellow-400' : 'border-transparent'} grid grid-cols-5 gap-[2px]`}
+                    className="grid grid-cols-5 gap-[2px]"
                     title={suit === trump ? `${suit} — trump` : suit}
                 >
                     {ROWS.flat().map((n) => slot(suit, n))}
