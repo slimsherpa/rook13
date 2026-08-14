@@ -74,6 +74,25 @@ export default function GameRoom({ gameId }: { gameId: string }) {
         );
     }
 
+    // the host shut this table before it started — anyone still holding the
+    // link (or sitting in the lobby at that moment) gets a graceful exit
+    if (game.closed) {
+        return (
+            <div className="min-h-dvh bg-navy-900 flex flex-col items-center justify-center gap-4 px-6 text-center">
+                <span className="material-symbols-outlined text-white/50 text-6xl">door_front</span>
+                <p className="text-white font-orbitron max-w-sm">
+                    {isHost ? 'You closed this table.' : 'The host closed this table.'}
+                </p>
+                <button
+                    onClick={() => router.push('/')}
+                    className="px-6 py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-orbitron text-sm"
+                >
+                    Back to Lobby
+                </button>
+            </div>
+        );
+    }
+
     return (
         <>
             <SyncStatusPill synced={synced} pendingCount={pendingCount} />

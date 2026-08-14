@@ -8,7 +8,7 @@
 
 import {
     collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query,
-    runTransaction, setDoc, where, Unsubscribe,
+    runTransaction, setDoc, updateDoc, where, Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { GameDoc, GameAction, Seat, DEFAULT_BOT_STYLE } from '../game/types';
@@ -48,6 +48,22 @@ export const getGame = async (id: string): Promise<GameDoc | null> => {
     return snap.exists() ? (snap.data() as GameDoc) : null;
 };
 
+/** Host shuts a table that never started. Rules forbid client deletes, so
+ *  this just tombstones the doc — every list below filters closed games. */
+export const closeGame = (id: string): Promise<void> =>
+    updateDoc(gameRef(id), { closed: true, updatedAt: Date.now() });
+
+// A lobby nobody has touched in 12 hours is an abandoned table, not a party
+// that's still gathering — stop showing it anywhere (the doc itself stays;
+// see closeGame). Actives/completed games are untouched by this.
+const LOBBY_TTL_MS = 12 * 60 * 60 * 1000;
+
+const staleLobby = (g: GameDoc): boolean =>
+    g.status === 'lobby' && g.updatedAt < Date.now() - LOBBY_TTL_MS;
+
+/** Shared "should any list show this game at all?" gate. */
+const listable = (g: GameDoc): boolean => !g.closed && !staleLobby(g);
+
 // NOTE: list queries below use single-field filters only and sort client-side,
 // so they work with Firestore's automatic indexes (no composite index deploys).
 
@@ -58,8 +74,8 @@ export const findGameByCode = async (code: string): Promise<GameDoc | null> => {
         limit(25),
     );
     const snap = await getDocs(q);
-    if (snap.empty) return null;
-    const games = snap.docs.map((d) => d.data() as GameDoc);
+    const games = snap.docs.map((d) => d.data() as GameDoc).filter(listable);
+    if (games.length === 0) return null;
     // prefer joinable lobbies, then the most recent match
     games.sort((a, b) => {
         if ((a.status === 'lobby') !== (b.status === 'lobby')) {
@@ -161,6 +177,7 @@ export const listMyGames = async (uid: string, max = 25): Promise<GameDoc[]> => 
     const snap = await getDocs(q);
     return snap.docs
         .map((d) => d.data() as GameDoc)
+        .filter(listable)
         .sort((a, b) => b.updatedAt - a.updatedAt)
         .slice(0, max);
 };
@@ -175,6 +192,7 @@ export const listOpenGames = async (max = 20): Promise<GameDoc[]> => {
     const snap = await getDocs(q);
     return snap.docs
         .map((d) => d.data() as GameDoc)
+        .filter(listable)
         .sort((a, b) => b.createdAt - a.createdAt)
         .slice(0, max);
 };
@@ -191,7 +209,7 @@ export const listActiveGames = async (max = 10): Promise<GameDoc[]> => {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     return snap.docs
         .map((d) => d.data() as GameDoc)
-        .filter((g) => g.updatedAt > cutoff)
+        .filter((g) => listable(g) && g.updatedAt > cutoff)
         .sort((a, b) => b.updatedAt - a.updatedAt)
         .slice(0, max);
 };

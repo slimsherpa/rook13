@@ -322,8 +322,10 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
             style={{ backgroundColor: theme.bg }}
         >
             {/* header — the background color already announces trump, and the
-                bid lives on the bidder's badge, so this stays lean */}
-            <header className="flex items-center justify-between px-3 py-2 bg-black/25 border-b border-white/10">
+                bid lives on the bidder's badge, so this stays lean. The bar
+                bleeds full width; its contents share the table's max width. */}
+            <header className="bg-black/25 border-b border-white/10">
+                <div className="w-full max-w-[1000px] mx-auto flex items-center justify-between px-3 py-2">
                 <div className="flex items-center gap-2">
                     <button onClick={() => router.push('/')} className="text-white/70 hover:text-white flex items-center" title="Lobby">
                         <span className="material-symbols-outlined">arrow_back</span>
@@ -363,6 +365,7 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
                         </button>
                     )}
                 </div>
+                </div>
             </header>
 
             {mySeat === null && (
@@ -387,8 +390,9 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
                 </div>
             )}
 
-            {/* table */}
-            <main className="flex-1 relative flex items-center justify-center min-h-0">
+            {/* table — capped on desktop so the felt stays a table, not a
+                prairie; phones and iPads are untouched (they're narrower) */}
+            <main className="flex-1 relative flex items-center justify-center min-h-0 w-full max-w-[1000px] mx-auto">
                 {/* badges sit above the felt so the compass pointer slides
                     underneath them, never over */}
                 {/* partner (top) */}
@@ -575,6 +579,7 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
             {/* dock + hand (spectators have neither) */}
             {mySeat && (
                 <footer className="bg-black/25 border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
+                    <div className="w-full max-w-[1000px] mx-auto">
                     {actionError && (
                         <div className="text-center text-red-300 text-xs font-orbitron pt-1">{actionError}</div>
                     )}
@@ -601,6 +606,7 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
                         onToggleSelect={toggleGoDown}
                         onPlay={(card) => act({ type: 'PLAY_CARD', seat: mySeat, card })}
                     />
+                    </div>
                 </footer>
             )}
 

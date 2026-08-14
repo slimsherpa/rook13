@@ -237,6 +237,9 @@ export interface GameDoc {
     createdAt: number;   // epoch ms
     updatedAt: number;
     status: 'lobby' | 'active' | 'completed';
+    /** host shut the table before it started — hidden from every list (rules
+     *  forbid client deletes, so "closed" is a tombstone, not a removal) */
+    closed?: boolean;
     seats: Record<Seat, SeatInfo>;
     /** uids of humans seated, for querying "my games" */
     playerUids: string[];

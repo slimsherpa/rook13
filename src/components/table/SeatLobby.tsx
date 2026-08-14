@@ -6,6 +6,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GameDoc, Seat, SeatInfo, GameAction, BotStyle, BOT_STYLE_LABELS, PLAYABLE_BOT_STYLES, DEFAULT_BOT_STYLE, SECRET_BOT_STYLE, personaFor } from '@/lib/game/types';
+import { closeGame } from '@/lib/firebase/gameService';
 import BotAvatar from './BotAvatar';
 
 // AlphaGodRook stays off the picker until someone triple-taps the quiet
@@ -32,6 +33,11 @@ const TEAM_SEATS: { team: 'A' | 'B'; seats: Seat[]; color: string; text: string 
 export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act, actionError }: SeatLobbyProps) {
     const router = useRouter();
     const [copied, setCopied] = useState(false);
+    // Close Table asks for a second tap instead of a modal — the first tap
+    // arms it for a few seconds, then it relaxes
+    const [closeArmed, setCloseArmed] = useState(false);
+    const [closing, setClosing] = useState(false);
+    const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [godUnlocked, setGodUnlocked] = useState(godrookUnlocked);
     const [godFlash, setGodFlash] = useState(false);
     const godTaps = useRef<{ count: number; last: number }>({ count: 0, last: 0 });
@@ -293,6 +299,38 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                             <p className="text-center text-white/50 text-[11px] font-orbitron mt-2">
                                 Empty seats are filled with bots automatically.
                             </p>
+                            {/* changed your mind? shut the table before it starts —
+                                it disappears from everyone's lists */}
+                            <button
+                                onClick={async () => {
+                                    if (!closeArmed) {
+                                        setCloseArmed(true);
+                                        if (closeTimer.current) clearTimeout(closeTimer.current);
+                                        closeTimer.current = setTimeout(() => setCloseArmed(false), 6000);
+                                        return;
+                                    }
+                                    if (closeTimer.current) clearTimeout(closeTimer.current);
+                                    setClosing(true);
+                                    try {
+                                        await closeGame(game.id);
+                                        router.push('/');
+                                    } catch {
+                                        setClosing(false);
+                                        setCloseArmed(false);
+                                    }
+                                }}
+                                disabled={closing}
+                                className={`mt-5 mx-auto flex items-center gap-1.5 px-4 py-2 rounded-lg font-orbitron text-xs transition ${
+                                    closeArmed
+                                        ? 'bg-red-500/20 border border-red-400/60 text-red-300'
+                                        : 'text-white/40 hover:text-white/70'
+                                }`}
+                            >
+                                <span className="material-symbols-outlined text-base">
+                                    {closeArmed ? 'delete_forever' : 'close'}
+                                </span>
+                                {closing ? 'Closing…' : closeArmed ? 'Tap again to close this table' : 'Close table'}
+                            </button>
                             {/* the secret doorstep lives well below the button —
                                 nobody summons the humbling machine by accident */}
                             <p
