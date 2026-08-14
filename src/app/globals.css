@@ -25,6 +25,17 @@ body {
   }
 }
 
+/* Material Symbols icons render as their ligature *name* ("raven") until the
+   icon font arrives — hold them invisible until the gate script in layout.tsx
+   confirms the font is loaded (worst case it gives up after 3s and shows
+   whatever's there, same as before). visibility keeps the layout stable. */
+.material-symbols-outlined {
+  visibility: hidden;
+}
+html.msym-ready .material-symbols-outlined {
+  visibility: visible;
+}
+
 /* Join codes: maximum legibility beats style. Plain uppercase Helvetica,
    generously tracked, so a 4-letter code can be read across the room. */
 .font-code {

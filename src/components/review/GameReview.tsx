@@ -10,7 +10,6 @@ import { GameDoc, GameAction, Seat, teamOf, BOT_STYLE_LABELS } from '@/lib/game/
 import { getGame, loadActionLog } from '@/lib/firebase/gameService';
 import { HandReview, reconstructGame } from '@/lib/game/review';
 import { requestHandAudit, subscribeAudits, HandAudit } from '@/lib/firebase/auditService';
-import { useBlunderDetector } from '@/lib/settings';
 import LoadingPage from '@/components/LoadingPage';
 import { DealBreakdown, TrickByTrick } from '@/components/table/HandRecapModal';
 import { BlunderProvider, BlunderTrigger } from '@/components/review/BlunderReport';
@@ -23,7 +22,6 @@ export default function GameReview({ gameId, initialHand }: { gameId: string; in
     const [complete, setComplete] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [openHand, setOpenHand] = useState<number | null>(null);
-    const [blunderDetector] = useBlunderDetector();
     const [audits, setAudits] = useState<Map<number, HandAudit>>(new Map());
     const [auditsAsked, setAuditsAsked] = useState<Set<number>>(new Set());
 
@@ -164,9 +162,9 @@ export default function GameReview({ gameId, initialHand }: { gameId: string; in
                                 : game.seats.B2.uid === user?.uid ? 'B2' : null}
                             compact
                             goDown={h.goDown}
-                            audit={blunderDetector ? audits.get(s.handNumber) ?? null : null}
-                            auditPending={blunderDetector && auditsAsked.has(s.handNumber) && !audits.has(s.handNumber)}
-                            onRequestAudit={blunderDetector ? () => askForAudit(s.handNumber) : undefined}
+                            audit={audits.get(s.handNumber) ?? null}
+                            auditPending={auditsAsked.has(s.handNumber) && !audits.has(s.handNumber)}
+                            onRequestAudit={() => askForAudit(s.handNumber)}
                         />
 
                         {/* the experts' door: flag a bad decision for AI training */}

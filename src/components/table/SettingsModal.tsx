@@ -1,12 +1,15 @@
 'use client';
 
-// Table settings, opened from the gear in the game header. Device-local
-// (everyone at the table picks the pace of their own screen; bot pacing
-// follows the host's device, since the host's client usually wins the race
-// to move the bots) — except the Turn Clock, the one whole-table rule here:
-// it lives on the game doc and only the host can flip it.
+// Table settings, opened from the gear in the game header. Grouped into three
+// sections: Speed (everything about pacing — this device's animations, trick
+// sweeps, and the whole-table bot thinking), AI Trainer (the coach), and
+// Table Rules (the turn clock). Device-local throughout (everyone at the
+// table picks the pace of their own screen; bot pacing follows the host's
+// device, since the host's client usually wins the race to move the bots) —
+// except Bot Thinking and the Turn Clock, the whole-table rules: they live
+// on the game doc and only the host can flip them.
 
-import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist, useSuperTrainer, useBlunderDetector } from '@/lib/settings';
+import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist, useSuperTrainer } from '@/lib/settings';
 import { ASSIST_PINK } from './AssistDial';
 
 const PACES: { id: TablePace; label: string; blurb: string; icon: string }[] = [
@@ -27,7 +30,6 @@ export default function SettingsModal({ onClose, clock, botThink }: SettingsModa
     const [pace, setPace] = useTablePace();
     const [assist, setAssist] = useAiAssist();
     const [superTrainer, setSuperTrainer] = useSuperTrainer();
-    const [blunders, setBlunders] = useBlunderDetector();
 
     const option = (selected: boolean, icon: string, label: string, blurb: string, onPick: () => void) => (
         <button
@@ -54,11 +56,28 @@ export default function SettingsModal({ onClose, clock, botThink }: SettingsModa
         </button>
     );
 
+    const section = (label: string, first = false) => (
+        <div className={`flex items-center gap-2 ${first ? '' : 'mt-6'} mb-3`}>
+            <span className="text-white/40 text-[10px] font-orbitron uppercase tracking-[0.25em]">{label}</span>
+            <span className="flex-1 h-px bg-white/10" />
+        </div>
+    );
+
+    const wholeTableBadge = (
+        <span className="ml-auto px-1.5 py-px rounded bg-yellow-500/15 text-yellow-300/90 text-[9px] uppercase tracking-wide font-orbitron">
+            whole table
+        </span>
+    );
+
     return (
         <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-navy-950 border border-white/15 rounded-2xl p-5 w-full max-w-xs max-h-[90dvh] overflow-y-auto custom-scrollbar" onClick={(e) => e.stopPropagation()}>
+
+                {/* ---- everything about pace lives together ---- */}
+                {section('Speed', true)}
+
                 <div className="flex items-center gap-2 text-white font-orbitron text-sm mb-1">
-                    <span className="material-symbols-outlined text-lg">settings</span>
+                    <span className="material-symbols-outlined text-lg">speed</span>
                     Game Speed
                 </div>
                 <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
@@ -84,7 +103,47 @@ export default function SettingsModal({ onClose, clock, botThink }: SettingsModa
                     )}
                 </div>
 
-                <div className="flex items-center gap-2 font-orbitron text-sm mt-5 mb-1" style={{ color: assist ? ASSIST_PINK : 'white' }}>
+                {botThink && (
+                    <>
+                        <div className="flex items-center gap-2 text-white font-orbitron text-sm mt-5 mb-1">
+                            <span className="material-symbols-outlined text-lg">psychology</span>
+                            Bot Thinking
+                            {wholeTableBadge}
+                        </div>
+                        <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
+                            Bots think longer but are a little smarter — they imagine how the hidden
+                            hands could lie before committing to a card. Games run a bit slower.
+                            Flip it any time, even mid-hand.{botThink.isHost ? '' : ' Only the host can flip this.'}
+                        </p>
+                        {botThink.isHost ? (
+                            <div className="space-y-1.5">
+                                {option(botThink.on, botThink.on ? 'psychology' : 'bolt',
+                                    botThink.on ? 'Thinking on' : 'Instant play',
+                                    botThink.on ? 'Bots take their time on the hard ones' : 'Bots play on instinct',
+                                    () => botThink.onToggle(!botThink.on))}
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-2.5">
+                                <span className="material-symbols-outlined text-xl text-white/50">
+                                    {botThink.on ? 'psychology' : 'bolt'}
+                                </span>
+                                <span className="flex-1 min-w-0">
+                                    <span className="block font-orbitron text-sm text-white/85">
+                                        {botThink.on ? 'Thinking on' : 'Instant play'}
+                                    </span>
+                                    <span className="block text-white/50 text-[11px]">
+                                        {botThink.on ? 'Bots take their time on the hard ones' : 'Bots play on instinct'}
+                                    </span>
+                                </span>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* ---- the coach ---- */}
+                {section('AI Trainer')}
+
+                <div className="flex items-center gap-2 font-orbitron text-sm mb-1" style={{ color: assist ? ASSIST_PINK : 'white' }}>
                     <span className="material-symbols-outlined text-lg">neurology</span>
                     AI Trainer
                 </div>
@@ -147,69 +206,15 @@ export default function SettingsModal({ onClose, clock, botThink }: SettingsModa
                     </>
                 )}
 
-                <div className="flex items-center gap-2 text-white font-orbitron text-sm mt-5 mb-1">
-                    <span className="material-symbols-outlined text-lg">search_insights</span>
-                    Blunder Detector
-                </div>
-                <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
-                    Adds an &quot;Ask AI to review this hand&quot; button to every hand recap. On
-                    request, the solver replays the hand with all the cards face up and marks the
-                    (at most two) plays that truly cost points — and what should have been played.
-                    If a hand was doomed anyway, it stays quiet.
-                </p>
-                <div className="space-y-1.5">
-                    {option(blunders, 'search_insights', blunders ? 'Detector on' : 'Detector off',
-                        blunders ? 'The review button shows in recaps' : 'Recaps stay judgment-free',
-                        () => setBlunders(!blunders))}
-                </div>
-
-                {botThink && (
-                    <>
-                        <div className="flex items-center gap-2 text-white font-orbitron text-sm mt-5 mb-1">
-                            <span className="material-symbols-outlined text-lg">psychology</span>
-                            Bot Thinking
-                            <span className="ml-auto px-1.5 py-px rounded bg-yellow-500/15 text-yellow-300/90 text-[9px] uppercase tracking-wide font-orbitron">
-                                whole table
-                            </span>
-                        </div>
-                        <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
-                            Bots think longer but are a little smarter — they imagine how the hidden
-                            hands could lie before committing to a card. Games run a bit slower.
-                            Flip it any time, even mid-hand.{botThink.isHost ? '' : ' Only the host can flip this.'}
-                        </p>
-                        {botThink.isHost ? (
-                            <div className="space-y-1.5">
-                                {option(botThink.on, botThink.on ? 'psychology' : 'bolt',
-                                    botThink.on ? 'Thinking on' : 'Instant play',
-                                    botThink.on ? 'Bots take their time on the hard ones' : 'Bots play on instinct',
-                                    () => botThink.onToggle(!botThink.on))}
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-2.5">
-                                <span className="material-symbols-outlined text-xl text-white/50">
-                                    {botThink.on ? 'psychology' : 'bolt'}
-                                </span>
-                                <span className="flex-1 min-w-0">
-                                    <span className="block font-orbitron text-sm text-white/85">
-                                        {botThink.on ? 'Thinking on' : 'Instant play'}
-                                    </span>
-                                    <span className="block text-white/50 text-[11px]">
-                                        {botThink.on ? 'Bots take their time on the hard ones' : 'Bots play on instinct'}
-                                    </span>
-                                </span>
-                            </div>
-                        )}
-                    </>
-                )}
-
+                {/* ---- whole-table rules ---- */}
                 {clock && (
                     <>
-                        <div className="flex items-center gap-2 text-white font-orbitron text-sm mt-5 mb-1">
+                        {section('Table Rules')}
+
+                        <div className="flex items-center gap-2 text-white font-orbitron text-sm mb-1">
                             <span className="material-symbols-outlined text-lg">timer</span>
                             Turn Clock
-                            <span className="ml-auto px-1.5 py-px rounded bg-yellow-500/15 text-yellow-300/90 text-[9px] uppercase tracking-wide font-orbitron">
-                                whole table
-                            </span>
+                            {wholeTableBadge}
                         </div>
                         <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
                             One rule for everyone at the table: when it&apos;s on, a player who sits on
@@ -243,7 +248,7 @@ export default function SettingsModal({ onClose, clock, botThink }: SettingsModa
 
                 <button
                     onClick={onClose}
-                    className="mt-4 w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-orbitron text-sm"
+                    className="mt-5 w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-orbitron text-sm"
                 >
                     Done
                 </button>

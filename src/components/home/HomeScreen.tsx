@@ -116,9 +116,11 @@ export default function HomeScreen() {
 
     const gameRow = (g: GameDoc) => {
         const mySeat = SEATS.find((s) => g.seats[s].kind === 'human' && g.seats[s].uid === user.uid);
+        // title the row by who ELSE is there — your own name on every row
+        // says nothing ("Riley" x8). Solo tables against the machines say so.
         const names = SEATS
             .map((s) => g.seats[s])
-            .filter((si) => si.kind === 'human')
+            .filter((si) => si.kind === 'human' && si.uid !== user.uid)
             .map((si) => si.name.split(' ')[0])
             .join(', ');
         const status =
@@ -139,7 +141,7 @@ export default function HomeScreen() {
                     {g.status === 'completed' ? 'history' : 'playing_cards'}
                 </span>
                 <div className="flex-1 min-w-0">
-                    <div className="text-white font-orbitron text-sm truncate">{names || 'Bot game'}</div>
+                    <div className="text-white font-orbitron text-sm truncate">{names || 'Solo vs the bots'}</div>
                     <div className="text-white/50 text-[11px]">
                         {g.status !== 'lobby' && `${g.scores.A} – ${g.scores.B} · `}
                         {new Date(g.updatedAt).toLocaleDateString()} · code <span className="font-code text-[10px]">{g.joinCode}</span>

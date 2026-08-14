@@ -26,7 +26,7 @@ import TableChat from './TableChat';
 import { useWatchers } from '@/lib/hooks/useWatchers';
 import { useForfeitClock, CLOCK_SHOW_S, CLOCK_PANIC_S } from '@/lib/hooks/useForfeitClock';
 import { requestHandAudit, subscribeAudits, HandAudit } from '@/lib/firebase/auditService';
-import { paced, useTablePace, useAiAssist, useSuperTrainer, useBlunderDetector } from '@/lib/settings';
+import { paced, useTablePace, useAiAssist, useSuperTrainer } from '@/lib/settings';
 import { armTableHold, releaseTableHold, useTableHold } from '@/lib/tableHold';
 import { useModelAdvice } from '@/lib/hooks/useModelAdvice';
 import SettingsModal from './SettingsModal';
@@ -76,7 +76,6 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
     // hindsight blunder audits: opt-in per hand — the recap's "Ask AI" button
     // spends the compute; the verdict comes back through Firestore and is
     // stored forever, so a hand is only ever solved once
-    const [blunderDetector] = useBlunderDetector();
     const [audits, setAudits] = useState<Map<number, HandAudit>>(new Map());
     const [auditsAsked, setAuditsAsked] = useState<Set<number>>(new Set());
     useEffect(() => subscribeAudits(game.id, setAudits), [game.id]);
@@ -357,9 +356,12 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
                         <span className="text-orange-300 font-bold">{game.scores.B}</span>
                         <span className="material-symbols-outlined text-white/70 text-lg">receipt_long</span>
                     </button>
-                    <button onClick={() => setShowSettings(true)} className="flex items-center text-white/70 hover:text-white" title="Settings">
-                        <span className="material-symbols-outlined text-lg">settings</span>
-                    </button>
+                    {/* settings are a player's affair — spectators just watch */}
+                    {mySeat !== null && (
+                        <button onClick={() => setShowSettings(true)} className="flex items-center text-white/70 hover:text-white" title="Settings">
+                            <span className="material-symbols-outlined text-lg">settings</span>
+                        </button>
+                    )}
                 </div>
             </header>
 
@@ -617,9 +619,9 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
                     mySeat={mySeat}
                     onNextHand={() => act({ type: 'NEXT_HAND' })}
                     onShowScores={() => setShowScores(true)}
-                    audit={blunderDetector ? audits.get(game.handHistory.length) ?? null : null}
-                    auditPending={blunderDetector && auditsAsked.has(game.handHistory.length) && !audits.has(game.handHistory.length)}
-                    onRequestAudit={blunderDetector ? () => askForAudit(game.handHistory.length) : undefined}
+                    audit={audits.get(game.handHistory.length) ?? null}
+                    auditPending={auditsAsked.has(game.handHistory.length) && !audits.has(game.handHistory.length)}
+                    onRequestAudit={() => askForAudit(game.handHistory.length)}
                 />
             )}
             {game.phase === 'game_over' && recapReady && !showScores && (

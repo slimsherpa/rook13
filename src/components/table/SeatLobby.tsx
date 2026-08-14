@@ -91,8 +91,10 @@ export default function SeatLobby({ game, myUid, myName, myPhotoURL, isHost, act
                     <div className="text-white font-orbitron text-sm truncate">
                         {info.kind === 'open' ? 'Open Seat' : info.name}{isMe ? ' (you)' : ''}
                     </div>
+                    {/* the host's picker below already names the brain — only
+                        spell it out for everyone else */}
                     <div className="text-white/50 text-[11px] font-orbitron">
-                        {seat}{info.kind === 'bot' ? ` · ${BOT_STYLE_LABELS[info.botStyle ?? 'basic']}` : ''}
+                        {seat}{info.kind === 'bot' && !isHost ? ` · ${BOT_STYLE_LABELS[info.botStyle ?? 'basic']}` : ''}
                     </div>
                     {/* bot mode picker (host only) — the trained AlphaRook brains */}
                     {isHost && info.kind === 'bot' && (() => {
