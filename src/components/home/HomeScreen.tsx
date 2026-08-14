@@ -357,6 +357,18 @@ export default function HomeScreen() {
                     </div>
                 </button>
 
+                {/* MINI GAMES */}
+                <button
+                    onClick={() => router.push('/minigames')}
+                    className="mt-3 w-full rounded-2xl border border-fuchsia-500/40 bg-gradient-to-r from-fuchsia-500/10 to-transparent p-4 flex items-center gap-4"
+                >
+                    <span className="material-symbols-outlined text-fuchsia-400 text-4xl">sports_esports</span>
+                    <div className="text-left">
+                        <div className="font-orbitron text-white font-bold">MINI GAMES</div>
+                        <div className="text-white/60 text-xs">Beat the Bot · fast-fire training drills</div>
+                    </div>
+                </button>
+
                 {/* JAY CUP */}
                 <button
                     onClick={() => setJayCupOpen(true)}

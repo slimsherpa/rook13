@@ -137,6 +137,14 @@ service cloud.firestore {
         allow read: if signedIn();
         allow write: if signedIn() && request.auth.uid == uid;
       }
+
+      // Beat the Bot mini-game progress, one doc per drill. Open reads
+      // (family policy: everyone's Trophy Case is on display), owner
+      // writes only — same posture as history.
+      match /minigames/{game} {
+        allow read: if signedIn();
+        allow write: if signedIn() && request.auth.uid == uid;
+      }
     }
   }
 }

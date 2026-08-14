@@ -10,6 +10,9 @@ import { getUserProfile, listRecentGames, GameHistoryEntry, UserProfile, UserSta
 import { RecordRef } from '@/lib/game/stats';
 import { Seat, SEATS, Team, partnerOf, teamOf } from '@/lib/game/types';
 import { rankFor } from '@/lib/game/rank';
+import { agreementPct } from '@/lib/minigames/scoring';
+import { listAllProgress } from '@/lib/minigames/service';
+import { MiniGameProgress } from '@/lib/minigames/types';
 import RankBadge from '@/components/ui/RankBadge';
 import LoadingPage from '@/components/LoadingPage';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
@@ -290,6 +293,64 @@ function TrophyCase({ s, openRef }: { s: UserStats; openRef: (r?: RecordRef) => 
     );
 }
 
+/** Beat the Bot training record — reads users/{uid}/minigames/*. Only
+ *  renders once the player has played at least one drill situation. */
+function BeatTheBotCase({ uid }: { uid: string }) {
+    const router = useRouter();
+    const [all, setAll] = useState<MiniGameProgress[] | null>(null);
+    useEffect(() => {
+        listAllProgress(uid).then(setAll).catch(() => setAll([]));
+    }, [uid]);
+    if (!all || all.length === 0) return null;
+
+    const sum = all.reduce((acc, p) => ({
+        attempts: acc.attempts + p.attempts,
+        perfect: acc.perfect + p.perfect,
+        close: acc.close + p.close,
+        bestStreak: Math.max(acc.bestStreak, p.bestStreak),
+    }), { attempts: 0, perfect: 0, close: 0, bestStreak: 0 });
+    if (sum.attempts === 0) return null;
+
+    const agree = agreementPct(sum);
+    const badges: Array<[string, string, boolean]> = [
+        ['neurology', 'MIND MELD', sum.perfect >= 25],
+        ['smart_toy', 'BOT WHISPERER', agree >= 90 && sum.attempts >= 50],
+        ['local_fire_department', 'HOT STREAK ×10', sum.bestStreak >= 10],
+    ];
+    const earned = badges.filter(([, , ok]) => ok);
+
+    return (
+        <Section title="Beat the Bot">
+            <button
+                onClick={() => router.push('/minigames')}
+                className="w-full rounded-xl bg-navy-950/50 border border-fuchsia-500/30 hover:border-fuchsia-400/60 p-3.5 transition text-left"
+            >
+                <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-fuchsia-400 text-3xl">sports_esports</span>
+                    <div className="flex-1">
+                        <div className="font-orbitron text-white text-sm font-bold">
+                            Picks with the bot <span className="text-fuchsia-300">{agree}%</span> of the time
+                        </div>
+                        <div className="text-white/50 text-[11px] mt-0.5">
+                            {sum.attempts} situations · {sum.perfect} exact matches · best streak {sum.bestStreak}
+                        </div>
+                    </div>
+                </div>
+                {earned.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2.5">
+                        {earned.map(([icon, label]) => (
+                            <span key={label} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200 font-orbitron text-[10px] font-bold">
+                                <span className="material-symbols-outlined text-[12px]">{icon}</span>
+                                {label}
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </button>
+        </Section>
+    );
+}
+
 /** The crown jewel: a real-world JAY CUP title, granted by hand to verified
  *  winners (see UserProfile.jayCupYears). Styled after the walnut-and-silver
  *  trophy itself. */
@@ -405,9 +466,12 @@ function ProfileInner() {
                         )}
 
                         {!s || s.gamesPlayed === 0 ? (
-                            <div className="text-center text-white/60 font-orbitron text-sm py-8">
-                                {isMe ? 'No finished games yet — go play a hand!' : `${name} hasn't finished a game yet.`}
-                            </div>
+                            <>
+                                <div className="text-center text-white/60 font-orbitron text-sm py-8">
+                                    {isMe ? 'No finished games yet — go play a hand!' : `${name} hasn't finished a game yet.`}
+                                </div>
+                                {uid && <BeatTheBotCase uid={uid} />}
+                            </>
                         ) : (
                             <>
                                 <TrophyCase
@@ -417,6 +481,7 @@ function ProfileInner() {
                                         router.push(`/review?id=${r.gameId}${r.hand ? `&hand=${r.hand}` : ''}`);
                                     }}
                                 />
+                                {uid && <BeatTheBotCase uid={uid} />}
                                 {uid && <RecentGames uid={uid} />}
                             </>
                         )}
