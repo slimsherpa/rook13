@@ -11,7 +11,19 @@
 // card play, tau=3 for a Go Down — inside that gap the bot itself would
 // call it a coin flip.
 
+import { cardName } from './explain';
 import { GoDownItem, LeadItem } from './types';
+
+/** Touching cards — same suit, every rank between them in `cards` — are
+ *  literally the same card in play: they beat and lose to identical
+ *  sets. The exact solver collapses them into one class; grading does
+ *  too. Returns the lowest card of the touching run containing c. */
+export const runClass = (cards: number[], c: number): number => {
+    const has = new Set(cards);
+    let lo = c;
+    while (lo % 10 !== 0 && has.has(lo - 1)) lo--;
+    return lo;
+};
 
 export type Tier = 'perfect' | 'close' | 'ok' | 'miss';
 
@@ -35,10 +47,15 @@ const GODOWN_OK = 12;
 
 export const gradeLead = (item: LeadItem, pick: number): Grade => {
     const bot = item.bot.card;
-    if (pick === bot) {
+    const twin = pick !== bot
+        && runClass(item.cards, pick) === runClass(item.cards, bot);
+    if (pick === bot || twin) {
         return {
             tier: 'perfect', points: 100, delta: 0, selTotal: 1, selMatch: 1,
             headline: 'Good job! That’s exactly what I would have picked.',
+            detail: twin
+                ? `Your ${cardName(pick)} and my ${cardName(bot)} are the same card here — they beat and lose to exactly the same things.`
+                : undefined,
         };
     }
     const v = item.bot.values;
@@ -93,7 +110,22 @@ export const gradeGoDown = (
     item: GoDownItem, godown: number[], trump: number,
 ): Grade => {
     const bot = item.bot;
-    const overlap = godown.filter((c) => bot.godown.includes(c)).length;
+    // twin-aware overlap: compare touching-run classes within the 13,
+    // so burying the Black 5 when I buried its twin Black 6 counts
+    const hand13 = [...item.dealt, ...item.widow];
+    const classes = (cards: number[]) => {
+        const m = new Map<number, number>();
+        for (const c of cards) {
+            const k = runClass(hand13, c);
+            m.set(k, (m.get(k) ?? 0) + 1);
+        }
+        return m;
+    };
+    const mineCls = classes(godown);
+    const botCls = classes(bot.godown);
+    let overlap = 0;
+    mineCls.forEach((n, k) => { overlap += Math.min(n, botCls.get(k) ?? 0); });
+    const exactSame = sameSet(godown, bot.godown);
     const trumpMatch = trump === bot.trump;
     const selMatch = overlap + (trumpMatch ? 1 : 0);
     const sel = { selTotal: 5, selMatch };
@@ -102,6 +134,8 @@ export const gradeGoDown = (
         return {
             tier: 'perfect', points: 100, delta: 0, ...sel,
             headline: 'Good job! That’s exactly what I would have picked.',
+            detail: exactSame ? undefined
+                : 'A card or two differ only in name — touching cards are the same card in play.',
         };
     }
     // was the human's exact (Go Down, trump) in the searched shortlist?

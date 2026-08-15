@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { gradeGoDown, gradeLead, levelFor, selectionPct } from './scoring';
+import { gradeGoDown, gradeLead, levelFor, runClass, selectionPct } from './scoring';
 import { GoDownItem, LeadItem } from './types';
+
+describe('runClass', () => {
+    it('collapses touching same-suit runs to one class', () => {
+        const cards = [31, 32, 33, 20, 25];   // Green 6-7-8 run, Black 5, Black 10
+        expect(runClass(cards, 33)).toBe(31);
+        expect(runClass(cards, 31)).toBe(31);
+        expect(runClass(cards, 25)).toBe(25); // gap: Black 10 is its own class
+    });
+    it('never crosses a suit boundary', () => {
+        expect(runClass([9, 10], 10)).toBe(10);  // Red 14 and Yellow 5 don't touch
+    });
+});
 
 const leadItem = (over: Partial<LeadItem['bot']> = {}): LeadItem => ({
     id: 1, seed: 1, hand: 0, seat: 0, cards: [0, 1, 2, 10, 11, 20, 21, 30, 31],
@@ -21,14 +33,23 @@ describe('gradeLead', () => {
         expect(g.selMatch).toBe(1);
         expect(g.selTotal).toBe(1);
     });
+    it('a twin of the bot lead is graded as the same card', () => {
+        // hand has 0,1,2 = Red 5-6-7 touching; bot led Red 5, human Red 7
+        const g = gradeLead(leadItem(), 2);
+        expect(g.tier).toBe('perfect');
+        expect(g.detail).toContain('same card');
+        expect(g.selMatch).toBe(1);
+    });
     it('a lead that priced ABOVE the bot pick celebrates the human', () => {
-        const g = gradeLead(leadItem({ card: 1 }), 0);  // bot took 9, human took 10
+        // Green 5 (non-twin, different suit) priced 1 above the bot's Red 5
+        const g = gradeLead(leadItem({ values: { '0': 10, '30': 11, '20': 2 } }), 30);
         expect(g.tier).toBe('close');
         expect(g.headline).toContain('BEATEN');
         expect(g.delta).toBe(-1);
     });
     it('within tau=2 is close but not a selection match', () => {
-        const g = gradeLead(leadItem(), 1);   // 10 - 9 = 1 point behind
+        // Green 5, different suit from the bot's Red 5: 10 - 9 = 1 behind
+        const g = gradeLead(leadItem({ values: { '0': 10, '30': 9, '20': 2 } }), 30);
         expect(g.tier).toBe('close');
         expect(g.delta).toBe(1);
         expect(g.selMatch).toBe(0);
@@ -54,6 +75,7 @@ const gdItem = (): GoDownItem => ({
         cands: [
             [[30, 31, 32, 21], 0, 55.0],
             [[30, 31, 32, 20], 0, 53.5],
+            [[10, 11, 12, 3], 0, 53.0],
             [[30, 31, 20, 21], 0, 40.0],
             [[10, 11, 12, 4], 1, 12.0],
         ],
@@ -67,11 +89,18 @@ describe('gradeGoDown', () => {
         expect(g.selMatch).toBe(5);
         expect(g.selTotal).toBe(5);
     });
+    it('burying a TWIN of a bot card is perfect (Black 5 vs Black 6)', () => {
+        // bot buried Black 6 (21); human buried Black 5 (20) — touching
+        const g = gradeGoDown(gdItem(), [30, 31, 32, 20], 0);
+        expect(g.tier).toBe('perfect');
+        expect(g.detail).toContain('same card');
+        expect(g.selMatch).toBe(5);
+    });
     it('a priced Go Down within tau=3 is close', () => {
-        const g = gradeGoDown(gdItem(), [30, 31, 32, 20], 0);  // 55 - 53.5
+        // Yellow 5-6-7 + Red 8 (a different plan): 55 - 53 = 2 <= tau
+        const g = gradeGoDown(gdItem(), [10, 11, 12, 3], 0);
         expect(g.tier).toBe('close');
-        expect(g.delta).toBe(1.5);
-        expect(g.selMatch).toBe(4);   // 3 cards + trump
+        expect(g.delta).toBe(2);
     });
     it('unpriced Go Down falls back to overlap: 3/4 + trump is close', () => {
         const g = gradeGoDown(gdItem(), [30, 31, 32, 4], 0);

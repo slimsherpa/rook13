@@ -1,11 +1,13 @@
 'use client';
 
-// BEAT THE BOT — THE GO-DOWN. The real table's widow flow, one hand
-// after another: your 13 on the felt, pick four, "Put Down", call trump
-// (the background takes the trump color, exactly like the game), then
-// the pre-searched Gen26+DayDream answer reveals instantly. Your four
-// stay raised with the blue ring — exactly how a live go-down looks —
-// and an assist-pink dot marks the cards the bot would have put down.
+// BEAT THE BOT — THE GO-DOWN. One screen, five picks: call trump and
+// choose the four Go Down cards together, then LOCK IT IN and the
+// pre-searched Gen26+DayDream answer reveals instantly (the background
+// takes the trump color, exactly like the game). Trump pills follow the
+// same suit order as the cards below; the 13 sit in two roomy rows
+// (7 over 6) so every tap target is a whole card. On the reveal your
+// four stay raised with the blue ring and assist-pink dots mark what
+// the bot would have put down.
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -29,8 +31,6 @@ const suitButtonColors: Record<Suit, string> = {
     Green: 'bg-green-600 hover:bg-green-500',
 };
 
-type Step = 'pick' | 'trump' | 'revealed';
-
 export default function GoDownDrill() {
     const { user, loading } = useAuth();
     const router = useRouter();
@@ -38,7 +38,6 @@ export default function GoDownDrill() {
     const [progress, setProgress] = useState<MiniGameProgress>(emptyProgress('godown'));
     const [ready, setReady] = useState(false);
     const [progReady, setProgReady] = useState(false);
-    const [step, setStep] = useState<Step>('pick');
     const [picked, setPicked] = useState<number[]>([]);
     const [trumpPick, setTrumpPick] = useState<number | null>(null);
     const [grade, setGrade] = useState<Grade | null>(null);
@@ -84,16 +83,27 @@ export default function GoDownDrill() {
         const cards = [...item.dealt, ...item.widow].map(toCard);
         return sortHand(cards, null).map(toInt);
     }, [item]);
+    // trump pills follow the display: suits in card order first (longest
+    // suit leads, same as the rows), then any suit not held
+    const suitOrder = useMemo(() => {
+        const order: number[] = [];
+        for (const c of all13) {
+            const s = Math.floor(c / 10);
+            if (!order.includes(s)) order.push(s);
+        }
+        SUITS.forEach((_, s) => { if (!order.includes(s)) order.push(s); });
+        return order;
+    }, [all13]);
     const botSet = useMemo(
-        () => new Set(step === 'revealed' ? item?.bot.godown ?? [] : []),
-        [step, item],
+        () => new Set(grade ? item?.bot.godown ?? [] : []),
+        [grade, item],
     );
 
     if (loading || !user || !ready || !progReady) {
         return <LoadingPage title="Rook13" subtitle="Shuffling situations…" />;
     }
 
-    const revealed = step === 'revealed';
+    const revealed = grade !== null;
     const theme = themeFor(revealed && trumpPick !== null ? SUITS[trumpPick] : null);
 
     const header = (
@@ -125,21 +135,24 @@ export default function GoDownDrill() {
 
     const trumpSuit: Suit | null = revealed && trumpPick !== null ? SUITS[trumpPick] : null;
     const togglePick = (c: number) => {
-        if (step !== 'pick') return;
+        if (revealed) return;
         setPicked((p) => p.includes(c) ? p.filter((x) => x !== c) : p.length < 4 ? [...p, c] : p);
     };
+    const nPicked = picked.length + (trumpPick !== null ? 1 : 0);
+    const canLock = trumpPick !== null && picked.length === 4;
 
-    const confirmTrump = () => {
-        if (trumpPick === null) return;
+    const lock = () => {
+        if (!canLock || revealed || trumpPick === null) return;
         const g = gradeGoDown(item, picked, trumpPick);
         setGrade(g);
-        setStep('revealed');
         setProgress(recordAttempt(user.uid, progress, item.id, g));
     };
     const nextItem = () => {
-        setPicked([]); setTrumpPick(null); setGrade(null); setStep('pick');
+        setPicked([]); setTrumpPick(null); setGrade(null);
         setItemId(null);   // un-pin: the effect pins the next fresh one
     };
+
+    const rows = [all13.slice(0, 7), all13.slice(7)];
 
     return (
         <main
@@ -181,88 +194,77 @@ export default function GoDownDrill() {
                     </RevealCard>
                 ) : (
                     <div className="text-white/50 font-orbitron text-xs text-center">
-                        {step === 'pick'
-                            ? 'What would the strongest bot in the family put in the Go Down?'
-                            : 'And what would it call for trump?'}
+                        Call trump and pick the four you&apos;d put in the Go Down —
+                        then see the strongest bot in the family do it.
                     </div>
                 )}
             </div>
 
-            {/* the dock + hand, exactly where the table keeps them */}
+            {/* the dock + hand: trump pills (in card order) over two roomy rows */}
             <div className="flex-none pb-6">
-                {step === 'pick' && (
+                <div className="flex items-center justify-center gap-2 py-1.5 flex-wrap px-2">
+                    <span className="text-white/90 font-orbitron text-xs sm:text-sm mr-1">Trump:</span>
+                    {suitOrder.map((i) => (
+                        <div key={SUITS[i]} className="relative">
+                            {revealed && item.bot.trump === i && (
+                                <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                                    <BotDot />
+                                </span>
+                            )}
+                            <button
+                                onClick={() => !revealed && setTrumpPick(trumpPick === i ? null : i)}
+                                className={`px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition ${suitButtonColors[SUITS[i]]} ${trumpPick === i ? 'ring-4 ring-white' : trumpPick !== null || revealed ? 'opacity-50' : ''}`}
+                            >
+                                {SUITS[i]}
+                            </button>
+                        </div>
+                    ))}
+                </div>
+
+                {!revealed && (
                     <div className="flex items-center justify-center gap-3 py-1.5">
                         <span className="text-white/90 font-orbitron text-xs sm:text-sm">
-                            Go-down: pick 4 cards ({picked.length}/4)
+                            Trump + 4 cards ({nPicked}/5)
                         </span>
                         <button
-                            onClick={() => picked.length === 4 && setStep('trump')}
-                            disabled={picked.length !== 4}
+                            onClick={lock}
+                            disabled={!canLock}
                             className="px-5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-orbitron text-sm font-bold active:scale-95 transition"
                         >
-                            Put Down
+                            Lock It In
                         </button>
                     </div>
                 )}
-                {step === 'trump' && (
-                    <>
-                        <div className="flex items-center justify-center gap-2 py-1.5 flex-wrap px-2">
-                            <span className="text-white/90 font-orbitron text-xs sm:text-sm mr-1">Trump:</span>
-                            {SUITS.map((suit, i) => (
-                                <button
-                                    key={suit}
-                                    onClick={() => setTrumpPick(i)}
-                                    className={`px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition ${suitButtonColors[suit]} ${trumpPick === i ? 'ring-4 ring-white' : trumpPick !== null ? 'opacity-50' : ''}`}
-                                >
-                                    {suit}
-                                </button>
-                            ))}
-                        </div>
-                        {trumpPick !== null && (
-                            <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
-                                <button
-                                    onClick={confirmTrump}
-                                    className={`pointer-events-auto px-8 py-5 rounded-3xl text-white font-orbitron shadow-2xl ring-4 ring-white/70 active:scale-95 transition animate-announce-pop ${suitButtonColors[SUITS[trumpPick]]}`}
-                                >
-                                    <span className="block text-2xl font-black leading-tight">{SUITS[trumpPick]} Trump</span>
-                                    <span className="block text-sm font-bold mt-1 flex items-center justify-center gap-1">
-                                        Lock it in — show the bot
-                                        <span className="material-symbols-outlined text-lg">arrow_forward</span>
-                                    </span>
-                                </button>
-                            </div>
-                        )}
-                    </>
-                )}
 
-                <div className="flex justify-center px-2">
-                    <div className="flex pt-6 pb-2 flex-wrap justify-center max-w-md -space-x-5 sm:-space-x-4 md:-space-x-2 gap-y-2">
-                        {all13.map((c, i) => {
-                            const mine = picked.includes(c);
-                            const bots = botSet.has(c);
-                            return (
-                                // on the reveal the raise moves to the wrapper so
-                                // the bot's pink dot rides up with a raised card
-                                <div
-                                    key={c}
-                                    className={`relative transition-transform duration-200 ${revealed && mine ? '-translate-y-3' : ''}`}
-                                    style={{ zIndex: i + 1 }}
-                                >
-                                    {bots && (
-                                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-                                            <BotDot />
-                                        </span>
-                                    )}
-                                    <PlayingCard
-                                        card={toCard(c)} trump={trumpSuit} size="lg"
-                                        onClick={step === 'pick' ? () => togglePick(c) : undefined}
-                                        selected={!revealed && mine}
-                                        className={revealed && mine ? 'ring-2 ring-sky-400 border-sky-400' : ''}
-                                    />
-                                </div>
-                            );
-                        })}
-                    </div>
+                <div className="flex flex-col items-center gap-2 px-1 pt-4">
+                    {rows.map((row, r) => (
+                        <div key={r} className="flex justify-center gap-1 sm:gap-1.5">
+                            {row.map((c) => {
+                                const mine = picked.includes(c);
+                                const bots = botSet.has(c);
+                                return (
+                                    // on the reveal the raise moves to the wrapper so
+                                    // the bot's pink dot rides up with a raised card
+                                    <div
+                                        key={c}
+                                        className={`relative transition-transform duration-200 ${revealed && mine ? '-translate-y-3' : ''}`}
+                                    >
+                                        {bots && (
+                                            <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                                                <BotDot />
+                                            </span>
+                                        )}
+                                        <PlayingCard
+                                            card={toCard(c)} trump={trumpSuit} size="md"
+                                            onClick={!revealed ? () => togglePick(c) : undefined}
+                                            selected={!revealed && mine}
+                                            className={revealed && mine ? 'ring-2 ring-sky-400 border-sky-400' : ''}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ))}
                 </div>
             </div>
         </main>

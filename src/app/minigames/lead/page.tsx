@@ -199,7 +199,10 @@ export default function LeadDrill() {
                             // (the tau law) — say so in plain language
                             const best = Object.entries(values)
                                 .sort((a, b) => b[1] - a[1])[0];
-                            const stuck = best && Number(best[0]) !== item.bot.card;
+                            // ">" with a real margin: a twin with an equal
+                            // value is the same card, not a better one
+                            const stuck = best && Number(best[0]) !== item.bot.card
+                                && best[1] > (values[String(item.bot.card)] ?? -Infinity) + 0.05;
                             if (!why && !yours && !stuck) return null;
                             return (
                                 <div className="text-white/60 text-xs mt-2 border-t border-white/10 pt-2 space-y-1.5">
