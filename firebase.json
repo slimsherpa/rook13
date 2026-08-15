@@ -15,6 +15,12 @@
     ],
     "headers": [
       {
+        "source": "/minigames/*_items.json",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=300" }
+        ]
+      },
+      {
         "source": "**",
         "headers": [
           { "key": "X-Content-Type-Options", "value": "nosniff" },

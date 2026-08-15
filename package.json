@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:gardner": "NEXT_PUBLIC_BOT_SERVICE_URL=http://localhost:8080 next dev",
+    "deploy:bank": "next build && npx firebase-tools deploy --only hosting",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
