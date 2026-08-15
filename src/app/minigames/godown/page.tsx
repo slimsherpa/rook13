@@ -16,20 +16,14 @@ import LoadingPage from '@/components/LoadingPage';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { Suit, SUITS } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
-import { themeFor } from '@/components/table/theme';
+import { themeForPalette } from '@/components/table/theme';
+import { paletteById, textOn } from '@/lib/game/palettes';
+import { useCardPaletteId } from '@/lib/settings';
 import { AllDoneCard, BotDot, RevealCard, ScoreStrip, TableMap } from '@/components/minigames/shared';
 import { explainGoDown } from '@/lib/minigames/explain';
 import { Grade, gradeGoDown } from '@/lib/minigames/scoring';
 import { getProgress, recordAttempt } from '@/lib/minigames/service';
 import { Bank, GoDownItem, MiniGameProgress, emptyProgress, loadBank, toCard, toInt } from '@/lib/minigames/types';
-
-// the table's trump-button colors (ActionDock vocabulary)
-const suitButtonColors: Record<Suit, string> = {
-    Red: 'bg-red-600 hover:bg-red-500',
-    Yellow: 'bg-yellow-500 hover:bg-yellow-400 text-navy-950',
-    Black: 'bg-gray-900 hover:bg-gray-800',
-    Green: 'bg-green-600 hover:bg-green-500',
-};
 
 export default function GoDownDrill() {
     const { user, loading } = useAuth();
@@ -99,12 +93,15 @@ export default function GoDownDrill() {
         [grade, item],
     );
 
+    const [paletteId] = useCardPaletteId();
+    const palette = paletteById(paletteId);
+
     if (loading || !user || !ready || !progReady) {
         return <LoadingPage title="Rook13" subtitle="Shuffling situations…" />;
     }
 
     const revealed = grade !== null;
-    const theme = themeFor(revealed && trumpPick !== null ? SUITS[trumpPick] : null);
+    const theme = themeForPalette(revealed && trumpPick !== null ? SUITS[trumpPick] : null, palette);
 
     const header = (
         <div className="flex items-center gap-3 mb-3">
@@ -229,7 +226,8 @@ export default function GoDownDrill() {
                             )}
                             <button
                                 onClick={() => !revealed && setTrumpPick(trumpPick === i ? null : i)}
-                                className={`px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition ${suitButtonColors[SUITS[i]]} ${trumpPick === i ? 'ring-4 ring-sky-400' : trumpPick !== null || revealed ? 'opacity-50' : ''}`}
+                                style={{ background: palette.suits[SUITS[i]], color: textOn(palette.suits[SUITS[i]]) }}
+                                className={`px-4 py-2.5 rounded-lg font-orbitron text-sm font-bold active:scale-95 transition hover:brightness-110 ${trumpPick === i ? 'ring-4 ring-sky-400' : trumpPick !== null || revealed ? 'opacity-50' : ''}`}
                             >
                                 {SUITS[i]}
                             </button>

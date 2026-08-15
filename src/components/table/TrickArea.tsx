@@ -14,7 +14,9 @@ import { Card, GameDoc, Seat, Suit, TrickRecord } from '@/lib/game/types';
 import { paced } from '@/lib/settings';
 import { useTableHold } from '@/lib/tableHold';
 import { TablePosition, positionOfSeat } from './layout';
-import { themeFor } from './theme';
+import { themeForPalette } from './theme';
+import { paletteById } from '@/lib/game/palettes';
+import { useCardPaletteId } from '@/lib/settings';
 import PlayingCard from '@/components/ui/PlayingCard';
 import RookBird from '@/components/ui/RookBird';
 
@@ -159,7 +161,8 @@ export default function TrickArea({ game, bottomSeat, trump, message }: TrickAre
     const winner: Seat | null = showLingering ? activeTrick!.winner : null;
     const winnerPosition = winner ? positionOfSeat(winner, bottomSeat) : null;
 
-    const theme = themeFor(trump);
+    const [paletteId] = useCardPaletteId();
+    const theme = themeForPalette(trump, paletteById(paletteId));
 
     return (
         // a true circle (square box) so the compass pointer sweeps cleanly

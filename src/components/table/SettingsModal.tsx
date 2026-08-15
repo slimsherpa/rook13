@@ -9,9 +9,11 @@
 // except Bot Thinking and the Turn Clock, the whole-table rules: they live
 // on the game doc and only the host can flip them.
 
-import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist, useSuperTrainer, useCardCounter } from '@/lib/settings';
+import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist, useSuperTrainer, useCardCounter, useCardPaletteId } from '@/lib/settings';
 import { ASSIST_PINK } from './AssistDial';
 import { COUNTER_ORANGE } from './CardCounter';
+import { PALETTES } from '@/lib/game/palettes';
+import { SUITS } from '@/lib/game/types';
 
 const PACES: { id: TablePace; label: string; blurb: string; icon: string }[] = [
     { id: 'auto',   label: 'Auto',   blurb: 'Tricks sweep away on their own',                icon: 'play_circle' },
@@ -32,6 +34,7 @@ export default function SettingsModal({ onClose, clock, botThink }: SettingsModa
     const [assist, setAssist] = useAiAssist();
     const [superTrainer, setSuperTrainer] = useSuperTrainer();
     const [counter, setCounter] = useCardCounter();
+    const [paletteId, setPaletteId] = useCardPaletteId();
 
     // trainer and counter are single-select — the setters clear each other,
     // so this derived mode is never ambiguous
@@ -278,6 +281,53 @@ export default function SettingsModal({ onClose, clock, botThink }: SettingsModa
                         )}
                     </>
                 )}
+
+                {/* ---- purely cosmetic: this device's card colors ---- */}
+                {section('Card Colors')}
+
+                <div className="flex items-center gap-2 text-white font-orbitron text-sm mb-1">
+                    <span className="material-symbols-outlined text-lg">palette</span>
+                    Card Colors
+                </div>
+                <p className="text-white/50 text-[11px] mb-3 leading-relaxed">
+                    Repaint the four suits on this device — cards, trump table, the works.
+                    Purely cosmetic: the suits keep their names, the game never changes.
+                </p>
+                <div className="space-y-1.5">
+                    {PALETTES.map((p) => {
+                        const selected = paletteId === p.id;
+                        return (
+                            <button
+                                key={p.id}
+                                onClick={() => setPaletteId(p.id)}
+                                className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition ${
+                                    selected
+                                        ? 'border-sky-400 bg-sky-500/15'
+                                        : 'border-white/10 bg-white/5 hover:border-white/30'
+                                }`}
+                            >
+                                <span className="flex gap-1 flex-shrink-0">
+                                    {SUITS.map((s) => (
+                                        <span
+                                            key={s}
+                                            className="w-3.5 h-5 rounded-[3px] border border-white/25"
+                                            style={{ background: p.suits[s] }}
+                                        />
+                                    ))}
+                                </span>
+                                <span className="flex-1 min-w-0">
+                                    <span className={`block font-orbitron text-sm ${selected ? 'text-white font-bold' : 'text-white/85'}`}>
+                                        {p.name}
+                                    </span>
+                                    <span className="block text-white/50 text-[11px]">{p.blurb}</span>
+                                </span>
+                                {selected && (
+                                    <span className="material-symbols-outlined text-sky-300 text-lg">check_circle</span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
 
                 <button
                     onClick={onClose}

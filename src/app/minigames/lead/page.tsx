@@ -14,7 +14,9 @@ import LoadingPage from '@/components/LoadingPage';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { SUITS } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
-import { themeFor } from '@/components/table/theme';
+import { themeFor, themeForPalette } from '@/components/table/theme';
+import { paletteById } from '@/lib/game/palettes';
+import { useCardPaletteId } from '@/lib/settings';
 import { AllDoneCard, RevealCard, ScoreStrip, TableMap, ValueDial } from '@/components/minigames/shared';
 import { cardName, critiqueLead, explainLead } from '@/lib/minigames/explain';
 import { Grade, gradeLead } from '@/lib/minigames/scoring';
@@ -63,6 +65,7 @@ export default function LeadDrill() {
             .finally(() => setProgReady(true));
     }, [user]);
 
+    const [paletteId] = useCardPaletteId();
     const doneSet = useMemo(() => new Set(progress.done), [progress.done]);
     const pool = useMemo(
         () => (bank ? bank.items.filter((it) => it.buyerRel === seat) : []),
@@ -88,7 +91,7 @@ export default function LeadDrill() {
     }
 
     const revealed = grade !== null;
-    const theme = themeFor(item ? SUITS[item.trump] : null);
+    const theme = themeForPalette(item ? SUITS[item.trump] : null, paletteById(paletteId));
 
     const header = (
         <div className="flex items-center gap-3 mb-3">

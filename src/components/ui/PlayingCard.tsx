@@ -5,6 +5,8 @@
 // via the `size` prop; `compact` sizes keep 13 cards playable on a phone.
 
 import { Card, Suit, getCardPoints } from '@/lib/game/types';
+import { paletteById, textOn } from '@/lib/game/palettes';
+import { useCardPaletteId } from '@/lib/settings';
 
 export type CardSize = 'xs' | 'sm' | 'md' | 'lg';
 
@@ -34,23 +36,12 @@ const CIRCLE: Record<CardSize, string> = {
     lg: 'w-8 h-8 sm:w-10 sm:h-10 text-sm sm:text-lg',
 };
 
-const suitText: Record<Suit, string> = {
-    Red: 'text-red-600',
-    Yellow: 'text-yellow-500',
-    Black: 'text-gray-900',
-    Green: 'text-green-600',
-};
-
-const suitBg: Record<Suit, string> = {
-    Red: 'bg-red-600',
-    Yellow: 'bg-yellow-500',
-    Black: 'bg-gray-900',
-    Green: 'bg-green-600',
-};
-
 export default function PlayingCard({
     card, faceDown, trump, size = 'md', onClick, disabled, selected, highlight, className = '',
 }: PlayingCardProps) {
+    // device-local card colors — purely cosmetic, standard by default
+    const [paletteId] = useCardPaletteId();
+    const palette = paletteById(paletteId);
     const base = `relative flex-shrink-0 border-2 shadow-md select-none transition-all duration-200 ${SIZES[size]} ${className}`;
 
     if (faceDown || !card) {
@@ -72,16 +63,17 @@ export default function PlayingCard({
 
     const isTrump = trump != null && card.suit === trump;
     const points = getCardPoints(card);
+    const hue = palette.suits[card.suit];
+    const onHue = textOn(hue);
 
-    const face = isTrump
-        ? `text-white ${suitBg[card.suit]} border-white/40`
-        : `bg-white ${suitText[card.suit]} border-gray-300`;
+    const face = isTrump ? 'border-white/40' : 'bg-white border-gray-300';
 
     return (
         <button
             type="button"
             onClick={onClick}
             disabled={!onClick}
+            style={isTrump ? { background: hue, color: onHue } : { color: hue }}
             className={`${base} ${face}
                 ${selected ? '-translate-y-3 ring-2 ring-sky-400 border-sky-400' : ''}
                 ${highlight ? 'ring-2 ring-yellow-400 shadow-[0_0_14px_4px_rgba(234,179,8,0.5)]' : ''}
@@ -92,9 +84,11 @@ export default function PlayingCard({
             <span className="absolute top-0.5 left-1 font-bold">{card.number}</span>
             <span className="absolute bottom-0.5 right-1 font-bold rotate-180">{card.number}</span>
             <span className="absolute inset-0 flex items-center justify-center">
-                <span className={`${CIRCLE[size]} rounded-full flex items-center justify-center font-bold
-                    ${isTrump ? 'bg-white' : suitBg[card.suit]}
-                    ${isTrump ? suitText[card.suit] : 'text-white'}`}
+                <span
+                    className={`${CIRCLE[size]} rounded-full flex items-center justify-center font-bold`}
+                    style={isTrump
+                        ? { background: '#ffffff', color: hue }
+                        : { background: hue, color: onHue }}
                 >
                     {points > 0 ? points : ''}
                 </span>

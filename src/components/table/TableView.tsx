@@ -9,7 +9,8 @@ import { Card, GameAction, GameDoc, Seat, SEATS, Team, isServerStyle, sameCard, 
 import { botServiceHealthy, subscribeBotServiceHealth } from '@/lib/botService';
 import { bidTeamMaxPoints } from '@/lib/game/engine';
 import { positionsFor } from './layout';
-import { themeFor } from './theme';
+import { themeForPalette } from './theme';
+import { paletteById } from '@/lib/game/palettes';
 import PlayerBadge from './PlayerBadge';
 import TrickArea from './TrickArea';
 import MyHand from './MyHand';
@@ -26,7 +27,7 @@ import TableChat from './TableChat';
 import { useWatchers } from '@/lib/hooks/useWatchers';
 import { useForfeitClock, CLOCK_SHOW_S, CLOCK_PANIC_S } from '@/lib/hooks/useForfeitClock';
 import { requestHandAudit, subscribeAudits, HandAudit } from '@/lib/firebase/auditService';
-import { paced, useTablePace, useAiAssist, useSuperTrainer, useCardCounter } from '@/lib/settings';
+import { paced, useTablePace, useAiAssist, useSuperTrainer, useCardCounter, useCardPaletteId } from '@/lib/settings';
 import CardCounter from './CardCounter';
 import { armTableHold, releaseTableHold, useTableHold } from '@/lib/tableHold';
 import { useModelAdvice } from '@/lib/hooks/useModelAdvice';
@@ -73,7 +74,8 @@ export default function TableView({ game, mySeat, act, actionError, serverThinki
         return () => clearTimeout(t);
     }, [serverThinking, onHurryUp]);
     const watchers = useWatchers(game.id, mySeat === null);
-    const theme = themeFor(game.trump);
+    const [paletteId] = useCardPaletteId();
+    const theme = themeForPalette(game.trump, paletteById(paletteId));
     // hindsight blunder audits: opt-in per hand — the recap's "Ask AI" button
     // spends the compute; the verdict comes back through Firestore and is
     // stored forever, so a hand is only ever solved once

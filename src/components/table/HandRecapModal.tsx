@@ -15,6 +15,8 @@ import { sortHand } from '@/lib/game/deck';
 import { BlunderTarget, targetKey } from '@/lib/game/blunders';
 import PlayingCard from '@/components/ui/PlayingCard';
 import ConfettiBurst from '@/components/ui/ConfettiBurst';
+import { paletteById, textOn } from '@/lib/game/palettes';
+import { useCardPaletteId } from '@/lib/settings';
 import { ASSIST_PINK } from './AssistDial';
 import { COUNTER_ORANGE } from './CardCounter';
 import {
@@ -94,8 +96,14 @@ const seatsFromDealer = (dealer: Seat): Seat[] => {
     return [first, nextSeat(first), nextSeat(nextSeat(first)), nextSeat(nextSeat(nextSeat(first)))];
 };
 
-const trumpChipBg: Record<Suit, string> = {
-    Red: 'bg-red-600', Yellow: 'bg-yellow-500', Black: 'bg-gray-900', Green: 'bg-green-600',
+// the trump chip follows the device's card palette (cosmetic setting)
+const useTrumpChipStyle = () => {
+    const [paletteId] = useCardPaletteId();
+    const palette = paletteById(paletteId);
+    return (suit: Suit) => ({
+        background: palette.suits[suit],
+        color: textOn(palette.suits[suit]),
+    });
 };
 
 const bidChipClass = (kind: 'win' | 'live' | 'pass') =>
@@ -121,6 +129,7 @@ export function DealBreakdown({ seats, h, goDown, auction }: {
     // blunder-report mode (null when not inside a BlunderProvider): when armed,
     // every bid chip, the go-down, and the trump call become flaggable
     const blunder = useBlunderMode();
+    const trumpChipStyle = useTrumpChipStyle();
 
     if (!h.dealtHands) return null;
     const bidLog = auction ?? h.bidLog ?? [];
@@ -247,7 +256,8 @@ export function DealBreakdown({ seats, h, goDown, auction }: {
                                                         type="button"
                                                         disabled={!blunder?.armed}
                                                         onClick={() => blunder?.pick(target)}
-                                                        className={`px-2 py-0.5 rounded-md text-[10px] font-orbitron font-bold text-white ${trumpChipBg[h.trump]} ${blunder?.armed ? blunderArmedClass : ''} ${flagged ? blunderFlaggedClass : ''}`}
+                                                        style={trumpChipStyle(h.trump)}
+                                                        className={`px-2 py-0.5 rounded-md text-[10px] font-orbitron font-bold ${blunder?.armed ? blunderArmedClass : ''} ${flagged ? blunderFlaggedClass : ''}`}
                                                     >
                                                         {h.trump.toUpperCase()}
                                                     </button>

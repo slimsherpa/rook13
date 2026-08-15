@@ -159,3 +159,28 @@ export const useSuperTrainer = (): [boolean, (on: boolean) => void] => {
     const set = useCallback((v: boolean) => setSuperTrainer(v), []);
     return [on, set];
 };
+
+// ---------------------------------------------------------------------------
+// Card colors: purely cosmetic palettes for the four suits (the trump
+// table, dock pills and counter grid follow along). Device-local like
+// everything else here — one player's Neon Arcade never leaks onto the
+// family iPad. The suit NAMES never change, only the paint.
+// ---------------------------------------------------------------------------
+
+const PALETTE_KEY = 'rook13-card-palette';
+
+export const getCardPaletteId = (): string => {
+    if (typeof window === 'undefined') return 'standard';
+    return window.localStorage.getItem(PALETTE_KEY) ?? 'standard';
+};
+
+export const setCardPaletteId = (id: string): void => {
+    window.localStorage.setItem(PALETTE_KEY, id);
+    window.dispatchEvent(new Event(EVT));
+};
+
+export const useCardPaletteId = (): [string, (id: string) => void] => {
+    const id = useSyncExternalStore(subscribe, getCardPaletteId, () => 'standard');
+    const set = useCallback((v: string) => setCardPaletteId(v), []);
+    return [id, set];
+};

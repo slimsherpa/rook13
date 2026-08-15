@@ -11,6 +11,8 @@ import { createShuffledDeck } from '@/lib/game/deck';
 import { GameAction } from '@/lib/game/types';
 import { AdviceMap, optionKey } from '@/lib/alpharook/advice';
 import AssistDial from './AssistDial';
+import { paletteById, textOn } from '@/lib/game/palettes';
+import { useCardPaletteId } from '@/lib/settings';
 
 interface ActionDockProps {
     game: GameDoc;
@@ -21,14 +23,14 @@ interface ActionDockProps {
     advice?: AdviceMap; // AI trainer: pick-likelihood per option (undefined = off)
 }
 
-const suitButtonColors: Record<Suit, string> = {
-    Red: 'bg-red-600 hover:bg-red-500',
-    Yellow: 'bg-yellow-500 hover:bg-yellow-400 text-navy-950',
-    Black: 'bg-gray-900 hover:bg-gray-800',
-    Green: 'bg-green-600 hover:bg-green-500',
-};
-
 export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConfirmGoDown, advice }: ActionDockProps) {
+    // device-local card colors: the trump buttons wear the palette
+    const [paletteId] = useCardPaletteId();
+    const palette = paletteById(paletteId);
+    const suitStyle = (suit: Suit) => ({
+        background: palette.suits[suit],
+        color: textOn(palette.suits[suit]),
+    });
     // Tap-through guard (prod incident, game 8563im…, 2026-07-14): the dock
     // swaps contents the instant a phase changes, so the follow-through of
     // a tap on "Put Down" landed on the trump button that appeared at the
@@ -142,7 +144,8 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
                                 key={suit}
                                 disabled={!settled}
                                 onClick={() => setTrumpPick(suit)}
-                                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition disabled:opacity-40 ${suitButtonColors[suit]} ${trumpPick === suit ? 'ring-4 ring-white' : trumpPick ? 'opacity-50' : ''}`}
+                                style={suitStyle(suit)}
+                                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg font-orbitron text-sm font-bold active:scale-95 transition disabled:opacity-40 hover:brightness-110 ${trumpPick === suit ? 'ring-4 ring-white' : trumpPick ? 'opacity-50' : ''}`}
                             >
                                 {suit}
                                 {advice && <AssistDial p={advice.get(optionKey.trump(suit))} />}
@@ -157,7 +160,8 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
                         <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
                         <button
                             onClick={() => onAct({ type: 'SELECT_TRUMP', seat: mySeat, suit: trumpPick })}
-                            className={`pointer-events-auto px-8 py-5 rounded-3xl text-white font-orbitron shadow-2xl ring-4 ring-white/70 active:scale-95 transition animate-announce-pop ${suitButtonColors[trumpPick]}`}
+                            style={suitStyle(trumpPick)}
+                            className="pointer-events-auto px-8 py-5 rounded-3xl font-orbitron shadow-2xl ring-4 ring-white/70 active:scale-95 transition animate-announce-pop hover:brightness-110"
                         >
                             <span className="block text-2xl font-black leading-tight">{trumpPick} Trump</span>
                             <span className="block text-sm font-bold mt-1 flex items-center justify-center gap-1">

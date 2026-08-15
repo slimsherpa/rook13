@@ -17,19 +17,23 @@
 
 import { useRef } from 'react';
 import { GameDoc, Seat, Suit, SUITS, cardKey, getCardPoints } from '@/lib/game/types';
+import { luminance, paletteById, shade, tint } from '@/lib/game/palettes';
+import { useCardPaletteId } from '@/lib/settings';
 
 // The card counter's signature color — orange, next to the trainer's pink,
 // used nowhere else, so a counting table reads at a glance.
 export const COUNTER_ORANGE = '#ff9100';
 
 // chip fills, glossed light-to-dark so they read as tiny cards on every
-// trump-colored table; Black gets a lifted charcoal + brighter edge so it
-// never melts into the dark felt (true black belongs to the suit, not the UI)
-const CHIP: Record<Suit, { fill: string; edge: string }> = {
-    Red:    { fill: 'linear-gradient(145deg, #f87171, #b91c1c)', edge: 'rgba(255,255,255,0.4)' },
-    Yellow: { fill: 'linear-gradient(145deg, #fde047, #ca8a04)', edge: 'rgba(255,255,255,0.4)' },
-    Black:  { fill: 'linear-gradient(145deg, #52525b, #18181b)', edge: 'rgba(255,255,255,0.6)' },
-    Green:  { fill: 'linear-gradient(145deg, #4ade80, #15803d)', edge: 'rgba(255,255,255,0.4)' },
+// trump-colored table; very dark suits get a lifted top + brighter edge
+// so they never melt into the dark felt. Follows the device's card
+// palette (cosmetic setting) — standard reproduces the original gloss.
+const chipFor = (hue: string): { fill: string; edge: string } => {
+    const dark = luminance(hue) < 0.12;
+    return {
+        fill: `linear-gradient(145deg, ${tint(hue, dark ? 0.3 : 0.35)}, ${shade(hue, dark ? 1 : 0.8)})`,
+        edge: dark ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.4)',
+    };
 };
 
 // two rows per suit, high half over low half
@@ -52,6 +56,8 @@ const seenKeys = (game: GameDoc, mySeat: Seat | null): Set<string> => {
 export default function CardCounter({ game, mySeat }: { game: GameDoc; mySeat: Seat | null }) {
     const trump = game.trump;
     const seen = seenKeys(game, mySeat);
+    const [paletteId] = useCardPaletteId();
+    const palette = paletteById(paletteId);
 
     // cards already seen when the grid mounted (a mid-hand settings flip)
     // start as bare sockets — only cards seen while we're watching get the
@@ -75,11 +81,14 @@ export default function CardCounter({ game, mySeat }: { game: GameDoc; mySeat: S
                 {!(isSeen && mountSeen.current!.has(key)) && (
                     <div
                         className={`absolute inset-0 rounded-[3px] ${isSeen ? 'animate-counter-punch' : ''}`}
-                        style={{
-                            background: CHIP[suit].fill,
-                            border: `1px solid ${CHIP[suit].edge}`,
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.5)',
-                        }}
+                        style={(() => {
+                            const chip = chipFor(palette.suits[suit]);
+                            return {
+                                background: chip.fill,
+                                border: `1px solid ${chip.edge}`,
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                            };
+                        })()}
                     >
                         {points > 0 && (
                             <span className="absolute inset-0 flex items-center justify-center">
