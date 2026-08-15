@@ -1,20 +1,33 @@
 'use client';
 
-// BEAT THE BOT — THE GO-DOWN. You bought the bid: call trump, bury
-// four, lock it in, and the pre-searched Gen26+DayDream answer is
-// revealed instantly. Blue ring = your burial, pink ring = the bot's,
-// double ring = agreement (the Laboratory's vocabulary).
+// BEAT THE BOT — THE GO-DOWN. The real table's widow flow, one hand
+// after another: your 13 on the felt, pick four, "Put Down", call trump
+// (the background takes the trump color, exactly like the game), then
+// the pre-searched Gen26+DayDream burial reveals instantly. Blue ring =
+// yours, assist-pink ring = the bot's, double ring = agreement.
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PlayingCard from '@/components/ui/PlayingCard';
+import LoadingPage from '@/components/LoadingPage';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { Suit, SUITS } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
-import { AllDoneCard, FeedbackBanner, ScoreStrip, SUIT_BG, TableMap } from '@/components/minigames/shared';
+import { themeFor } from '@/components/table/theme';
+import { AllDoneCard, RevealCard, ScoreStrip, TableMap } from '@/components/minigames/shared';
 import { Grade, gradeGoDown } from '@/lib/minigames/scoring';
 import { getProgress, recordAttempt } from '@/lib/minigames/service';
 import { Bank, GoDownItem, MiniGameProgress, emptyProgress, loadBank, toCard, toInt } from '@/lib/minigames/types';
+
+// the table's trump-button colors (ActionDock vocabulary)
+const suitButtonColors: Record<Suit, string> = {
+    Red: 'bg-red-600 hover:bg-red-500',
+    Yellow: 'bg-yellow-500 hover:bg-yellow-400 text-navy-950',
+    Black: 'bg-gray-900 hover:bg-gray-800',
+    Green: 'bg-green-600 hover:bg-green-500',
+};
+
+type Step = 'pick' | 'trump' | 'revealed';
 
 export default function GoDownDrill() {
     const { user, loading } = useAuth();
@@ -22,9 +35,15 @@ export default function GoDownDrill() {
     const [bank, setBank] = useState<Bank<GoDownItem> | null>(null);
     const [progress, setProgress] = useState<MiniGameProgress>(emptyProgress('godown'));
     const [ready, setReady] = useState(false);
-    const [trump, setTrump] = useState<number | null>(null);
+    const [progReady, setProgReady] = useState(false);
+    const [step, setStep] = useState<Step>('pick');
     const [picked, setPicked] = useState<number[]>([]);
+    const [trumpPick, setTrumpPick] = useState<number | null>(null);
     const [grade, setGrade] = useState<Grade | null>(null);
+    // the situation on the table is HELD until "next hand" — deriving it
+    // from the done-set would advance it mid-reveal (grading marks the
+    // item done, and the reveal must keep showing the graded hand)
+    const [itemId, setItemId] = useState<number | null>(null);
 
     useEffect(() => {
         if (!loading && !user) router.push('/');
@@ -32,148 +51,209 @@ export default function GoDownDrill() {
 
     useEffect(() => {
         if (!user) return;
-        Promise.all([loadBank<GoDownItem>('godown'), getProgress(user.uid, 'godown')])
-            .then(([b, p]) => { setBank(b); setProgress(p); setReady(true); })
-            .catch(() => { setBank({ meta: { gen: '?', k: 0, updated: '', count: 0 }, items: [] }); setReady(true); });
+        // bank and progress load independently: a progress failure must
+        // never block play (progress falls back to localStorage inside
+        // the service anyway)
+        loadBank<GoDownItem>('godown')
+            .then(setBank)
+            .catch(() => setBank({ meta: { gen: '?', k: 0, updated: '', count: 0 }, items: [] }))
+            .finally(() => setReady(true));
+        getProgress(user.uid, 'godown')
+            .then(setProgress)
+            .catch(() => {})
+            .finally(() => setProgReady(true));
     }, [user]);
 
     const doneSet = useMemo(() => new Set(progress.done), [progress.done]);
-    const item = useMemo(
-        () => bank?.items.find((it) => !doneSet.has(it.id)) ?? null,
-        [bank, doneSet],
-    );
+    const item = useMemo(() => {
+        if (!bank) return null;
+        if (itemId !== null) return bank.items.find((it) => it.id === itemId) ?? null;
+        return bank.items.find((it) => !doneSet.has(it.id)) ?? null;
+    }, [bank, doneSet, itemId]);
+    // pin the first fresh situation once BOTH loads settle (pinning off
+    // the initial empty progress would re-deal an already-done hand)
+    useEffect(() => {
+        if (progReady && itemId === null && item) setItemId(item.id);
+    }, [item, itemId, progReady]);
 
-    // production sort: trump first once called, re-sorts live
+    // stable suit-sorted order (no trump yet) so cards never jump around
     const all13 = useMemo(() => {
         if (!item) return [] as number[];
         const cards = [...item.dealt, ...item.widow].map(toCard);
-        return sortHand(cards, trump === null ? null : SUITS[trump]).map(toInt);
-    }, [item, trump]);
+        return sortHand(cards, null).map(toInt);
+    }, [item]);
     const widowSet = useMemo(() => new Set(item?.widow ?? []), [item]);
     const botSet = useMemo(
-        () => new Set(grade ? item?.bot.godown ?? [] : []),
-        [grade, item],
+        () => new Set(step === 'revealed' ? item?.bot.godown ?? [] : []),
+        [step, item],
     );
 
-    if (loading || !user || !ready) return null;
+    if (loading || !user || !ready || !progReady) {
+        return <LoadingPage title="Rook13" subtitle="Shuffling situations…" />;
+    }
+
+    const revealed = step === 'revealed';
+    const theme = themeFor(revealed && trumpPick !== null ? SUITS[trumpPick] : null);
 
     const header = (
-        <div className="flex items-center gap-3 mb-4">
-            <button onClick={() => router.push('/minigames')} className="text-white/50 text-sm hover:text-white">← Mini Games</button>
-            <h1 className="font-orbitron text-fuchsia-400 text-lg font-bold">The Go-Down</h1>
+        <div className="flex items-center gap-3 mb-3">
+            <button onClick={() => router.push('/minigames')} className="text-white/70 text-sm hover:text-white flex items-center gap-1 font-orbitron">
+                <span className="material-symbols-outlined text-lg">arrow_back</span>
+                Mini Games
+            </button>
+            <h1 className="font-orbitron text-white text-base font-bold ml-auto">
+                THE GO-<span className="text-yellow-400">DOWN</span>
+            </h1>
         </div>
     );
 
     if (!item) {
         return (
-            <main className="min-h-dvh bg-gradient-to-b from-navy-900 to-navy-950 px-4 py-5">
+            <main className="min-h-dvh px-4 py-5" style={{ background: theme.bg }}>
                 <div className="max-w-md mx-auto">
                     {header}
                     {bank && bank.items.length > 0
                         ? <AllDoneCard title="GO-DOWN MASTERED" />
-                        : <div className="text-white/60 text-sm">No situations loaded yet — the first batch is still milling on Riley&apos;s Mac.</div>}
+                        : <div className="text-white/70 text-sm text-center mt-10 font-orbitron">
+                            No situations loaded — check back in a minute.
+                        </div>}
                 </div>
             </main>
         );
     }
 
-    const trumpSuit: Suit | null = trump === null ? null : SUITS[trump];
-    const revealed = grade !== null;
+    const trumpSuit: Suit | null = revealed && trumpPick !== null ? SUITS[trumpPick] : null;
     const togglePick = (c: number) => {
-        if (revealed) return;
+        if (step !== 'pick') return;
         setPicked((p) => p.includes(c) ? p.filter((x) => x !== c) : p.length < 4 ? [...p, c] : p);
     };
-    const canLock = trump !== null && picked.length === 4;
 
-    const lock = async () => {
-        if (!canLock || revealed || trump === null) return;
-        const g = gradeGoDown(item, picked, trump);
+    const confirmTrump = () => {
+        if (trumpPick === null) return;
+        const g = gradeGoDown(item, picked, trumpPick);
         setGrade(g);
-        const next = await recordAttempt(user.uid, progress, item.id, g);
-        setProgress(next);
+        setStep('revealed');
+        setProgress(recordAttempt(user.uid, progress, item.id, g));
     };
-    const nextItem = () => { setTrump(null); setPicked([]); setGrade(null); };
+    const nextItem = () => {
+        setPicked([]); setTrumpPick(null); setGrade(null); setStep('pick');
+        setItemId(null);   // un-pin: the effect pins the next fresh one
+    };
 
     return (
-        <main className="min-h-dvh bg-gradient-to-b from-navy-900 to-navy-950 px-4 py-5 pb-16">
-            <div className="max-w-md mx-auto">
+        <main
+            className="min-h-dvh flex flex-col transition-colors duration-500"
+            style={{ background: theme.bg }}
+        >
+            <div className="w-full max-w-md mx-auto px-4 pt-4 flex-none">
                 {header}
                 <ScoreStrip p={progress} total={bank?.items.length ?? 0} />
-
-                <div className="flex items-center gap-3 mt-4 mb-2">
-                    <div className="text-white/70 text-sm">
-                        You bought it at <b className="text-white">{item.bid}</b>
-                        <span className="text-white/40"> · </span>
-                        score <b className="text-white">{item.scores[0]}–{item.scores[1]}</b>
+                <div className="flex items-center gap-3 mt-3">
+                    <div className="text-white/90 font-orbitron text-sm">
+                        You bought it at <b className="text-yellow-300">{item.bid}</b>
+                        <div className="text-white/60 text-[11px] font-sans mt-0.5">
+                            score {item.scores[0]}–{item.scores[1]} · dot = from the widow
+                        </div>
                     </div>
                     <div className="ml-auto">
                         <TableMap mark="X" markRel={item.leaderRel} dealerRel={item.dealerRel} />
                     </div>
                 </div>
+            </div>
 
-                <div className="text-white/50 text-xs uppercase tracking-wider mb-1.5">1 · Call trump</div>
-                <div className="flex gap-2 mb-4">
-                    {SUITS.map((s, i) => (
-                        <button key={s} onClick={() => !revealed && setTrump(i)}
-                            className={`px-4 py-1.5 rounded-full text-sm font-bold border-2 transition text-white
-                                ${SUIT_BG[i]}
-                                ${trump === i ? 'border-sky-400 scale-105' : 'border-transparent opacity-70 hover:opacity-100'}`}>
-                            {s}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="text-white/50 text-xs uppercase tracking-wider mb-1.5">
-                    2 · Bury four <span className="normal-case text-white/40">(dot = from the widow)</span>
-                </div>
-                <div className="flex flex-wrap justify-center gap-1.5 gap-y-3 mb-4 pt-4">
-                    {all13.map((c) => {
-                        const mine = picked.includes(c);
-                        const bots = botSet.has(c);
-                        const marks = revealed
-                            ? `rounded-lg ${mine ? 'ring-2 ring-sky-400' : ''} ${bots ? 'outline outline-2 outline-offset-2 outline-pink-400' : ''}`
-                            : 'rounded-lg';
-                        return (
-                            <div key={c} className={`relative ${marks}`}>
-                                <PlayingCard
-                                    card={toCard(c)} trump={trumpSuit} size="sm"
-                                    onClick={() => togglePick(c)}
-                                    selected={!revealed && mine}
-                                />
-                                {widowSet.has(c) && (
-                                    <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-sky-400 border border-navy-950 z-10" />
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-
-                {!revealed ? (
-                    <button
-                        onClick={lock}
-                        disabled={!canLock}
-                        className={`w-full py-3.5 rounded-xl font-orbitron text-sm font-bold active:scale-[0.98] transition
-                            ${canLock ? 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white' : 'bg-white/10 text-white/30'}`}>
-                        {canLock ? 'LOCK IT IN' : `Pick trump and 4 cards (${picked.length}/4)`}
-                    </button>
-                ) : (
-                    <>
-                        <div className="text-xs text-white/60 mb-2">
-                            <span className="text-sky-300 font-bold">blue ring</span> = your burial ·{' '}
-                            <span className="text-pink-300 font-bold">pink ring</span> = mine ·
-                            double = we agreed
-                            {item.bot.trump !== trump && (
-                                <> · I called <b className="text-white">{SUITS[item.bot.trump]}</b></>
+            {/* the middle of the table: the reveal lands here */}
+            <div className="flex-1 flex items-center justify-center px-4 py-3">
+                {revealed && grade ? (
+                    <RevealCard grade={grade} k={item.k} onNext={nextItem} nextLabel="NEXT HAND">
+                        <div className="text-white/70 text-xs mt-2">
+                            <span className="text-sky-300 font-bold">blue</span> = your burial ·{' '}
+                            <span className="font-bold" style={{ color: '#ff2d95' }}>pink</span> = mine · double = agreed
+                            {item.bot.trump !== trumpPick && (
+                                <> · I called <b className="text-white">{SUITS[item.bot.trump]}</b> trump</>
                             )}
                         </div>
-                        <FeedbackBanner grade={grade} k={item.k} />
+                    </RevealCard>
+                ) : (
+                    <div className="text-white/50 font-orbitron text-xs text-center">
+                        {step === 'pick'
+                            ? 'Which four would the strongest bot in the family bury?'
+                            : 'And what would it call?'}
+                    </div>
+                )}
+            </div>
+
+            {/* the dock + hand, exactly where the table keeps them */}
+            <div className="flex-none pb-6">
+                {step === 'pick' && (
+                    <div className="flex items-center justify-center gap-3 py-1.5">
+                        <span className="text-white/90 font-orbitron text-xs sm:text-sm">
+                            Go-down: pick 4 cards ({picked.length}/4)
+                        </span>
                         <button
-                            onClick={nextItem}
-                            className="w-full mt-3 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-orbitron text-sm font-bold active:scale-[0.98] transition">
-                            NEXT HAND →
+                            onClick={() => picked.length === 4 && setStep('trump')}
+                            disabled={picked.length !== 4}
+                            className="px-5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-orbitron text-sm font-bold active:scale-95 transition"
+                        >
+                            Put Down
                         </button>
+                    </div>
+                )}
+                {step === 'trump' && (
+                    <>
+                        <div className="flex items-center justify-center gap-2 py-1.5 flex-wrap px-2">
+                            <span className="text-white/90 font-orbitron text-xs sm:text-sm mr-1">Trump:</span>
+                            {SUITS.map((suit, i) => (
+                                <button
+                                    key={suit}
+                                    onClick={() => setTrumpPick(i)}
+                                    className={`px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition ${suitButtonColors[suit]} ${trumpPick === i ? 'ring-4 ring-white' : trumpPick !== null ? 'opacity-50' : ''}`}
+                                >
+                                    {suit}
+                                </button>
+                            ))}
+                        </div>
+                        {trumpPick !== null && (
+                            <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
+                                <button
+                                    onClick={confirmTrump}
+                                    className={`pointer-events-auto px-8 py-5 rounded-3xl text-white font-orbitron shadow-2xl ring-4 ring-white/70 active:scale-95 transition animate-announce-pop ${suitButtonColors[SUITS[trumpPick]]}`}
+                                >
+                                    <span className="block text-2xl font-black leading-tight">{SUITS[trumpPick]} Trump</span>
+                                    <span className="block text-sm font-bold mt-1 flex items-center justify-center gap-1">
+                                        Lock it in — show the bot
+                                        <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                                    </span>
+                                </button>
+                            </div>
+                        )}
                     </>
                 )}
+
+                <div className="flex justify-center px-2">
+                    <div className={`flex pt-4 pb-2 flex-wrap justify-center max-w-md ${
+                        revealed ? 'gap-1.5 gap-y-3' : '-space-x-5 sm:-space-x-4 md:-space-x-2 gap-y-2'
+                    }`}>
+                        {all13.map((c, i) => {
+                            const mine = picked.includes(c);
+                            const bots = botSet.has(c);
+                            const marks = revealed
+                                ? `rounded-lg ${mine ? 'ring-2 ring-sky-400' : ''} ${bots ? 'outline outline-2 outline-offset-2 outline-[#ff2d95]' : ''}`
+                                : '';
+                            return (
+                                <div key={c} className={`relative ${marks}`} style={{ zIndex: i + 1 }}>
+                                    <PlayingCard
+                                        card={toCard(c)} trump={trumpSuit} size="lg"
+                                        onClick={step === 'pick' ? () => togglePick(c) : undefined}
+                                        selected={!revealed && mine}
+                                    />
+                                    {widowSet.has(c) && (
+                                        <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-sky-400 border border-navy-950 z-10" />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
         </main>
     );

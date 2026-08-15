@@ -1,17 +1,21 @@
 'use client';
 
-// BEAT THE BOT — THE FIRST CARD. The opening lead, filtered by where
-// the buyer sits relative to you. Tap the card you'd lead, lock it,
-// and the pre-searched Gen26+DayDream lead is revealed with per-card
-// values (the fill circles — how good each lead really was).
+// BEAT THE BOT — THE FIRST CARD. The opening lead exactly as the table
+// deals it: trump already called (the background IS the trump color,
+// like the real game), your nine fanned at the bottom, tap the card
+// you'd lead — it plays instantly, real-table style — and the
+// pre-searched Gen26+DayDream answer reveals with assist dials showing
+// how every lead priced.
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PlayingCard from '@/components/ui/PlayingCard';
+import LoadingPage from '@/components/LoadingPage';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { SUITS } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
-import { AllDoneCard, FeedbackBanner, ScoreStrip, SUIT_BG, TableMap } from '@/components/minigames/shared';
+import { themeFor } from '@/components/table/theme';
+import { AllDoneCard, RevealCard, ScoreStrip, TableMap, ValueDial } from '@/components/minigames/shared';
 import { Grade, gradeLead } from '@/lib/minigames/scoring';
 import { getProgress, recordAttempt } from '@/lib/minigames/service';
 import { Bank, LeadItem, MiniGameProgress, emptyProgress, loadBank, toCard, toInt } from '@/lib/minigames/types';
@@ -32,9 +36,13 @@ export default function LeadDrill() {
     const [bank, setBank] = useState<Bank<LeadItem> | null>(null);
     const [progress, setProgress] = useState<MiniGameProgress>(emptyProgress('lead'));
     const [ready, setReady] = useState(false);
+    const [progReady, setProgReady] = useState(false);
     const [seat, setSeat] = useState<number | null>(null);
     const [picked, setPicked] = useState<number | null>(null);
     const [grade, setGrade] = useState<Grade | null>(null);
+    // held until "next lead" — deriving from the done-set would advance
+    // the position mid-reveal (grading marks it done immediately)
+    const [itemId, setItemId] = useState<number | null>(null);
 
     useEffect(() => {
         if (!loading && !user) router.push('/');
@@ -42,9 +50,16 @@ export default function LeadDrill() {
 
     useEffect(() => {
         if (!user) return;
-        Promise.all([loadBank<LeadItem>('lead'), getProgress(user.uid, 'lead')])
-            .then(([b, p]) => { setBank(b); setProgress(p); setReady(true); })
-            .catch(() => { setBank({ meta: { gen: '?', k: 0, updated: '', count: 0 }, items: [] }); setReady(true); });
+        // bank and progress load independently: a progress failure must
+        // never block play (the service falls back to localStorage)
+        loadBank<LeadItem>('lead')
+            .then(setBank)
+            .catch(() => setBank({ meta: { gen: '?', k: 0, updated: '', count: 0 }, items: [] }))
+            .finally(() => setReady(true));
+        getProgress(user.uid, 'lead')
+            .then(setProgress)
+            .catch(() => {})
+            .finally(() => setProgReady(true));
     }, [user]);
 
     const doneSet = useMemo(() => new Set(progress.done), [progress.done]);
@@ -54,32 +69,52 @@ export default function LeadDrill() {
             ? bank.items
             : bank.items.filter((it) => it.buyerRel === seat);
     }, [bank, seat]);
-    const item = useMemo(
-        () => pool.find((it) => !doneSet.has(it.id)) ?? null,
-        [pool, doneSet],
-    );
+    const item = useMemo(() => {
+        if (itemId !== null) return pool.find((it) => it.id === itemId) ?? null;
+        return pool.find((it) => !doneSet.has(it.id)) ?? null;
+    }, [pool, doneSet, itemId]);
+    // pin the first fresh situation once BOTH loads settle (pinning off
+    // the initial empty progress would re-deal an already-done lead)
+    useEffect(() => {
+        if (progReady && itemId === null && item) setItemId(item.id);
+    }, [item, itemId, progReady]);
 
     const hand9 = useMemo(() => {
         if (!item) return [] as number[];
         return sortHand(item.cards.map(toCard), SUITS[item.trump]).map(toInt);
     }, [item]);
 
-    if (loading || !user || !ready) return null;
+    if (loading || !user || !ready || !progReady) {
+        return <LoadingPage title="Rook13" subtitle="Shuffling situations…" />;
+    }
 
     const revealed = grade !== null;
+    const theme = themeFor(item ? SUITS[item.trump] : null);
+
+    const header = (
+        <div className="flex items-center gap-3 mb-3">
+            <button onClick={() => router.push('/minigames')} className="text-white/70 text-sm hover:text-white flex items-center gap-1 font-orbitron">
+                <span className="material-symbols-outlined text-lg">arrow_back</span>
+                Mini Games
+            </button>
+            <h1 className="font-orbitron text-white text-base font-bold ml-auto">
+                THE FIRST <span className="text-yellow-400">CARD</span>
+            </h1>
+        </div>
+    );
 
     const seatTabs = (
-        <div className="flex gap-1.5 mt-4 mb-3 flex-wrap">
+        <div className="flex gap-1.5 mt-3 flex-wrap">
             {SEAT_TABS.map(([rel, label]) => {
                 const grp = rel === null ? bank?.items ?? [] : (bank?.items ?? []).filter((it) => it.buyerRel === rel);
                 const n = grp.filter((it) => doneSet.has(it.id)).length;
                 return (
                     <button key={label}
-                        onClick={() => { setSeat(rel); setPicked(null); setGrade(null); }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition
+                        onClick={() => { setSeat(rel); setPicked(null); setGrade(null); setItemId(null); }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition font-orbitron
                             ${seat === rel
-                                ? 'border-fuchsia-400 text-fuchsia-300 bg-white/5'
-                                : 'border-white/15 text-white/50 hover:text-white'}`}>
+                                ? 'border-yellow-300 text-yellow-200 bg-black/25'
+                                : 'border-white/25 text-white/60 hover:text-white bg-black/10'}`}>
                         {label} <span className="font-normal opacity-70">{n}/{grp.length}</span>
                     </button>
                 );
@@ -87,34 +122,28 @@ export default function LeadDrill() {
         </div>
     );
 
-    const header = (
-        <div className="flex items-center gap-3 mb-4">
-            <button onClick={() => router.push('/minigames')} className="text-white/50 text-sm hover:text-white">← Mini Games</button>
-            <h1 className="font-orbitron text-fuchsia-400 text-lg font-bold">The First Card</h1>
-        </div>
-    );
-
     if (!item) {
         return (
-            <main className="min-h-dvh bg-gradient-to-b from-navy-900 to-navy-950 px-4 py-5">
+            <main className="min-h-dvh px-4 py-5" style={{ background: themeFor(null).bg }}>
                 <div className="max-w-md mx-auto">
                     {header}
                     {bank && bank.items.length > 0 ? (
                         <>
                             {seatTabs}
-                            {pool.length > 0 && pool.every((it) => doneSet.has(it.id)) && seat !== null
-                                ? <div className="text-white/60 text-sm">This seat is done — pick another above.</div>
+                            {seat !== null && pool.length > 0 && pool.every((it) => doneSet.has(it.id))
+                                ? <div className="text-white/70 text-sm text-center mt-10 font-orbitron">This seat is done — pick another above.</div>
                                 : <AllDoneCard title="FIRST CARD MASTERED" />}
                         </>
                     ) : (
-                        <div className="text-white/60 text-sm">No situations loaded yet — the first batch is still milling on Riley&apos;s Mac.</div>
+                        <div className="text-white/70 text-sm text-center mt-10 font-orbitron">
+                            No situations loaded — check back in a minute.
+                        </div>
                     )}
                 </div>
             </main>
         );
     }
 
-    const trumpSuit = SUITS[item.trump];
     const values = item.bot.values;
     const vals = Object.values(values);
     const vmin = Math.min(...vals);
@@ -125,87 +154,84 @@ export default function LeadDrill() {
         return Math.max(0.05, (v - vmin) / (vmax - vmin));
     };
 
-    const lock = async () => {
-        if (picked === null || revealed) return;
-        const g = gradeLead(item, picked);
+    // real-table feel: tapping a card IS the play
+    const play = (c: number) => {
+        if (revealed) return;
+        setPicked(c);
+        const g = gradeLead(item, c);
         setGrade(g);
-        const next = await recordAttempt(user.uid, progress, item.id, g);
-        setProgress(next);
+        setProgress(recordAttempt(user.uid, progress, item.id, g));
     };
-    const nextItem = () => { setPicked(null); setGrade(null); };
+    const nextItem = () => { setPicked(null); setGrade(null); setItemId(null); };
 
     return (
-        <main className="min-h-dvh bg-gradient-to-b from-navy-900 to-navy-950 px-4 py-5 pb-16">
-            <div className="max-w-md mx-auto">
+        <main
+            className="min-h-dvh flex flex-col transition-colors duration-500"
+            style={{ background: theme.bg }}
+        >
+            <div className="w-full max-w-md mx-auto px-4 pt-4 flex-none">
                 {header}
                 <ScoreStrip p={progress} total={bank?.items.length ?? 0} />
                 {seatTabs}
-
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="text-white/70 text-sm">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold text-white mr-2 ${SUIT_BG[item.trump]}`}>
-                            {trumpSuit} trump
-                        </span>
-                        bid <b className="text-white">{item.bid}</b>
-                        <span className="text-white/40"> · </span>
-                        <b className="text-white">{item.scores[0]}–{item.scores[1]}</b>
+                <div className="flex items-center gap-3 mt-3">
+                    <div className="text-white/90 font-orbitron text-sm">
+                        Bid <b className="text-yellow-300">{item.bid}</b>
+                        <div className="text-white/70 text-[11px] font-sans mt-0.5 max-w-[190px]">
+                            {BUYER_LABEL[item.buyerRel]}
+                        </div>
                     </div>
                     <div className="ml-auto"><TableMap mark="$" markRel={item.buyerRel} /></div>
                 </div>
-                <div className="text-fuchsia-300/90 text-sm mb-3">{BUYER_LABEL[item.buyerRel]}</div>
+            </div>
 
-                <div className="text-white/50 text-xs uppercase tracking-wider mb-1.5">
-                    Your lead — tap a card
-                </div>
-                <div className="flex flex-wrap justify-center gap-1.5 gap-y-3 mb-4 pt-4">
-                    {hand9.map((c) => {
-                        const bots = revealed && item.bot.card === c;
-                        return (
-                            <div key={c} className="relative flex flex-col items-center gap-1">
-                                <div className={bots ? 'rounded-lg outline outline-2 outline-offset-2 outline-pink-400' : 'rounded-lg'}>
-                                    <PlayingCard
-                                        card={toCard(c)} trump={trumpSuit} size="sm"
-                                        onClick={() => !revealed && setPicked(c)}
-                                        selected={!revealed && picked === c}
-                                        highlight={revealed && picked === c}
-                                    />
-                                </div>
-                                {revealed && (
-                                    <span
-                                        className="w-4 h-4 rounded-full"
-                                        title={`value ${values[String(c)] ?? '?'}`}
-                                        style={{
-                                            background: `conic-gradient(#e85d8a ${(frac(c) * 360).toFixed(0)}deg, rgba(255,255,255,.15) 0)`,
-                                        }}
-                                    />
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-
-                {!revealed ? (
-                    <button
-                        onClick={lock}
-                        disabled={picked === null}
-                        className={`w-full py-3.5 rounded-xl font-orbitron text-sm font-bold active:scale-[0.98] transition
-                            ${picked !== null ? 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white' : 'bg-white/10 text-white/30'}`}>
-                        {picked !== null ? 'LOCK IT IN' : 'Tap the card you’d lead'}
-                    </button>
-                ) : (
-                    <>
-                        <div className="text-xs text-white/60 mb-2">
-                            <span className="text-pink-300 font-bold">pink ring</span> = my lead ·
-                            fill circles = how each lead priced over {item.k} worlds
+            {/* the middle of the table: the reveal lands here */}
+            <div className="flex-1 flex items-center justify-center px-4 py-3">
+                {revealed && grade ? (
+                    <RevealCard grade={grade} k={item.k} onNext={nextItem} nextLabel="NEXT LEAD">
+                        <div className="text-white/70 text-xs mt-2">
+                            <span className="font-bold" style={{ color: '#ff2d95' }}>pink ring</span> = my lead ·
+                            the dials show how every card priced
                         </div>
-                        <FeedbackBanner grade={grade} k={item.k} />
-                        <button
-                            onClick={nextItem}
-                            className="w-full mt-3 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-orbitron text-sm font-bold active:scale-[0.98] transition">
-                            NEXT LEAD →
-                        </button>
-                    </>
+                    </RevealCard>
+                ) : (
+                    <div className="text-white/60 font-orbitron text-xs text-center">
+                        You lead trick 1 — tap the card you&apos;d play
+                    </div>
                 )}
+            </div>
+
+            {/* the hand, exactly where the table keeps it */}
+            <div className="flex-none pb-6">
+                {!revealed && (
+                    <div className="text-center text-white/85 font-orbitron text-xs sm:text-sm py-2">
+                        Your turn — tap a card
+                    </div>
+                )}
+                <div className="flex justify-center px-2">
+                    <div className={`flex pt-6 pb-2 ${
+                        revealed ? 'flex-wrap justify-center gap-1.5 gap-y-3' : '-space-x-5 sm:-space-x-4 md:-space-x-2'
+                    }`}>
+                        {hand9.map((c, i) => {
+                            const bots = revealed && item.bot.card === c;
+                            return (
+                                <div key={c} className="relative" style={{ zIndex: i + 1 }}>
+                                    {revealed && (
+                                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                                            <ValueDial frac={frac(c)} value={values[String(c)]} />
+                                        </span>
+                                    )}
+                                    <div className={bots ? 'rounded-lg outline outline-2 outline-offset-2 outline-[#ff2d95]' : ''}>
+                                        <PlayingCard
+                                            card={toCard(c)} trump={SUITS[item.trump]} size="lg"
+                                            onClick={!revealed ? () => play(c) : undefined}
+                                            selected={revealed && picked === c}
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
         </main>
     );
