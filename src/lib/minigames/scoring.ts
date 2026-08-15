@@ -49,6 +49,15 @@ export const gradeLead = (item: LeadItem, pick: number): Grade => {
     // rank of the human pick among all priced leads (1 = best)
     const rank = vPick === undefined ? null
         : Object.values(v).filter((x) => x > vPick).length + 1;
+    if (delta !== null && delta < 0) {
+        // the human's card priced ABOVE the bot's actual pick — the
+        // searcher's instinct held it back, the human went for it
+        return {
+            tier: 'close', points: 95, delta, selTotal: 1, selMatch: 0,
+            headline: 'You may have BEATEN me on this one!',
+            detail: `Your lead priced ${-delta} points ahead of my pick across these worlds — my instinct held me back.`,
+        };
+    }
     if (delta !== null && delta <= LEAD_CLOSE) {
         return {
             tier: 'close', points: 85, delta, selTotal: 1, selMatch: 0,
@@ -101,6 +110,13 @@ export const gradeGoDown = (
     const delta = mine && best
         ? Math.round((best[2] - mine[2]) * 10) / 10 : null;
 
+    if (delta !== null && delta < 0) {
+        return {
+            tier: 'close', points: 95, delta, ...sel,
+            headline: 'You may have BEATEN me on this one!',
+            detail: `I priced your exact Go Down — it came out ${-delta} points ahead of mine in these worlds.`,
+        };
+    }
     if (delta !== null && delta <= GODOWN_CLOSE) {
         return {
             tier: 'close', points: 85, delta, ...sel,

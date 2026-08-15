@@ -16,6 +16,7 @@ import { Suit, SUITS } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
 import { themeFor } from '@/components/table/theme';
 import { AllDoneCard, BotDot, RevealCard, ScoreStrip, TableMap } from '@/components/minigames/shared';
+import { explainGoDown } from '@/lib/minigames/explain';
 import { Grade, gradeGoDown } from '@/lib/minigames/scoring';
 import { getProgress, recordAttempt } from '@/lib/minigames/service';
 import { Bank, GoDownItem, MiniGameProgress, emptyProgress, loadBank, toCard, toInt } from '@/lib/minigames/types';
@@ -172,6 +173,11 @@ export default function GoDownDrill() {
                                 <> · and I&apos;d call <b className="text-white">{SUITS[item.bot.trump]}</b> trump</>
                             )}
                         </div>
+                        {grade.tier !== 'perfect' && (
+                            <div className="text-white/60 text-xs mt-2 border-t border-white/10 pt-2">
+                                {explainGoDown(item)}
+                            </div>
+                        )}
                     </RevealCard>
                 ) : (
                     <div className="text-white/50 font-orbitron text-xs text-center">

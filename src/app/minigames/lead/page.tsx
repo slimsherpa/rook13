@@ -16,6 +16,7 @@ import { SUITS } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
 import { themeFor } from '@/components/table/theme';
 import { AllDoneCard, RevealCard, ScoreStrip, TableMap, ValueDial } from '@/components/minigames/shared';
+import { cardName, critiqueLead, explainLead } from '@/lib/minigames/explain';
 import { Grade, gradeLead } from '@/lib/minigames/scoring';
 import { getProgress, recordAttempt } from '@/lib/minigames/service';
 import { Bank, LeadItem, MiniGameProgress, emptyProgress, loadBank, toCard, toInt } from '@/lib/minigames/types';
@@ -29,8 +30,6 @@ const BUYER_LABEL = [
 
 const SEAT_TABS: Array<[number, string]> = [
     [2, 'Partner'], [0, 'I bought'], [1, 'Left'], [3, 'Right']];
-
-const cardName = (c: number) => `${SUITS[Math.floor(c / 10)]} ${(c % 10) + 5}`;
 
 export default function LeadDrill() {
     const { user, loading } = useAuth();
@@ -193,17 +192,26 @@ export default function LeadDrill() {
                             the dials show how every card priced over {item.k} worlds
                         </div>
                         {(() => {
+                            const why = grade.tier !== 'perfect' ? explainLead(item) : null;
+                            const yours = picked !== null ? critiqueLead(item, picked) : null;
                             // when the biggest dial isn't the pick: the searcher
                             // only overrules its instinct on CONFIRMED evidence
                             // (the tau law) — say so in plain language
                             const best = Object.entries(values)
                                 .sort((a, b) => b[1] - a[1])[0];
-                            if (!best || Number(best[0]) === item.bot.card) return null;
+                            const stuck = best && Number(best[0]) !== item.bot.card;
+                            if (!why && !yours && !stuck) return null;
                             return (
-                                <div className="text-white/60 text-xs mt-2 border-t border-white/10 pt-2">
-                                    The {cardName(Number(best[0]))} actually priced a touch
-                                    higher across these worlds — but not by enough to be
-                                    sure, so I stuck with my instinct: the {cardName(item.bot.card)}.
+                                <div className="text-white/60 text-xs mt-2 border-t border-white/10 pt-2 space-y-1.5">
+                                    {why && <div>{why}</div>}
+                                    {yours && <div>{yours}</div>}
+                                    {stuck && (
+                                        <div>
+                                            The {cardName(Number(best[0]))} actually priced a touch
+                                            higher across these worlds — but not by enough to be
+                                            sure, so I stuck with my instinct: the {cardName(item.bot.card)}.
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })()}

@@ -21,6 +21,12 @@ describe('gradeLead', () => {
         expect(g.selMatch).toBe(1);
         expect(g.selTotal).toBe(1);
     });
+    it('a lead that priced ABOVE the bot pick celebrates the human', () => {
+        const g = gradeLead(leadItem({ card: 1 }), 0);  // bot took 9, human took 10
+        expect(g.tier).toBe('close');
+        expect(g.headline).toContain('BEATEN');
+        expect(g.delta).toBe(-1);
+    });
     it('within tau=2 is close but not a selection match', () => {
         const g = gradeLead(leadItem(), 1);   // 10 - 9 = 1 point behind
         expect(g.tier).toBe('close');
