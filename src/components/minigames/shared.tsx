@@ -5,9 +5,8 @@
 // assist-pink dials above cards, and the announce-pop reveal. The Lab
 // pages were the prototype; these match the game the family plays.
 
-import { Grade } from '@/lib/minigames/scoring';
+import { Grade, levelFor } from '@/lib/minigames/scoring';
 import { MiniGameProgress } from '@/lib/minigames/types';
-import { agreementPct } from '@/lib/minigames/scoring';
 import { ASSIST_PINK } from '@/components/table/AssistDial';
 
 /** 3x3 table from the hero seat's chair: partner top, left/right sides.
@@ -31,6 +30,20 @@ export function TableMap({ mark, markRel, dealerRel }: {
             {cell(1, '')}<div className="w-11 h-7" />{cell(3, '')}
             <div />{cell(0, 'ME')}<div />
         </div>
+    );
+}
+
+/** Solid assist-pink dot — the trainer's signature color, used to mark
+ *  the bot's own picks on the reveal. */
+export function BotDot({ size = 16 }: { size?: number }) {
+    return (
+        <span
+            className="inline-block rounded-full shrink-0"
+            style={{
+                width: size, height: size, background: ASSIST_PINK,
+                boxShadow: `0 0 0 2px rgba(15,36,71,0.9)`,
+            }}
+        />
     );
 }
 
@@ -92,12 +105,13 @@ export function RevealCard({ grade, k, onNext, nextLabel, children }: {
     );
 }
 
-/** Running score strip: agreement %, streak, situations done. */
+/** Running score strip: level, streak, situations done. */
 export function ScoreStrip({ p, total }: { p: MiniGameProgress; total: number }) {
+    const lv = levelFor(p.attempts);
     return (
         <div className="flex items-center gap-2 text-[11px] font-orbitron">
             <span className="px-2 py-1 rounded-lg bg-black/25 border border-white/20 text-white/90">
-                {agreementPct(p)}% with the bot
+                Lv {lv.level} · {lv.name}
             </span>
             <span className={`px-2 py-1 rounded-lg border ${
                 p.streak >= 3

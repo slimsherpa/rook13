@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { agreementPct } from '@/lib/minigames/scoring';
+import { levelFor, selectionPct } from '@/lib/minigames/scoring';
 import { listAllProgress } from '@/lib/minigames/service';
 import { Bank, GoDownItem, LeadItem, MiniGameProgress, emptyProgress, loadBank } from '@/lib/minigames/types';
 
@@ -36,7 +36,7 @@ function DrillCard({ href, icon, title, blurb, p, total }: {
                 {started ? (
                     <>
                         <span className="px-2 py-0.5 rounded-md bg-white/10 text-white/80">
-                            {agreementPct(p)}% with the bot
+                            {p.attempts} played
                         </span>
                         <span className="px-2 py-0.5 rounded-md bg-white/5 text-white/50">
                             best streak {p.bestStreak}
@@ -91,11 +91,12 @@ export default function MiniGamesPage() {
     const combined = (['godown', 'lead'] as const).reduce(
         (acc, g) => ({
             attempts: acc.attempts + progress[g].attempts,
-            perfect: acc.perfect + progress[g].perfect,
-            close: acc.close + progress[g].close,
+            selTotal: acc.selTotal + (progress[g].selTotal ?? 0),
+            selMatch: acc.selMatch + (progress[g].selMatch ?? 0),
         }),
-        { attempts: 0, perfect: 0, close: 0 },
+        { attempts: 0, selTotal: 0, selMatch: 0 },
     );
+    const lv = levelFor(combined.attempts);
 
     return (
         <main className="min-h-dvh bg-navy-900">
@@ -121,11 +122,18 @@ export default function MiniGamesPage() {
                 {combined.attempts > 0 && (
                     <div className="rounded-xl bg-navy-950/50 border border-white/15 p-3 mb-4 text-center">
                         <div className="font-orbitron text-2xl font-bold text-fuchsia-300">
-                            {agreementPct(combined)}%
+                            LEVEL {lv.level} · {lv.name.toUpperCase()}
                         </div>
                         <div className="text-white/60 text-[11px] font-orbitron uppercase tracking-wide">
-                            you pick with the bot · {combined.attempts} situations played
+                            {combined.attempts} situations played
+                            {lv.next !== null && ` · ${lv.next - combined.attempts} to level ${lv.level + 1}`}
                         </div>
+                        {combined.selTotal > 0 && (
+                            <div className="text-white/50 text-[11px] mt-1.5">
+                                Fun fact! You and the bot agree on{' '}
+                                <b className="text-fuchsia-300">{selectionPct(combined)}%</b> of selections.
+                            </div>
+                        )}
                     </div>
                 )}
 

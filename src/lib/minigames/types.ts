@@ -81,13 +81,17 @@ export interface MiniGameProgress {
     points: number;       // cumulative 0-100 per attempt
     streak: number;       // current perfect-or-close run
     bestStreak: number;
+    /** per-selection agreement: each Go Down card + trump = 5 chances
+     *  per hand, a lead = 1 — feeds the "fun fact" percentage */
+    selTotal: number;
+    selMatch: number;
     done: number[];       // completed item ids
     updatedAt: number;
 }
 
 export const emptyProgress = (game: MiniGameKey): MiniGameProgress => ({
     game, attempts: 0, perfect: 0, close: 0, points: 0,
-    streak: 0, bestStreak: 0, done: [], updatedAt: 0,
+    streak: 0, bestStreak: 0, selTotal: 0, selMatch: 0, done: [], updatedAt: 0,
 });
 
 export const loadBank = async <T>(game: MiniGameKey): Promise<Bank<T>> => {

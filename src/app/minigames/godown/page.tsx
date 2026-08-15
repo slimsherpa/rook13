@@ -3,8 +3,9 @@
 // BEAT THE BOT — THE GO-DOWN. The real table's widow flow, one hand
 // after another: your 13 on the felt, pick four, "Put Down", call trump
 // (the background takes the trump color, exactly like the game), then
-// the pre-searched Gen26+DayDream burial reveals instantly. Blue ring =
-// yours, assist-pink ring = the bot's, double ring = agreement.
+// the pre-searched Gen26+DayDream answer reveals instantly. Your four
+// stay raised with the blue ring — exactly how a live go-down looks —
+// and an assist-pink dot marks the cards the bot would have put down.
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -14,7 +15,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { Suit, SUITS } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
 import { themeFor } from '@/components/table/theme';
-import { AllDoneCard, RevealCard, ScoreStrip, TableMap } from '@/components/minigames/shared';
+import { AllDoneCard, BotDot, RevealCard, ScoreStrip, TableMap } from '@/components/minigames/shared';
 import { Grade, gradeGoDown } from '@/lib/minigames/scoring';
 import { getProgress, recordAttempt } from '@/lib/minigames/service';
 import { Bank, GoDownItem, MiniGameProgress, emptyProgress, loadBank, toCard, toInt } from '@/lib/minigames/types';
@@ -82,7 +83,6 @@ export default function GoDownDrill() {
         const cards = [...item.dealt, ...item.widow].map(toCard);
         return sortHand(cards, null).map(toInt);
     }, [item]);
-    const widowSet = useMemo(() => new Set(item?.widow ?? []), [item]);
     const botSet = useMemo(
         () => new Set(step === 'revealed' ? item?.bot.godown ?? [] : []),
         [step, item],
@@ -152,7 +152,7 @@ export default function GoDownDrill() {
                     <div className="text-white/90 font-orbitron text-sm">
                         You bought it at <b className="text-yellow-300">{item.bid}</b>
                         <div className="text-white/60 text-[11px] font-sans mt-0.5">
-                            score {item.scores[0]}–{item.scores[1]} · dot = from the widow
+                            score {item.scores[0]} to {item.scores[1]}
                         </div>
                     </div>
                     <div className="ml-auto">
@@ -166,18 +166,18 @@ export default function GoDownDrill() {
                 {revealed && grade ? (
                     <RevealCard grade={grade} k={item.k} onNext={nextItem} nextLabel="NEXT HAND">
                         <div className="text-white/70 text-xs mt-2">
-                            <span className="text-sky-300 font-bold">blue</span> = your burial ·{' '}
-                            <span className="font-bold" style={{ color: '#ff2d95' }}>pink</span> = mine · double = agreed
+                            <span className="text-sky-300 font-bold">raised + blue</span> = your Go Down ·{' '}
+                            <span className="font-bold" style={{ color: '#ff2d95' }}>pink dot</span> = what I&apos;d put down
                             {item.bot.trump !== trumpPick && (
-                                <> · I called <b className="text-white">{SUITS[item.bot.trump]}</b> trump</>
+                                <> · and I&apos;d call <b className="text-white">{SUITS[item.bot.trump]}</b> trump</>
                             )}
                         </div>
                     </RevealCard>
                 ) : (
                     <div className="text-white/50 font-orbitron text-xs text-center">
                         {step === 'pick'
-                            ? 'Which four would the strongest bot in the family bury?'
-                            : 'And what would it call?'}
+                            ? 'What would the strongest bot in the family put in the Go Down?'
+                            : 'And what would it call for trump?'}
                     </div>
                 )}
             </div>
@@ -230,25 +230,29 @@ export default function GoDownDrill() {
                 )}
 
                 <div className="flex justify-center px-2">
-                    <div className={`flex pt-4 pb-2 flex-wrap justify-center max-w-md ${
-                        revealed ? 'gap-1.5 gap-y-3' : '-space-x-5 sm:-space-x-4 md:-space-x-2 gap-y-2'
-                    }`}>
+                    <div className="flex pt-6 pb-2 flex-wrap justify-center max-w-md -space-x-5 sm:-space-x-4 md:-space-x-2 gap-y-2">
                         {all13.map((c, i) => {
                             const mine = picked.includes(c);
                             const bots = botSet.has(c);
-                            const marks = revealed
-                                ? `rounded-lg ${mine ? 'ring-2 ring-sky-400' : ''} ${bots ? 'outline outline-2 outline-offset-2 outline-[#ff2d95]' : ''}`
-                                : '';
                             return (
-                                <div key={c} className={`relative ${marks}`} style={{ zIndex: i + 1 }}>
+                                // on the reveal the raise moves to the wrapper so
+                                // the bot's pink dot rides up with a raised card
+                                <div
+                                    key={c}
+                                    className={`relative transition-transform duration-200 ${revealed && mine ? '-translate-y-3' : ''}`}
+                                    style={{ zIndex: i + 1 }}
+                                >
+                                    {bots && (
+                                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                                            <BotDot />
+                                        </span>
+                                    )}
                                     <PlayingCard
                                         card={toCard(c)} trump={trumpSuit} size="lg"
                                         onClick={step === 'pick' ? () => togglePick(c) : undefined}
                                         selected={!revealed && mine}
+                                        className={revealed && mine ? 'ring-2 ring-sky-400 border-sky-400' : ''}
                                     />
-                                    {widowSet.has(c) && (
-                                        <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-sky-400 border border-navy-950 z-10" />
-                                    )}
                                 </div>
                             );
                         })}

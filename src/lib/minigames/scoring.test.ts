@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agreementPct, gradeGoDown, gradeLead } from './scoring';
+import { gradeGoDown, gradeLead, levelFor, selectionPct } from './scoring';
 import { GoDownItem, LeadItem } from './types';
 
 const leadItem = (over: Partial<LeadItem['bot']> = {}): LeadItem => ({
@@ -13,16 +13,19 @@ const leadItem = (over: Partial<LeadItem['bot']> = {}): LeadItem => ({
 });
 
 describe('gradeLead', () => {
-    it('exact match is perfect', () => {
+    it('exact match is perfect and counts the selection', () => {
         const g = gradeLead(leadItem(), 0);
         expect(g.tier).toBe('perfect');
         expect(g.points).toBe(100);
         expect(g.delta).toBe(0);
+        expect(g.selMatch).toBe(1);
+        expect(g.selTotal).toBe(1);
     });
-    it('within tau=2 is close', () => {
+    it('within tau=2 is close but not a selection match', () => {
         const g = gradeLead(leadItem(), 1);   // 10 - 9 = 1 point behind
         expect(g.tier).toBe('close');
         expect(g.delta).toBe(1);
+        expect(g.selMatch).toBe(0);
     });
     it('mid gap is ok with a delta', () => {
         const g = gradeLead(leadItem(), 20);  // 10 - 2 = 8 behind
@@ -52,30 +55,42 @@ const gdItem = (): GoDownItem => ({
 });
 
 describe('gradeGoDown', () => {
-    it('same four cards and trump is perfect (order-free)', () => {
+    it('same four cards and trump is perfect, 5/5 selections', () => {
         const g = gradeGoDown(gdItem(), [21, 32, 31, 30], 0);
         expect(g.tier).toBe('perfect');
+        expect(g.selMatch).toBe(5);
+        expect(g.selTotal).toBe(5);
     });
-    it('a priced burial within tau=3 is close', () => {
+    it('a priced Go Down within tau=3 is close', () => {
         const g = gradeGoDown(gdItem(), [30, 31, 32, 20], 0);  // 55 - 53.5
         expect(g.tier).toBe('close');
         expect(g.delta).toBe(1.5);
+        expect(g.selMatch).toBe(4);   // 3 cards + trump
     });
-    it('unpriced burial falls back to overlap: 3/4 + trump is close', () => {
+    it('unpriced Go Down falls back to overlap: 3/4 + trump is close', () => {
         const g = gradeGoDown(gdItem(), [30, 31, 32, 4], 0);
         expect(g.tier).toBe('close');
         expect(g.points).toBe(70);
+        expect(g.headline).toContain('Go Down');
     });
-    it('wrong trump is a miss with the trump callout', () => {
+    it('wrong trump is a miss with the trump callout, selections still count', () => {
         const g = gradeGoDown(gdItem(), [30, 31, 32, 21], 2);
         expect(g.tier).toBe('miss');
         expect(g.headline).toContain('different trump');
+        expect(g.selMatch).toBe(4);   // 4 cards agree, trump doesn't
     });
 });
 
-describe('agreementPct', () => {
-    it('counts perfect + close over attempts', () => {
-        expect(agreementPct({ attempts: 20, perfect: 15, close: 4 })).toBe(95);
-        expect(agreementPct({ attempts: 0, perfect: 0, close: 0 })).toBe(0);
+describe('selectionPct and levels', () => {
+    it('selection agreement counts per selection', () => {
+        expect(selectionPct({ selTotal: 60, selMatch: 50 })).toBe(83);
+        expect(selectionPct({ selTotal: 0, selMatch: 0 })).toBe(0);
+    });
+    it('levels unlock on situations played', () => {
+        expect(levelFor(0)).toMatchObject({ level: 1, name: 'Rookie', next: 10 });
+        expect(levelFor(10).level).toBe(2);
+        expect(levelFor(24).level).toBe(2);
+        expect(levelFor(25).name).toBe('Sharp');
+        expect(levelFor(500)).toMatchObject({ level: 6, next: null });
     });
 });

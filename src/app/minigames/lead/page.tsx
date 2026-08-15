@@ -27,8 +27,10 @@ const BUYER_LABEL = [
     'The buyer is on your RIGHT (plays last behind you)',
 ];
 
-const SEAT_TABS: Array<[number | null, string]> = [
-    [null, 'Mix'], [0, 'I bought'], [2, 'Partner'], [1, 'Left'], [3, 'Right']];
+const SEAT_TABS: Array<[number, string]> = [
+    [2, 'Partner'], [0, 'I bought'], [1, 'Left'], [3, 'Right']];
+
+const cardName = (c: number) => `${SUITS[Math.floor(c / 10)]} ${(c % 10) + 5}`;
 
 export default function LeadDrill() {
     const { user, loading } = useAuth();
@@ -37,7 +39,7 @@ export default function LeadDrill() {
     const [progress, setProgress] = useState<MiniGameProgress>(emptyProgress('lead'));
     const [ready, setReady] = useState(false);
     const [progReady, setProgReady] = useState(false);
-    const [seat, setSeat] = useState<number | null>(null);
+    const [seat, setSeat] = useState<number>(2);   // partner leads the drill
     const [picked, setPicked] = useState<number | null>(null);
     const [grade, setGrade] = useState<Grade | null>(null);
     // held until "next lead" — deriving from the done-set would advance
@@ -63,12 +65,10 @@ export default function LeadDrill() {
     }, [user]);
 
     const doneSet = useMemo(() => new Set(progress.done), [progress.done]);
-    const pool = useMemo(() => {
-        if (!bank) return [];
-        return seat === null
-            ? bank.items
-            : bank.items.filter((it) => it.buyerRel === seat);
-    }, [bank, seat]);
+    const pool = useMemo(
+        () => (bank ? bank.items.filter((it) => it.buyerRel === seat) : []),
+        [bank, seat],
+    );
     const item = useMemo(() => {
         if (itemId !== null) return pool.find((it) => it.id === itemId) ?? null;
         return pool.find((it) => !doneSet.has(it.id)) ?? null;
@@ -106,7 +106,7 @@ export default function LeadDrill() {
     const seatTabs = (
         <div className="flex gap-1.5 mt-3 flex-wrap">
             {SEAT_TABS.map(([rel, label]) => {
-                const grp = rel === null ? bank?.items ?? [] : (bank?.items ?? []).filter((it) => it.buyerRel === rel);
+                const grp = (bank?.items ?? []).filter((it) => it.buyerRel === rel);
                 const n = grp.filter((it) => doneSet.has(it.id)).length;
                 return (
                     <button key={label}
@@ -130,9 +130,9 @@ export default function LeadDrill() {
                     {bank && bank.items.length > 0 ? (
                         <>
                             {seatTabs}
-                            {seat !== null && pool.length > 0 && pool.every((it) => doneSet.has(it.id))
-                                ? <div className="text-white/70 text-sm text-center mt-10 font-orbitron">This seat is done — pick another above.</div>
-                                : <AllDoneCard title="FIRST CARD MASTERED" />}
+                            {bank.items.every((it) => doneSet.has(it.id))
+                                ? <AllDoneCard title="FIRST CARD MASTERED" />
+                                : <div className="text-white/70 text-sm text-center mt-10 font-orbitron">This seat is done — pick another above.</div>}
                         </>
                     ) : (
                         <div className="text-white/70 text-sm text-center mt-10 font-orbitron">
@@ -189,9 +189,24 @@ export default function LeadDrill() {
                 {revealed && grade ? (
                     <RevealCard grade={grade} k={item.k} onNext={nextItem} nextLabel="NEXT LEAD">
                         <div className="text-white/70 text-xs mt-2">
-                            <span className="font-bold" style={{ color: '#ff2d95' }}>pink ring</span> = my lead ·
-                            the dials show how every card priced
+                            <span className="font-bold" style={{ color: '#ff2d95' }}>pink bar</span> = my lead ·
+                            the dials show how every card priced over {item.k} worlds
                         </div>
+                        {(() => {
+                            // when the biggest dial isn't the pick: the searcher
+                            // only overrules its instinct on CONFIRMED evidence
+                            // (the tau law) — say so in plain language
+                            const best = Object.entries(values)
+                                .sort((a, b) => b[1] - a[1])[0];
+                            if (!best || Number(best[0]) === item.bot.card) return null;
+                            return (
+                                <div className="text-white/60 text-xs mt-2 border-t border-white/10 pt-2">
+                                    The {cardName(Number(best[0]))} actually priced a touch
+                                    higher across these worlds — but not by enough to be
+                                    sure, so I stuck with my instinct: the {cardName(item.bot.card)}.
+                                </div>
+                            );
+                        })()}
                     </RevealCard>
                 ) : (
                     <div className="text-white/60 font-orbitron text-xs text-center">
@@ -213,20 +228,28 @@ export default function LeadDrill() {
                     }`}>
                         {hand9.map((c, i) => {
                             const bots = revealed && item.bot.card === c;
+                            const mine = revealed && picked === c;
                             return (
-                                <div key={c} className="relative" style={{ zIndex: i + 1 }}>
+                                // the raise lives on the wrapper so the dial and
+                                // the pink bar ride up with the raised card
+                                <div
+                                    key={c}
+                                    className={`relative transition-transform duration-200 ${mine ? '-translate-y-3' : ''}`}
+                                    style={{ zIndex: i + 1 }}
+                                >
                                     {revealed && (
                                         <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
                                             <ValueDial frac={frac(c)} value={values[String(c)]} />
                                         </span>
                                     )}
-                                    <div className={bots ? 'rounded-lg outline outline-2 outline-offset-2 outline-[#ff2d95]' : ''}>
-                                        <PlayingCard
-                                            card={toCard(c)} trump={SUITS[item.trump]} size="lg"
-                                            onClick={!revealed ? () => play(c) : undefined}
-                                            selected={revealed && picked === c}
-                                        />
-                                    </div>
+                                    <PlayingCard
+                                        card={toCard(c)} trump={SUITS[item.trump]} size="lg"
+                                        onClick={!revealed ? () => play(c) : undefined}
+                                        className={mine ? 'ring-2 ring-sky-400 border-sky-400' : ''}
+                                    />
+                                    {bots && (
+                                        <span className="absolute -bottom-2 left-1 right-1 h-1.5 rounded-full z-50 pointer-events-none" style={{ background: '#ff2d95' }} />
+                                    )}
                                 </div>
                             );
                         })}

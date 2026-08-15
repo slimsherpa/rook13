@@ -10,7 +10,7 @@ import { getUserProfile, listRecentGames, GameHistoryEntry, UserProfile, UserSta
 import { RecordRef } from '@/lib/game/stats';
 import { Seat, SEATS, Team, partnerOf, teamOf } from '@/lib/game/types';
 import { rankFor } from '@/lib/game/rank';
-import { agreementPct } from '@/lib/minigames/scoring';
+import { levelFor, selectionPct } from '@/lib/minigames/scoring';
 import { listAllProgress } from '@/lib/minigames/service';
 import { MiniGameProgress } from '@/lib/minigames/types';
 import RankBadge from '@/components/ui/RankBadge';
@@ -306,12 +306,14 @@ function BeatTheBotCase({ uid }: { uid: string }) {
     const sum = all.reduce((acc, p) => ({
         attempts: acc.attempts + p.attempts,
         perfect: acc.perfect + p.perfect,
-        close: acc.close + p.close,
+        selTotal: acc.selTotal + (p.selTotal ?? 0),
+        selMatch: acc.selMatch + (p.selMatch ?? 0),
         bestStreak: Math.max(acc.bestStreak, p.bestStreak),
-    }), { attempts: 0, perfect: 0, close: 0, bestStreak: 0 });
+    }), { attempts: 0, perfect: 0, selTotal: 0, selMatch: 0, bestStreak: 0 });
     if (sum.attempts === 0) return null;
 
-    const agree = agreementPct(sum);
+    const lv = levelFor(sum.attempts);
+    const agree = selectionPct(sum);
     const badges: Array<[string, string, boolean]> = [
         ['neurology', 'MIND MELD', sum.perfect >= 25],
         ['smart_toy', 'BOT WHISPERER', agree >= 90 && sum.attempts >= 50],
@@ -329,11 +331,16 @@ function BeatTheBotCase({ uid }: { uid: string }) {
                     <span className="material-symbols-outlined text-fuchsia-400 text-3xl">sports_esports</span>
                     <div className="flex-1">
                         <div className="font-orbitron text-white text-sm font-bold">
-                            Picks with the bot <span className="text-fuchsia-300">{agree}%</span> of the time
+                            Level {lv.level} — <span className="text-fuchsia-300">{lv.name}</span>
                         </div>
                         <div className="text-white/50 text-[11px] mt-0.5">
-                            {sum.attempts} situations · {sum.perfect} exact matches · best streak {sum.bestStreak}
+                            {sum.attempts} situations played · best streak {sum.bestStreak}
                         </div>
+                        {sum.selTotal > 0 && (
+                            <div className="text-white/50 text-[11px] mt-0.5">
+                                Fun fact: agrees with the bot on <b className="text-fuchsia-300">{agree}%</b> of selections
+                            </div>
+                        )}
                     </div>
                 </div>
                 {earned.length > 0 && (

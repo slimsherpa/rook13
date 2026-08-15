@@ -85,6 +85,8 @@ export const recordAttempt = (
         points: prev.points + grade.points,
         streak,
         bestStreak: Math.max(prev.bestStreak, streak),
+        selTotal: prev.selTotal + grade.selTotal,
+        selMatch: prev.selMatch + grade.selMatch,
         done: [...prev.done, itemId],
         updatedAt: Date.now(),
     };
