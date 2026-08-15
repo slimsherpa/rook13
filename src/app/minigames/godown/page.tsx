@@ -200,27 +200,9 @@ export default function GoDownDrill() {
                 )}
             </div>
 
-            {/* the dock + hand: trump pills (in card order) over two roomy rows */}
+            {/* the dock + hand: status/lock, then trump pills (in card
+                order), then two roomy rows */}
             <div className="flex-none pb-6">
-                <div className="flex items-center justify-center gap-2 py-1.5 flex-wrap px-2">
-                    <span className="text-white/90 font-orbitron text-xs sm:text-sm mr-1">Trump:</span>
-                    {suitOrder.map((i) => (
-                        <div key={SUITS[i]} className="relative">
-                            {revealed && item.bot.trump === i && (
-                                <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-                                    <BotDot />
-                                </span>
-                            )}
-                            <button
-                                onClick={() => !revealed && setTrumpPick(trumpPick === i ? null : i)}
-                                className={`px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition ${suitButtonColors[SUITS[i]]} ${trumpPick === i ? 'ring-4 ring-white' : trumpPick !== null || revealed ? 'opacity-50' : ''}`}
-                            >
-                                {SUITS[i]}
-                            </button>
-                        </div>
-                    ))}
-                </div>
-
                 {!revealed && (
                     <div className="flex items-center justify-center gap-3 py-1.5">
                         <span className="text-white/90 font-orbitron text-xs sm:text-sm">
@@ -235,6 +217,25 @@ export default function GoDownDrill() {
                         </button>
                     </div>
                 )}
+
+                <div className="flex items-center justify-center gap-2 py-1.5 flex-wrap px-2">
+                    <span className="text-white/90 font-orbitron text-xs sm:text-sm mr-1">Trump:</span>
+                    {suitOrder.map((i) => (
+                        <div key={SUITS[i]} className="relative">
+                            {revealed && item.bot.trump === i && (
+                                <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                                    <BotDot />
+                                </span>
+                            )}
+                            <button
+                                onClick={() => !revealed && setTrumpPick(trumpPick === i ? null : i)}
+                                className={`px-4 py-2.5 rounded-lg text-white font-orbitron text-sm font-bold active:scale-95 transition ${suitButtonColors[SUITS[i]]} ${trumpPick === i ? 'ring-4 ring-sky-400' : trumpPick !== null || revealed ? 'opacity-50' : ''}`}
+                            >
+                                {SUITS[i]}
+                            </button>
+                        </div>
+                    ))}
+                </div>
 
                 <div className="flex flex-col items-center gap-2 px-1 pt-4">
                     {rows.map((row, r) => (
