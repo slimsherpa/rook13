@@ -17,7 +17,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { Suit, SUITS } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
 import { themeForPalette } from '@/components/table/theme';
-import { paletteById, textOn } from '@/lib/game/palettes';
+import { paletteById, suitName, textOn } from '@/lib/game/palettes';
 import { useCardPaletteId } from '@/lib/settings';
 import { AllDoneCard, BotDot, RevealCard, ScoreStrip, TableMap } from '@/components/minigames/shared';
 import { explainGoDown } from '@/lib/minigames/explain';
@@ -180,12 +180,12 @@ export default function GoDownDrill() {
                             <span className="text-sky-300 font-bold">raised + blue</span> = your Go Down ·{' '}
                             <span className="font-bold" style={{ color: '#ff2d95' }}>pink dot</span> = what I&apos;d put down
                             {item.bot.trump !== trumpPick && (
-                                <> · and I&apos;d call <b className="text-white">{SUITS[item.bot.trump]}</b> trump</>
+                                <> · and I&apos;d call <b className="text-white">{suitName(palette, SUITS[item.bot.trump])}</b> trump</>
                             )}
                         </div>
                         {grade.tier !== 'perfect' && (
                             <div className="text-white/60 text-xs mt-2 border-t border-white/10 pt-2">
-                                {explainGoDown(item)}
+                                {explainGoDown(item, palette)}
                             </div>
                         )}
                     </RevealCard>
@@ -229,7 +229,7 @@ export default function GoDownDrill() {
                                 style={{ background: palette.suits[SUITS[i]], color: textOn(palette.suits[SUITS[i]]) }}
                                 className={`px-4 py-2.5 rounded-lg font-orbitron text-sm font-bold active:scale-95 transition hover:brightness-110 ${trumpPick === i ? 'ring-4 ring-sky-400' : trumpPick !== null || revealed ? 'opacity-50' : ''}`}
                             >
-                                {SUITS[i]}
+                                {suitName(palette, SUITS[i])}
                             </button>
                         </div>
                     ))}

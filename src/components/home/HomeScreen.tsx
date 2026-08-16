@@ -12,10 +12,14 @@ import { touchPresence, removePresence, PRESENCE_HEARTBEAT_MS } from '@/lib/fire
 import JayCupModal from './JayCupModal';
 import LobbyPanel from './LobbyPanel';
 import RookBird from '@/components/ui/RookBird';
+import { paletteById, suitName } from '@/lib/game/palettes';
+import { useCardPaletteId } from '@/lib/settings';
 
 export default function HomeScreen() {
     const { user, signOut } = useAuth();
     const router = useRouter();
+    const [paletteId] = useCardPaletteId();
+    const palette = paletteById(paletteId);
     const [creating, setCreating] = useState(false);
     const [joinCode, setJoinCode] = useState('');
     const [joinError, setJoinError] = useState<string | null>(null);
@@ -332,7 +336,7 @@ export default function HomeScreen() {
                                                 {' – '}
                                                 <span className="text-orange-300 font-bold">{g.scores.B}</span>
                                                 {' · hand '}{g.handNumber}
-                                                {g.trump ? ` · ${g.trump} trump` : ''}
+                                                {g.trump ? ` · ${suitName(palette, g.trump)} trump` : ''}
                                             </div>
                                         </div>
                                         <span className="px-2.5 py-1 rounded-full text-[10px] font-orbitron bg-red-500/15 text-red-300 border border-red-400/40">

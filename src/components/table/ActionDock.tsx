@@ -11,7 +11,7 @@ import { createShuffledDeck } from '@/lib/game/deck';
 import { GameAction } from '@/lib/game/types';
 import { AdviceMap, optionKey } from '@/lib/alpharook/advice';
 import AssistDial from './AssistDial';
-import { paletteById, textOn } from '@/lib/game/palettes';
+import { paletteById, suitName, textOn } from '@/lib/game/palettes';
 import { useCardPaletteId } from '@/lib/settings';
 
 interface ActionDockProps {
@@ -147,7 +147,7 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
                                 style={suitStyle(suit)}
                                 className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg font-orbitron text-sm font-bold active:scale-95 transition disabled:opacity-40 hover:brightness-110 ${trumpPick === suit ? 'ring-4 ring-white' : trumpPick ? 'opacity-50' : ''}`}
                             >
-                                {suit}
+                                {suitName(palette, suit)}
                                 {advice && <AssistDial p={advice.get(optionKey.trump(suit))} />}
                             </button>
                         ))}
@@ -163,7 +163,7 @@ export default function ActionDock({ game, mySeat, selectedGoDown, onAct, onConf
                             style={suitStyle(trumpPick)}
                             className="pointer-events-auto px-8 py-5 rounded-3xl font-orbitron shadow-2xl ring-4 ring-white/70 active:scale-95 transition animate-announce-pop hover:brightness-110"
                         >
-                            <span className="block text-2xl font-black leading-tight">{trumpPick} Trump</span>
+                            <span className="block text-2xl font-black leading-tight">{suitName(palette, trumpPick)} Trump</span>
                             <span className="block text-sm font-bold mt-1 flex items-center justify-center gap-1">
                                 Start the hand
                                 <span className="material-symbols-outlined text-lg">arrow_forward</span>

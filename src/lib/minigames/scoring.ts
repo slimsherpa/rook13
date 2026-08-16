@@ -11,7 +11,10 @@
 // card play, tau=3 for a Go Down — inside that gap the bot itself would
 // call it a coin flip.
 
+import { CardPalette, PALETTES } from '../game/palettes';
 import { cardName } from './explain';
+
+const STD = PALETTES[0];
 import { GoDownItem, LeadItem } from './types';
 
 /** Touching cards — same suit, every rank between them in `cards` — are
@@ -45,7 +48,7 @@ const LEAD_OK = 10;
 const GODOWN_CLOSE = 3; // the Go Down searcher's tau
 const GODOWN_OK = 12;
 
-export const gradeLead = (item: LeadItem, pick: number): Grade => {
+export const gradeLead = (item: LeadItem, pick: number, pal: CardPalette = STD): Grade => {
     const bot = item.bot.card;
     const twin = pick !== bot
         && runClass(item.cards, pick) === runClass(item.cards, bot);
@@ -54,7 +57,7 @@ export const gradeLead = (item: LeadItem, pick: number): Grade => {
             tier: 'perfect', points: 100, delta: 0, selTotal: 1, selMatch: 1,
             headline: 'Good job! That’s exactly what I would have picked.',
             detail: twin
-                ? `Your ${cardName(pick)} and my ${cardName(bot)} are the same card here — they beat and lose to exactly the same things.`
+                ? `Your ${cardName(pick, pal)} and my ${cardName(bot, pal)} are the same card here — they beat and lose to exactly the same things.`
                 : undefined,
         };
     }

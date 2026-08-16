@@ -10,11 +10,16 @@ import { GameDoc, GameAction, Seat, teamOf, BOT_STYLE_LABELS } from '@/lib/game/
 import { getGame, loadActionLog } from '@/lib/firebase/gameService';
 import { HandReview, reconstructGame } from '@/lib/game/review';
 import { requestHandAudit, subscribeAudits, HandAudit } from '@/lib/firebase/auditService';
+import { paletteById, suitName } from '@/lib/game/palettes';
+import { useCardPaletteId } from '@/lib/settings';
 import LoadingPage from '@/components/LoadingPage';
 import { DealBreakdown, TrickByTrick } from '@/components/table/HandRecapModal';
 import { BlunderProvider, BlunderTrigger } from '@/components/review/BlunderReport';
 
 export default function GameReview({ gameId, initialHand }: { gameId: string; initialHand?: number }) {
+    // display-only: trump is announced in this device's palette names
+    const [paletteId] = useCardPaletteId();
+    const palette = paletteById(paletteId);
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     const [game, setGame] = useState<GameDoc | null>(null);
@@ -114,7 +119,7 @@ export default function GameReview({ gameId, initialHand }: { gameId: string; in
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="text-white font-orbitron text-sm">
-                            {name(s.bidWinner)} bid {s.bid} · {s.trump}
+                            {name(s.bidWinner)} bid {s.bid} · {suitName(palette, s.trump)}
                         </div>
                         <div className={`text-[11px] ${s.wentSet ? 'text-red-300' : 'text-white/60'}`}>
                             {s.wentSet ? `SET — took ${s.pointsTaken[bidTeam]}` : `made it with ${s.pointsTaken[bidTeam]}`}

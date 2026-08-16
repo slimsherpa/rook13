@@ -15,7 +15,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { SUITS } from '@/lib/game/types';
 import { sortHand } from '@/lib/game/deck';
 import { themeFor, themeForPalette } from '@/components/table/theme';
-import { paletteById } from '@/lib/game/palettes';
+import { CardPalette, paletteById } from '@/lib/game/palettes';
 import { useCardPaletteId } from '@/lib/settings';
 import { AllDoneCard, RevealCard, ScoreStrip, TableMap, ValueDial } from '@/components/minigames/shared';
 import { cardName, critiqueLead, explainLead } from '@/lib/minigames/explain';
@@ -91,7 +91,8 @@ export default function LeadDrill() {
     }
 
     const revealed = grade !== null;
-    const theme = themeForPalette(item ? SUITS[item.trump] : null, paletteById(paletteId));
+    const palette: CardPalette = paletteById(paletteId);
+    const theme = themeForPalette(item ? SUITS[item.trump] : null, palette);
 
     const header = (
         <div className="flex items-center gap-3 mb-3">
@@ -160,7 +161,7 @@ export default function LeadDrill() {
     const play = (c: number) => {
         if (revealed) return;
         setPicked(c);
-        const g = gradeLead(item, c);
+        const g = gradeLead(item, c, palette);
         setGrade(g);
         setProgress(recordAttempt(user.uid, progress, item.id, g));
     };
@@ -195,8 +196,8 @@ export default function LeadDrill() {
                             the dials show how every card priced over {item.k} worlds
                         </div>
                         {(() => {
-                            const why = grade.tier !== 'perfect' ? explainLead(item) : null;
-                            const yours = picked !== null ? critiqueLead(item, picked) : null;
+                            const why = grade.tier !== 'perfect' ? explainLead(item, palette) : null;
+                            const yours = picked !== null ? critiqueLead(item, picked, palette) : null;
                             // when the biggest dial isn't the pick: the searcher
                             // only overrules its instinct on CONFIRMED evidence
                             // (the tau law) — say so in plain language
@@ -213,9 +214,9 @@ export default function LeadDrill() {
                                     {yours && <div>{yours}</div>}
                                     {stuck && (
                                         <div>
-                                            The {cardName(Number(best[0]))} actually priced a touch
+                                            The {cardName(Number(best[0]), palette)} actually priced a touch
                                             higher across these worlds — but not by enough to be
-                                            sure, so I stuck with my instinct: the {cardName(item.bot.card)}.
+                                            sure, so I stuck with my instinct: the {cardName(item.bot.card, palette)}.
                                         </div>
                                     )}
                                 </div>

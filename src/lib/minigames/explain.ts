@@ -8,16 +8,21 @@
 // world's solved line.
 
 import { SUITS, getCardPoints } from '../game/types';
+import { CardPalette, PALETTES, suitName as paletteSuitName } from '../game/palettes';
 import { GoDownItem, LeadItem, toCard } from './types';
+
+const STD = PALETTES[0];
+/** suit name under the device palette (engine suit index in) */
+const sName = (s: number, pal: CardPalette) => paletteSuitName(pal, SUITS[s]);
 
 const suitOf = (c: number) => Math.floor(c / 10);
 const numOf = (c: number) => (c % 10) + 5;
 const pts = (c: number) => getCardPoints(toCard(c));
-export const cardName = (c: number) => `${SUITS[suitOf(c)]} ${numOf(c)}`;
+export const cardName = (c: number, pal: CardPalette = STD) => `${sName(suitOf(c), pal)} ${numOf(c)}`;
 
 /** Describe the bot's Go Down plan: trump kept, voids opened, count
  *  buried. All facts, computed from the hand itself. */
-export const explainGoDown = (item: GoDownItem): string => {
+export const explainGoDown = (item: GoDownItem, pal: CardPalette = STD): string => {
     const hand13 = [...item.dealt, ...item.widow];
     const gd = item.bot.godown;
     const kept = hand13.filter((c) => !gd.includes(c));
@@ -33,15 +38,15 @@ export const explainGoDown = (item: GoDownItem): string => {
     const trumpKept = keptSuits[trump];
 
     const parts: string[] = [];
-    parts.push(`My plan keeps ${trumpKept} ${SUITS[trump]} trump`);
+    parts.push(`My plan keeps ${trumpKept} ${sName(trump, pal)} trump`);
     if (voided.length > 0) {
-        parts.push(`empties ${voided.map((s) => SUITS[s]).join(' and ')} completely — a void I can trump into`);
+        parts.push(`empties ${voided.map((v) => sName(v, pal)).join(' and ')} completely — a void I can trump into`);
     } else {
         const shortest = SUITS.map((_, s) => s)
             .filter((s) => s !== trump && keptSuits[s] > 0)
             .sort((a, b) => keptSuits[a] - keptSuits[b])[0];
         if (shortest !== undefined) {
-            parts.push(`keeps ${SUITS[shortest]} short at ${keptSuits[shortest]}`);
+            parts.push(`keeps ${sName(shortest, pal)} short at ${keptSuits[shortest]}`);
         }
     }
     parts.push(buriedPts > 0
@@ -52,7 +57,7 @@ export const explainGoDown = (item: GoDownItem): string => {
 
 /** Describe the shape of the bot's opening lead. Conservative: only
  *  claims that follow from the leader's own hand and the table roles. */
-export const explainLead = (item: LeadItem): string | null => {
+export const explainLead = (item: LeadItem, pal: CardPalette = STD): string | null => {
     const c = item.bot.card;
     const suit = suitOf(c);
     const isTrump = suit === item.trump;
@@ -72,13 +77,13 @@ export const explainLead = (item: LeadItem): string | null => {
         return 'Leading trump straight at the buyer — every round of trump drains the contract’s engine.';
     }
     if (n === 14) {
-        return `The ${SUITS[suit]} 14 is my sure boss — cash it before anyone goes void in ${SUITS[suit]}.`;
+        return `The ${sName(suit, pal)} 14 is my sure boss — cash it before anyone goes void in ${sName(suit, pal)}.`;
     }
     if (count === 0 && n <= 9 && suitLen >= 3) {
-        return `A low ${SUITS[suit]} from my ${suitLen}-card suit — a safe exit: no count risked, nothing telegraphed, and the hand comes back around to me.`;
+        return `A low ${sName(suit, pal)} from my ${suitLen}-card suit — a safe exit: no count risked, nothing telegraphed, and the hand comes back around to me.`;
     }
     if (count === 0 && n < highestOfMine) {
-        return `A ${SUITS[suit]} the opponents have to spend something real to beat — and it risks no count.`;
+        return `A ${sName(suit, pal)} the opponents have to spend something real to beat — and it risks no count.`;
     }
     if (count > 0) {
         return `A count card up front — I’m betting this trick comes home to my side.`;
@@ -88,14 +93,14 @@ export const explainLead = (item: LeadItem): string | null => {
 
 /** One conservative line about the PLAYER's lead, only when the shape
  *  difference is unmistakable. Null = let the delta speak. */
-export const critiqueLead = (item: LeadItem, pick: number): string | null => {
+export const critiqueLead = (item: LeadItem, pick: number, pal: CardPalette = STD): string | null => {
     if (pick === item.bot.card) return null;
     const pickPts = pts(pick);
     const botPts = pts(item.bot.card);
     const pickTrump = suitOf(pick) === item.trump;
     const botTrump = suitOf(item.bot.card) === item.trump;
     if (pickPts > 0 && botPts === 0) {
-        return `Your ${cardName(pick)} puts ${pickPts} count points on a trick nobody controls yet.`;
+        return `Your ${cardName(pick, pal)} puts ${pickPts} count points on a trick nobody controls yet.`;
     }
     if (pickTrump && !botTrump && item.buyerRel !== 0 && item.buyerRel !== 2) {
         return 'Your trump lead spends the defense’s control early — I’d rather make the buyer break the suit.';

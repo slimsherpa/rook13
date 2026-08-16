@@ -179,8 +179,16 @@ export const setCardPaletteId = (id: string): void => {
     window.dispatchEvent(new Event(EVT));
 };
 
+// The subscription snapshot folds in the custom palette's raw JSON so a
+// color edit re-renders palette consumers even though the id stays
+// 'custom' (useSyncExternalStore only re-renders on snapshot change).
+const getPaletteSnapshot = (): string =>
+    getCardPaletteId() + ' ' + (typeof window === 'undefined'
+        ? '' : window.localStorage.getItem('rook13-custom-palette') ?? '');
+
 export const useCardPaletteId = (): [string, (id: string) => void] => {
-    const id = useSyncExternalStore(subscribe, getCardPaletteId, () => 'standard');
+    const snap = useSyncExternalStore(subscribe, getPaletteSnapshot, () => 'standard ');
+    const id = snap.split(' ')[0];
     const set = useCallback((v: string) => setCardPaletteId(v), []);
     return [id, set];
 };

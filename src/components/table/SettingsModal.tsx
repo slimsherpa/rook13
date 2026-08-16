@@ -12,8 +12,8 @@
 import { GAME_SPEEDS, TablePace, useGameSpeed, useTablePace, useAiAssist, useSuperTrainer, useCardCounter, useCardPaletteId } from '@/lib/settings';
 import { ASSIST_PINK } from './AssistDial';
 import { COUNTER_ORANGE } from './CardCounter';
-import { PALETTES } from '@/lib/game/palettes';
-import { SUITS } from '@/lib/game/types';
+import { PALETTES, customPalette, getCustomSuits, nearestColorName, setCustomSuits } from '@/lib/game/palettes';
+import { SUITS, Suit } from '@/lib/game/types';
 
 const PACES: { id: TablePace; label: string; blurb: string; icon: string }[] = [
     { id: 'auto',   label: 'Auto',   blurb: 'Tricks sweep away on their own',                icon: 'play_circle' },
@@ -294,7 +294,7 @@ export default function SettingsModal({ onClose, clock, botThink }: SettingsModa
                     Purely cosmetic: the suits keep their names, the game never changes.
                 </p>
                 <div className="space-y-1.5">
-                    {PALETTES.map((p) => {
+                    {[...PALETTES, customPalette()].map((p) => {
                         const selected = paletteId === p.id;
                         return (
                             <button
@@ -325,6 +325,35 @@ export default function SettingsModal({ onClose, clock, botThink }: SettingsModa
                                     <span className="material-symbols-outlined text-sky-300 text-lg">check_circle</span>
                                 )}
                             </button>
+                        );
+                    })}
+                </div>
+
+                {/* the builder: pick four hues, the SYSTEM names them —
+                    "Chartreuse Trump" beats "#7fff00 Trump" */}
+                <p className="text-white/50 text-[11px] mt-3 mb-1.5 leading-relaxed">
+                    <span className="text-white/70 font-bold">Make My Colors yours:</span> tap
+                    a swatch to pick any hue — the game names it for you, and that name is
+                    what the trump buttons say.
+                </p>
+                <div className="flex justify-between gap-2 rounded-xl border border-white/10 bg-white/5 p-2.5">
+                    {SUITS.map((s: Suit) => {
+                        const suits = getCustomSuits();
+                        return (
+                            <label key={s} className="flex-1 flex flex-col items-center gap-1 cursor-pointer">
+                                <input
+                                    type="color"
+                                    value={suits[s]}
+                                    onChange={(e) => {
+                                        setCustomSuits({ ...getCustomSuits(), [s]: e.target.value });
+                                        setPaletteId('custom');
+                                    }}
+                                    className="w-full h-9 rounded-lg border border-white/25 bg-transparent cursor-pointer"
+                                />
+                                <span className="text-white/70 text-[10px] font-orbitron truncate max-w-full">
+                                    {nearestColorName(suits[s])}
+                                </span>
+                            </label>
                         );
                     })}
                 </div>
