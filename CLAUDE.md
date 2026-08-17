@@ -103,13 +103,18 @@ invalidates anyone. When players finish the whole bank the app shows
 
 Skill Rating (SR) is a margin-aware Elo **replayed client-side from
 `users/{uid}/history` docs** — never stored, so no migration and no
-drift; past games count immediately. All tuning knobs live in
-`src/lib/game/skill.ts` (bot anchor ratings, margin blend, assist tax,
-outrank taper = the anti-easy-bot-farming law, K schedule) and tier
-floors in `src/lib/game/rank.ts` (GM is also seat-capped, 1 per 8 ranked
-players, applied by the leaderboard). Replay results are cached in
-localStorage keyed on (gamesPlayed, gamesWon) — bump `SKILL_VERSION`
-whenever the formula changes or caches go stale-wrong. History docs now
+drift; past games count immediately. v2 (2026-08-17, calibrated on the
+real family data): the whole board replays together (`boardSkills`) so
+human seats price at that player's actual skill, and shown SR =
+skill + grind (1.5/finished game, cap 200). Badges gate on games
+(Diamond 40 / Master 75 / GM 100) and GM needs 1650 PURE skill + a seat
+(1 per 8 ranked). All knobs in `src/lib/game/skill.ts` (anchors, margin
+blend ±600, assist tax 75%/85%, outrank taper, grind, gates); tiers in
+`src/lib/game/rank.ts` (`ladderRank` applies the gates). Parsed games
+are cached in localStorage keyed on (gamesPlayed, gamesWon) — bump
+`SKILL_VERSION` whenever the formula changes. Calibration data access:
+`scripts/firestore-read.sh` (read-only REST via gcloud, allowlisted in
+.claude/settings.local.json). History docs now
 also record `margin`/`botThink`/`assistUsed`/`counterUsed` (OR-merged
 per hand write) for future games; older docs fall back to the seat
 snapshot.
