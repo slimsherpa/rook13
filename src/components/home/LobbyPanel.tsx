@@ -137,9 +137,6 @@ export default function LobbyPanel({ myUid, myName, myPhotoURL }: LobbyPanelProp
                                     {rank && (
                                         <span className="block text-[10px] leading-tight">
                                             <RankBadge rank={rank} />
-                                            {rank.winPct !== null && (
-                                                <span className="text-white/50 font-orbitron"> · {rank.winPct}%</span>
-                                            )}
                                         </span>
                                     )}
                                 </span>

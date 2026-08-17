@@ -230,6 +230,64 @@ export const replaySkill = (
 };
 
 /**
+ * The Climb — the five bars a profile shows instead of numbers (Riley's
+ * call: no scores, just bars). Each is 0..1 and maps to a real input of
+ * the ladder engine, so the bars ARE the honest answer to "how do I
+ * rank up": play more, win bigger, sit with stronger tables, skip the
+ * assists, master the drills (that last one comes from minigames
+ * progress, not from here).
+ */
+export interface ClimbStats {
+    ranked: number;
+    /** games toward the grind cap */
+    grind: number;
+    /** average game result (the engine's own W+margin blend), stretched
+     *  for display so the family's range reads on a bar */
+    winning: number;
+    /** average table strength faced */
+    opposition: number;
+    /** share of games played without trainer or counter */
+    clean: number;
+}
+
+const HUMAN_CLIMB_STRENGTH = 1500;   // family seats, flat, for the bar only
+
+export const climbOf = (games: SkillGame[]): ClimbStats => {
+    const done = games.filter((g) => g.finishedAt !== undefined);
+    const n = done.length;
+    if (n === 0) return { ranked: 0, grind: 0, winning: 0, opposition: 0, clean: 0 };
+    let sSum = 0;
+    let oppSum = 0;
+    let clean = 0;
+    for (const g of done) {
+        const myTeam = teamOf(g.seat);
+        const otherTeam: Team = myTeam === 'A' ? 'B' : 'A';
+        const margin = g.scores
+            ? (g.scores[myTeam] ?? 0) - (g.scores[otherTeam] ?? 0)
+            : 0;
+        const marginFrac = Math.max(-1, Math.min(1, margin / MARGIN_FULL));
+        sSum += WIN_WEIGHT * (g.won ? 1 : 0)
+            + (1 - WIN_WEIGHT) * (0.5 + 0.5 * marginFrac);
+        const opps = SEATS.filter((s) => teamOf(s) !== myTeam).map((s) => {
+            const info = g.seats?.[s];
+            if (!info || info.kind !== 'bot') return HUMAN_CLIMB_STRENGTH;
+            if (info.botStyle === 'gen26' && g.botThink) return DAYDREAM_ANCHOR;
+            return (info.botStyle && BOT_ANCHORS[info.botStyle]) || UNKNOWN_ANCHOR;
+        });
+        oppSum += (opps[0] + opps[1]) / 2;
+        if (!g.assistUsed && !g.counterUsed) clean++;
+    }
+    const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+    return {
+        ranked: n,
+        grind: clamp01(n / GRIND_CAP_GAMES),
+        winning: clamp01(((sSum / n) - 0.15) / 0.7),
+        opposition: clamp01(((oppSum / n) - 1000) / 800),
+        clean: clamp01(clean / n),
+    };
+};
+
+/**
  * Rate the whole family at once — real multiplayer Elo. Human seats
  * resolve to that player's actual skill, iterated to a fixed point
  * (3 passes moves the board <10 SR; pass 1 is the old peer assumption).

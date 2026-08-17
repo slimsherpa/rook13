@@ -10,8 +10,8 @@ import { getUserProfile, listRecentGames, GameHistoryEntry, UserProfile, UserSta
 import { RecordRef } from '@/lib/game/stats';
 import { Seat, SEATS, Team, partnerOf, teamOf } from '@/lib/game/types';
 import { ladderRank } from '@/lib/game/rank';
-import { SkillResult } from '@/lib/game/skill';
-import { PLACEMENT_GAMES, skillFor } from '@/lib/firebase/skillService';
+import { ClimbStats, SkillResult } from '@/lib/game/skill';
+import { climbFor, skillFor } from '@/lib/firebase/skillService';
 import { selectionPct } from '@/lib/minigames/scoring';
 import { LAYER_TIERS, TOP_LAYER } from '@/lib/minigames/difficulty';
 import { listAllProgress } from '@/lib/minigames/service';
@@ -296,6 +296,57 @@ function TrophyCase({ s, openRef }: { s: UserStats; openRef: (r?: RecordRef) => 
     );
 }
 
+/** THE CLIMB — the five things that rank you up, as bars. No scores,
+ *  no jargon (Riley's call): each fill maps to a real ladder input, so
+ *  a glance answers "what would move MY badge?" */
+function ClimbSection({ profile }: { profile: UserProfile }) {
+    const [climb, setClimb] = useState<ClimbStats | null>(null);
+    const [drillFrac, setDrillFrac] = useState(0);
+    useEffect(() => {
+        climbFor(profile).then(setClimb).catch(() => {});
+        listAllProgress(profile.uid).then((all) => {
+            const played = all.filter((p) => p.attempts > 0);
+            if (played.length) {
+                setDrillFrac(Math.max(...played.map((p) => (p.layer ?? 0))) / TOP_LAYER);
+            }
+        }).catch(() => {});
+    }, [profile]);
+    if (!climb || climb.ranked === 0) return null;
+
+    const bar = (icon: string, color: string, barColor: string, label: string, frac: number, hint: string) => (
+        <div className="flex items-center gap-2.5" title={hint}>
+            <span className={`material-symbols-outlined text-base ${color} w-5 flex-shrink-0`}>{icon}</span>
+            <span className="text-white/70 text-[11px] font-orbitron w-32 flex-shrink-0">{label}</span>
+            <span className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                <span
+                    className={`block h-full rounded-full ${barColor}`}
+                    style={{ width: `${Math.max(3, frac * 100)}%` }}
+                />
+            </span>
+        </div>
+    );
+
+    return (
+        <Section title="The Climb">
+            <div className="rounded-xl bg-navy-950/50 border border-white/15 p-3.5 space-y-2.5">
+                {bar('event_repeat', 'text-green-300', 'bg-green-400', 'Games played', climb.grind,
+                    'every finished game counts — this fills all the way at 200')}
+                {bar('trophy', 'text-yellow-300', 'bg-yellow-400', 'Winning big', climb.winning,
+                    'wins AND the scoreboard margin — close losses barely hurt')}
+                {bar('swords', 'text-red-300', 'bg-red-400', 'Tough opponents', climb.opposition,
+                    'the strength of the tables you sit at — Cosmo fills it, Stomper doesn’t')}
+                {bar('verified', 'text-sky-300', 'bg-sky-400', 'No assists', climb.clean,
+                    'games played without the AI trainer or card counter')}
+                {bar('sports_esports', 'text-fuchsia-300', 'bg-fuchsia-400', 'Mini-games', drillFrac,
+                    'Beat the Bot drill tier, Bronze to GrandMaster')}
+            </div>
+            <p className="text-white/35 text-[10px] mt-1.5 px-1">
+                These five are the whole ladder — fill the bars, wear the badge.
+            </p>
+        </Section>
+    );
+}
+
 /** Beat the Bot training record — reads users/{uid}/minigames/*. Only
  *  renders once the player has played at least one drill situation. */
 function BeatTheBotCase({ uid }: { uid: string }) {
@@ -468,14 +519,29 @@ function ProfileInner() {
                             {s && s.gamesPlayed > 0 && skill && (() => {
                                 const rank = ladderRank(skill, s);
                                 return (
-                                    <div className="text-sm mt-1">
-                                        <RankBadge rank={rank} />
-                                        <span className="text-white/40 font-orbitron text-[11px]">
-                                            {' '}· {skill.rating} SR
-                                            {skill.provisional
-                                                ? ` · placements ${skill.ranked}/${PLACEMENT_GAMES}`
-                                                : rank.next ? ` · ${rank.next.min} to ${rank.next.name}` : ''}
-                                        </span>
+                                    <div className="mt-1 flex flex-col items-center">
+                                        <div className="text-sm">
+                                            <RankBadge rank={rank} />
+                                            {skill.provisional && (
+                                                <span className="text-white/40 font-orbitron text-[11px]"> · 🐣 placements</span>
+                                            )}
+                                        </div>
+                                        {/* the climb to the next badge — no numbers, just the bar */}
+                                        {!skill.provisional && rank.next && (
+                                            <span className="block mt-1.5 h-1 w-36 rounded-full bg-white/10 overflow-hidden" title={`climbing toward ${rank.next.name}`}>
+                                                <span
+                                                    className={`block h-full rounded-full ${rank.tier.bar}`}
+                                                    style={{ width: `${Math.max(4, rank.progress * 100)}%` }}
+                                                />
+                                            </span>
+                                        )}
+                                        {rank.locked && (
+                                            <span className="text-white/40 text-[10px] mt-1">
+                                                <span className="material-symbols-outlined text-[10px] align-middle">lock</span>
+                                                {' '}plays like a {rank.locked.tier.emoji} {rank.locked.tier.name} —
+                                                the badge comes with more games
+                                            </span>
+                                        )}
                                     </div>
                                 );
                             })()}
@@ -498,6 +564,7 @@ function ProfileInner() {
                             </>
                         ) : (
                             <>
+                                {profile && <ClimbSection profile={profile} />}
                                 <TrophyCase
                                     s={s}
                                     openRef={(r) => {

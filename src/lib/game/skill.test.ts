@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RANK_TIERS, ladderRank } from './rank';
-import { GM_SKILL_FLOOR, SkillGame, boardSkills, grindOf, replaySkill } from './skill';
+import { GM_SKILL_FLOOR, SkillGame, boardSkills, climbOf, grindOf, replaySkill } from './skill';
 import { BotStyle, Seat, SeatInfo } from './types';
 
 const tierMin = (key: string) => RANK_TIERS.find((t) => t.key === key)!.min;
@@ -150,6 +150,20 @@ describe('replaySkill — the three laws of the ladder', () => {
         const asKnown = replaySkill(vsNate, { [nateUid]: 1700 }); // Nate = 1700
         // losing to a known 1700 costs less than losing to a "peer"
         expect(asKnown.skill).toBeGreaterThan(asPeer.skill);
+    });
+
+    it('climbOf turns a record into honest 0..1 bars', () => {
+        expect(climbOf([])).toEqual({ ranked: 0, grind: 0, winning: 0, opposition: 0, clean: 0 });
+        const games = series(100, (i) =>
+            game({ vs: 'gen26', won: i % 2 === 0, margin: i % 2 === 0 ? 200 : -100, at: i, assist: i < 25 }));
+        const c = climbOf(games);
+        expect(c.ranked).toBe(100);
+        expect(c.grind).toBe(0.5);                       // 100 of 200
+        expect(c.clean).toBe(0.75);                      // 25 assisted
+        expect(c.opposition).toBeGreaterThan(0.8);       // Cosmo tables
+        const easy = climbOf(series(100, (i) => game({ vs: 'gen9', won: true, margin: 400, at: i })));
+        expect(easy.opposition).toBeLessThan(c.opposition - 0.4);
+        expect(easy.winning).toBeGreaterThan(c.winning); // blowout wins fill it
     });
 
     it('boardSkills iterates the whole family to a stable fixed point', () => {

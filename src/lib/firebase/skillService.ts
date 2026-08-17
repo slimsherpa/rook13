@@ -15,8 +15,8 @@ import { db } from './firebase';
 import { GameHistoryEntry, UserProfile, listPlayers } from './userService';
 import { Seat, SeatInfo } from '../game/types';
 import {
-    PLACEMENT_GAMES, SKILL_VERSION, START_SKILL,
-    SkillGame, SkillResult, boardSkills, replaySkill,
+    ClimbStats, PLACEMENT_GAMES, SKILL_VERSION, START_SKILL,
+    SkillGame, SkillResult, boardSkills, climbOf, replaySkill,
 } from '../game/skill';
 
 const cacheKey = (uid: string) => `rook13-hist-v${SKILL_VERSION}-${uid}`;
@@ -111,6 +111,15 @@ export const skillFor = async (p: UserProfile): Promise<SkillResult> => {
         return replaySkill(await loadGames(p));
     } catch {
         return unrankedSkill();
+    }
+};
+
+/** The Climb bars for one player's profile — no scores, just fills. */
+export const climbFor = async (p: UserProfile): Promise<ClimbStats> => {
+    try {
+        return climbOf(await loadGames(p));
+    } catch {
+        return { ranked: 0, grind: 0, winning: 0, opposition: 0, clean: 0 };
     }
 };
 
