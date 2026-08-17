@@ -60,31 +60,44 @@ BEFORE hosting when a change spans both.
 ## Beat the Bot mini-games (the corpus)
 
 Situations live in `public/minigames/{godown,lead}_items.json` and ship
-with hosting. They are milled offline by Gen26+DayDream at K=200:
+with hosting. They are milled offline by Gen26+DayDream at K=200. The
+first campaign (Aug 14-17 2026) banked **2,680 per drill** and is done;
+here is the whole lifecycle for whenever the family wants more.
+
+### Mine more situations (start → watch → stop → ship)
 
 ```bash
-# status
-tail -3 ml/runs/minigames/mill_weekend.log
-
-# stop
-pkill -f alpharook.minigame_mill
-
-# resume / extend (item id == seed, so growing never breaks progress)
+# 1. START — always --append: it skips every banked seed and extends.
+#    (item id == mill seed, so growth NEVER breaks player progress)
 cd ml && nohup ~/torch-env/bin/python -m alpharook.minigame_mill \
   --append --n 100000 --k 200 --workers 10 \
   --out-godown ../public/minigames/godown_items.json \
   --out-lead   ../public/minigames/lead_items.json \
-  > runs/minigames/mill_weekend.log 2>&1 &
+  > runs/minigames/mill.log 2>&1 &
+
+# 2. keep the laptop awake (lid open / on power) while it runs
+nohup caffeinate -is > /dev/null 2>&1 &
+
+# 3. WATCH — ~40-50 items/hour on 10 workers; banks checkpoint every
+#    ~8 items (atomic write), so killing it never loses banked work
+tail -f ml/runs/minigames/mill.log
+
+# 4. STOP (both the mill and the wake-lock)
+pkill -f alpharook.minigame_mill && pkill -x caffeinate
+
+# 5. SHIP — deploys whatever is banked, players see it in ~5 min
+npm run deploy:bank
+
+# 6. commit the snapshot so main matches prod, then push from Desktop
+git add public/minigames && git commit -m "Mini-games: bank snapshot"
 ```
 
-The mill checkpoints the banks every ~8 items (atomic write), needs the
-laptop awake (`caffeinate -is`), and runs ~40-50 items/hour on 10
-workers. **The growth loop is just:** let it mill, then
-`npm run deploy:bank` whenever you want the new situations live, and
-occasionally `git add public/minigames && git commit` a snapshot so
-main doesn't drift too far behind prod. Player progress lives in
-Firestore (`users/{uid}/minigames/{game}`) keyed by item id = mill
-seed, so bank growth never invalidates anyone.
+Knobs: `--n` is the total bank size ceiling (set it huge and stop when
+satisfied), `--k 500` for a deeper searcher (~2.5× slower), `--workers`
+to taste (10 leaves the Mac usable). Player progress lives in Firestore
+(`users/{uid}/minigames/{game}`) keyed by item id, so none of this ever
+invalidates anyone. When players finish the whole bank the app shows
+"Tell Riley you want more" — this section is what that means.
 
 ## Where things are
 
