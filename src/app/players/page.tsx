@@ -17,7 +17,7 @@ import { sendInvite } from '@/lib/firebase/inviteService';
 import { PLACEMENT_GAMES, skillForAll } from '@/lib/firebase/skillService';
 import { SkillResult } from '@/lib/game/skill';
 import { GameDoc } from '@/lib/game/types';
-import { GRANDMASTER, MASTER, RANK_TIERS, RankInfo, gmSeatCount, rankFor } from '@/lib/game/rank';
+import { GRANDMASTER, MASTER, RANK_TIERS, RankInfo, gmSeatCount, ladderRank } from '@/lib/game/rank';
 import { listAllProgress } from '@/lib/minigames/service';
 import RankBadge from '@/components/ui/RankBadge';
 import LoadingPage from '@/components/LoadingPage';
@@ -104,14 +104,14 @@ export default function PlayersPage() {
     };
 
     const skillOf = (p: UserProfile): SkillResult =>
-        skills[p.uid] ?? { rating: 1000, ranked: 0, provisional: true };
+        skills[p.uid] ?? { rating: 1000, skill: 1000, ranked: 0, provisional: true };
 
     // rating desc, win % breaking ties, so equal grinders sort by quality
     const ranked: Row[] = players
         .filter((p) => !skillOf(p).provisional)
         .map((p) => {
             const skill = skillOf(p);
-            return { p, skill, rank: rankFor(skill.rating, p.stats), place: null as number | null };
+            return { p, skill, rank: ladderRank(skill, p.stats), place: null as number | null };
         })
         .sort((a, b) =>
             b.skill.rating - a.skill.rating
@@ -135,7 +135,7 @@ export default function PlayersPage() {
         .filter((p) => skillOf(p).provisional)
         .map((p) => {
             const skill = skillOf(p);
-            return { p, skill, rank: rankFor(skill.rating, p.stats), place: null };
+            return { p, skill, rank: ladderRank(skill, p.stats), place: null };
         })
         .sort((a, b) => b.skill.ranked - a.skill.ranked);
 
@@ -192,6 +192,15 @@ export default function PlayersPage() {
                                 ? ` · placements ${skill.ranked}/${PLACEMENT_GAMES}`
                                 : ` · ${s?.gamesPlayed ?? 0} games${rank.winPct !== null ? ` · ${rank.winPct}%` : ''}`}
                         </span>
+                        {rank.locked && (
+                            <span className="block text-[10px] text-white/40 mt-0.5">
+                                <span className="material-symbols-outlined text-[10px] align-middle">lock</span>
+                                {' '}{rank.locked.tier.emoji} {rank.locked.tier.name} rating —{' '}
+                                {rank.locked.needGames > skill.ranked
+                                    ? `badge unlocks at ${rank.locked.needGames} games`
+                                    : 'badge needs more vs the top bots'}
+                            </span>
+                        )}
                         {drillTier && (
                             <span className={`inline-flex items-center gap-1 mt-1 px-1.5 py-px rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 font-orbitron text-[9px] font-bold ${drillTier.color}`}>
                                 <span className="material-symbols-outlined text-[10px] text-fuchsia-400">sports_esports</span>
@@ -242,9 +251,10 @@ export default function PlayersPage() {
 
                 <h1 className="font-orbitron text-white text-lg font-bold mb-1">Leaderboard</h1>
                 <p className="text-white/50 text-xs mb-1">
-                    Skill Rating, StarCraft-style: beat stronger bots to climb, and the
-                    scoreboard margin counts — close losses to Cosmo barely sting, blowout
-                    wins pay extra. Trainer &amp; counter games earn reduced SR.
+                    Skill Rating, StarCraft-style: beat stronger tables (bots at their
+                    anchor, family at their rating) and the margin counts. Every finished
+                    game banks grind SR too — but the top badges also demand a body of
+                    games, and GrandMaster demands pure skill.
                 </p>
                 <p className="text-white/50 text-xs mb-4">
                     {lobbyGame

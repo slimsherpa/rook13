@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { getUserProfile, listRecentGames, GameHistoryEntry, UserProfile, UserStats } from '@/lib/firebase/userService';
 import { RecordRef } from '@/lib/game/stats';
 import { Seat, SEATS, Team, partnerOf, teamOf } from '@/lib/game/types';
-import { rankFor } from '@/lib/game/rank';
+import { ladderRank } from '@/lib/game/rank';
 import { SkillResult } from '@/lib/game/skill';
 import { PLACEMENT_GAMES, skillFor } from '@/lib/firebase/skillService';
 import { selectionPct } from '@/lib/minigames/scoring';
@@ -466,7 +466,7 @@ function ProfileInner() {
                             )}
                             <h1 className="font-orbitron text-white text-xl font-bold mt-3">{name}</h1>
                             {s && s.gamesPlayed > 0 && skill && (() => {
-                                const rank = rankFor(skill.rating, s);
+                                const rank = ladderRank(skill, s);
                                 return (
                                     <div className="text-sm mt-1">
                                         <RankBadge rank={rank} />

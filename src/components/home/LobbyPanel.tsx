@@ -12,7 +12,7 @@ import { ChatMessage, LOBBY_MSG_MAX, sendLobbyMessage, subscribeLobbyChat } from
 import { listPlayers, UserProfile } from '@/lib/firebase/userService';
 import { createGame, listMyGames } from '@/lib/firebase/gameService';
 import { sendInvite } from '@/lib/firebase/inviteService';
-import { rankFor, RankInfo } from '@/lib/game/rank';
+import { ladderRank, RankInfo } from '@/lib/game/rank';
 import { skillForAll } from '@/lib/firebase/skillService';
 import RankBadge from '@/components/ui/RankBadge';
 
@@ -70,7 +70,7 @@ export default function LobbyPanel({ myUid, myName, myPhotoURL }: LobbyPanelProp
             const r: Record<string, RankInfo> = {};
             for (const p of players) {
                 const sk = skills[p.uid];
-                if (sk && !sk.provisional) r[p.uid] = rankFor(sk.rating, p.stats);
+                if (sk && !sk.provisional) r[p.uid] = ladderRank(sk, p.stats);
             }
             setRanks(r);
         }).catch(() => {});

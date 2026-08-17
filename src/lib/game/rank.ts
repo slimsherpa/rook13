@@ -1,9 +1,12 @@
 // The lobby ladder — StarCraft-style tiers for the family, sitting on the
 // margin-aware Elo in skill.ts. Tier floors are calibrated to the bot
 // anchors: a few placement wins over mid bots reaches Gold, farming easy
-// bots plateaus below Platinum, and the top tiers demand trading even (or
-// better) with Cosmo. GrandMaster is additionally seat-capped like the
-// SC2 GM ladder — see gmSeatCount below.
+// bots plateaus short of the top, and the high tiers demand both skill
+// AND a body of games (ladderRank below applies skill.ts's TIER_GATES +
+// GM_SKILL_FLOOR). GrandMaster is additionally seat-capped like the SC2
+// GM ladder — see gmSeatCount below.
+
+import { GM_SKILL_FLOOR, TIER_GATES } from './skill';
 
 export interface RankTier {
     key: string;
@@ -48,6 +51,10 @@ export interface RankInfo {
     progress: number;
     /** whole-number win percent, or null before any game finishes */
     winPct: number | null;
+    /** set when the rating earns a higher tier than the badge shows —
+     *  the games gate (or GM skill floor) is holding it. `needGames` is
+     *  the finished-games requirement of the locked tier. */
+    locked?: { tier: RankTier; needGames: number };
 }
 
 export const rankFor = (
@@ -65,4 +72,37 @@ export const rankFor = (
         ? Math.round((s.gamesWon / s.gamesPlayed) * 100)
         : null;
     return { tier, rating, next, progress, winPct };
+};
+
+/**
+ * The full ladder rank for a replayed SkillResult: rankFor on the shown
+ * rating, then the top-tier gates — Diamond/Master/GM demand a body of
+ * finished games (TIER_GATES) and GM additionally demands GM_SKILL_FLOOR
+ * of pure skill, so neither a 29-game heater nor a 500-game grind can
+ * wear the bolt by itself. A gated player keeps their rating and gets a
+ * `locked` marker so the UI can say what the badge is waiting on.
+ */
+export const ladderRank = (
+    res: { rating: number; skill: number; ranked: number },
+    s?: { gamesPlayed: number; gamesWon: number },
+): RankInfo => {
+    const raw = rankFor(res.rating, s);
+    let idx = RANK_TIERS.indexOf(raw.tier);
+    const earned = raw.tier;
+    while (idx > 0) {
+        const t = RANK_TIERS[idx];
+        const gate = TIER_GATES[t.key];
+        if (gate !== undefined && res.ranked < gate) { idx--; continue; }
+        if (t.key === 'grandmaster' && res.skill < GM_SKILL_FLOOR) { idx--; continue; }
+        break;
+    }
+    const tier = RANK_TIERS[idx];
+    if (tier === earned) return raw;
+    return {
+        ...raw,
+        tier,
+        next: RANK_TIERS[idx + 1] ?? null,
+        progress: 1,
+        locked: { tier: earned, needGames: TIER_GATES[earned.key] ?? 0 },
+    };
 };

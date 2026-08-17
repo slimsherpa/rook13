@@ -8,28 +8,39 @@
 // from first principles — no migration, no drift, and past games count the
 // moment this ships. Nobody has to replay anything.
 //
-// The three laws of the ladder (Riley's spec, 2026-08-17):
-//   1. Opponent strength matters. Every bot brain has an anchor rating;
-//      beating a table of Stompers when you're Gold pays almost nothing,
-//      beating Cosmo pays real points, and LOSING to Cosmo costs almost
-//      nothing. On top of Elo's own expectation curve, rating GAINS fade
-//      to zero once you outrank a table by OUTRANK_SPAN — so farming easy
-//      bots hard-stops around Gold/low-Platinum no matter the grind.
-//   2. Margin matters more than the W. The game score is blended into the
-//      Elo result: a 48% win rate with close losses and big wins climbs
-//      (that's Nate), while coin-flip blowout trades tread water.
-//   3. Help costs climb. Games where the AI Trainer or Card Counter was on
-//      still count, but rating GAINS are taxed (losses count in full — the
-//      trainer can't shield you on the way down).
+// The four laws of the ladder (Riley's spec 2026-08-17, retuned against
+// the real family data the same day):
+//   1. Opponent strength matters. Every bot brain has an anchor rating,
+//      and HUMAN seats count at that human's actual ladder skill (the
+//      board iterates to a fixed point — see boardSkills). Beating Cosmo
+//      pays; losing to Cosmo barely stings. Rating gains fade to zero
+//      once you outrank a table by OUTRANK_SPAN, so farming easy bots
+//      hard-stops well short of the top tiers.
+//   2. Margin matters, gently. Real Rook games to 500 end ±350 on
+//      average, so the margin scale is wide (MARGIN_FULL) — the blend
+//      separates nail-biters from blowouts without drowning the W.
+//   3. Help costs a little. Trainer/counter games keep 75%/85% of gains
+//      (losses in full). Tuned down from 50% after the real data showed
+//      the tax burying LEARNING players (Nathan's 55 games vs the
+//      hardest bots net out above expectation — the old tax erased it).
+//   4. The grind is real credit. The shown ladder rating is
+//      skill + grindOf(games): +1.5 SR per finished game, capped at 200
+//      games. 219 games of showing up is worth ~2 tiers of shown rating
+//      (that's Tyler), but grind alone can never mint a GrandMaster —
+//      GM demands GM_SKILL_FLOOR of pure skill plus a games gate.
 //
-// Tourney seeding (future JAY CUP mini-championship): seed from `rating`
-// here, break ties with the mini-game layer (lib/minigames/difficulty.ts).
+// Tier gates (TIER_GATES): Diamond 40+, Master 75+, GM 100+ finished
+// games — a hot 29-game run (Sydney) waits at Platinum until the sample
+// proves out, StarCraft-style.
+//
+// Tourney seeding (future JAY CUP mini-championship): seed from shown
+// rating, break ties with the mini-game layer (lib/minigames/difficulty.ts).
 // Both are deterministic replays, so a seeding run needs no new state.
 
 import { BotStyle, Seat, SeatInfo, SEATS, Team, partnerOf, teamOf } from './types';
 
 /** Bump when the formula changes — invalidates the localStorage cache. */
-export const SKILL_VERSION = 1;
+export const SKILL_VERSION = 2;
 
 export const START_SKILL = 1000;
 /** Ranked games needed to leave the Rookie/placement pool. */
@@ -44,17 +55,37 @@ const RATING_FLOOR = 600;
 /** Rating gains fade linearly to zero as you outrank the opposing table,
  *  hitting zero at this many points above it. This is the anti-farm law:
  *  Elo alone would let 500 blowouts of Stomper creep to GrandMaster. */
-const OUTRANK_SPAN = 150;
+const OUTRANK_SPAN = 250;
 
-/** Full credit for margin at ±350 game points (a comfortable blowout). */
-const MARGIN_FULL = 350;
+/** Full credit for margin at ±600 game points. Real family games to 500
+ *  average ±350 — a 350 scale saturated on almost every game and reduced
+ *  the blend to pure W/L. */
+const MARGIN_FULL = 600;
 /** Blend: how much the W is worth vs the score margin. */
 const WIN_WEIGHT = 0.55;
 
 /** Rating gains keep this fraction when the AI Trainer was on… */
-const ASSIST_GAIN = 0.5;
+const ASSIST_GAIN = 0.75;
 /** …and this fraction when only the Card Counter was up (lighter aid). */
-const COUNTER_GAIN = 0.7;
+const COUNTER_GAIN = 0.85;
+
+/** Law 4 — the grind: shown rating credit per finished game, capped. */
+const GRIND_PER_GAME = 1.5;
+const GRIND_CAP_GAMES = 200;
+export const grindOf = (ranked: number): number =>
+    Math.round(GRIND_PER_GAME * Math.min(ranked, GRIND_CAP_GAMES));
+
+/** GM demands this much PURE skill — grind can carry a shown rating past
+ *  the GM floor, but never mint the lightning bolt by itself. */
+export const GM_SKILL_FLOOR = 1650;
+
+/** Finished games required to WEAR the top tier badges (shown rating can
+ *  run ahead; the badge waits for the sample). Keys match RANK_TIERS. */
+export const TIER_GATES: Record<string, number> = {
+    diamond: 40,
+    master: 75,
+    grandmaster: 100,
+};
 
 /**
  * Anchor ratings for the bot brains, calibrated to the tier floors in
@@ -103,8 +134,10 @@ export interface SkillGame {
 }
 
 export interface SkillResult {
-    /** the ladder rating, rounded */
+    /** the SHOWN ladder rating: skill + grindOf(ranked), rounded */
     rating: number;
+    /** pure skill (no grind) — gates GM, feeds other players' replays */
+    skill: number;
     /** finished games replayed into it */
     ranked: number;
     /** still in placements (ranked < PLACEMENT_GAMES) */
@@ -114,11 +147,17 @@ export interface SkillResult {
 const expectedScore = (mine: number, theirs: number): number =>
     1 / (1 + Math.pow(10, (theirs - mine) / 400));
 
-/** A seat's strength: bots by anchor, humans/open assumed to be my peer. */
+/** A seat's strength: bots by anchor; humans by their actual ladder skill
+ *  when the board map knows them, my peer otherwise. */
 const strengthOf = (
     info: SeatInfo | undefined, peer: number, botThink: boolean,
+    board: Record<string, number>,
 ): number => {
-    if (!info || info.kind !== 'bot') return peer;
+    if (!info || info.kind !== 'bot') {
+        const uid = info?.uid;
+        if (uid && board[uid] !== undefined) return board[uid];
+        return peer;
+    }
     const style = info.botStyle;
     if (!style) return UNKNOWN_ANCHOR;
     if (style === 'gen26' && botThink) return DAYDREAM_ANCHOR;
@@ -126,15 +165,19 @@ const strengthOf = (
 };
 
 /** The rating delta for one game at a given current rating. Exported so
- *  tests and the (future) post-game "+12 SR" toast share the exact math. */
-export const gameDelta = (rating: number, g: SkillGame, ranked: number): number => {
+ *  tests and the (future) post-game "+12 SR" toast share the exact math.
+ *  `board` maps human uids to their current skill (see boardSkills). */
+export const gameDelta = (
+    rating: number, g: SkillGame, ranked: number,
+    board: Record<string, number> = {},
+): number => {
     const myTeam = teamOf(g.seat);
     const otherTeam: Team = myTeam === 'A' ? 'B' : 'A';
     const botThink = !!g.botThink;
 
-    const partner = strengthOf(g.seats?.[partnerOf(g.seat)], rating, botThink);
+    const partner = strengthOf(g.seats?.[partnerOf(g.seat)], rating, botThink, board);
     const opps = SEATS.filter((s) => teamOf(s) !== myTeam)
-        .map((s) => strengthOf(g.seats?.[s], rating, botThink));
+        .map((s) => strengthOf(g.seats?.[s], rating, botThink, board));
 
     const teamRating = (rating + partner) / 2;
     const oppRating = (opps[0] + opps[1]) / 2;
@@ -159,18 +202,56 @@ export const gameDelta = (rating: number, g: SkillGame, ranked: number): number 
     return delta;
 };
 
-/** Replay a player's finished games, oldest first, into a ladder rating. */
-export const replaySkill = (games: SkillGame[]): SkillResult => {
+/** Replay a player's finished games, oldest first, into a ladder rating.
+ *  `board` supplies other humans' skills; `selfUid` keeps a player's own
+ *  seat from resolving through the map mid-replay. */
+export const replaySkill = (
+    games: SkillGame[],
+    board: Record<string, number> = {},
+    selfUid?: string,
+): SkillResult => {
+    const scoped = selfUid !== undefined && board[selfUid] !== undefined
+        ? Object.fromEntries(Object.entries(board).filter(([k]) => k !== selfUid))
+        : board;
     const ordered = [...games].sort((a, b) => a.finishedAt - b.finishedAt);
     let rating = START_SKILL;
     let ranked = 0;
     for (const g of ordered) {
-        rating = Math.max(RATING_FLOOR, rating + gameDelta(rating, g, ranked));
+        rating = Math.max(RATING_FLOOR, rating + gameDelta(rating, g, ranked, scoped));
         ranked++;
     }
+    const skill = Math.round(rating);
     return {
-        rating: Math.round(rating),
+        rating: skill + grindOf(ranked),
+        skill,
         ranked,
         provisional: ranked < PLACEMENT_GAMES,
     };
+};
+
+/**
+ * Rate the whole family at once — real multiplayer Elo. Human seats
+ * resolve to that player's actual skill, iterated to a fixed point
+ * (3 passes moves the board <10 SR; pass 1 is the old peer assumption).
+ * This is why Tyler's 219 games against half-human tables finally price
+ * correctly: his opponents are Nate and Carson, not "someone exactly as
+ * good as Tyler".
+ */
+export const boardSkills = (
+    gamesByUid: Record<string, SkillGame[]>,
+    passes = 3,
+): Record<string, SkillResult> => {
+    let board: Record<string, number> = {};
+    let results: Record<string, SkillResult> = {};
+    for (let p = 0; p < passes; p++) {
+        results = {};
+        const next: Record<string, number> = {};
+        for (const [uid, games] of Object.entries(gamesByUid)) {
+            const res = replaySkill(games, board, uid);
+            results[uid] = res;
+            next[uid] = res.skill;
+        }
+        board = next;
+    }
+    return results;
 };
