@@ -99,6 +99,29 @@ to taste (10 leaves the Mac usable). Player progress lives in Firestore
 invalidates anyone. When players finish the whole bank the app shows
 "Tell Riley you want more" — this section is what that means.
 
+## The ranked ladder (2026-08-17)
+
+Skill Rating (SR) is a margin-aware Elo **replayed client-side from
+`users/{uid}/history` docs** — never stored, so no migration and no
+drift; past games count immediately. All tuning knobs live in
+`src/lib/game/skill.ts` (bot anchor ratings, margin blend, assist tax,
+outrank taper = the anti-easy-bot-farming law, K schedule) and tier
+floors in `src/lib/game/rank.ts` (GM is also seat-capped, 1 per 8 ranked
+players, applied by the leaderboard). Replay results are cached in
+localStorage keyed on (gamesPlayed, gamesWon) — bump `SKILL_VERSION`
+whenever the formula changes or caches go stale-wrong. History docs now
+also record `margin`/`botThink`/`assistUsed`/`counterUsed` (OR-merged
+per hand write) for future games; older docs fall back to the seat
+snapshot.
+
+Mini-game difficulty layers (Bronze→GrandMaster) are derived from the
+mill's own value gaps in `src/lib/minigames/difficulty.ts` — no bank
+regeneration needed, works for any future `--append`. Promotion: 10
+perfect-or-close of your last 14 in the current layer.
+
+Future JAY CUP monthly mini-tourney: seed from SR, tie-break with the
+mini-game layer — both are deterministic replays, no new state needed.
+
 ## Where things are
 
 - Game engine + types: `src/lib/game/` (TS) · parity twin `ml/rook/` (Py)

@@ -5,7 +5,8 @@
 // assist-pink dials above cards, and the announce-pop reveal. The Lab
 // pages were the prototype; these match the game the family plays.
 
-import { Grade, levelFor } from '@/lib/minigames/scoring';
+import { Grade } from '@/lib/minigames/scoring';
+import { LAYER_NEED, LAYER_TIERS, TOP_LAYER } from '@/lib/minigames/difficulty';
 import { MiniGameProgress } from '@/lib/minigames/types';
 import { ASSIST_PINK } from '@/components/table/AssistDial';
 
@@ -105,14 +106,25 @@ export function RevealCard({ grade, k, onNext, nextLabel, children }: {
     );
 }
 
-/** Running score strip: level, streak, situations done. */
+/** Running score strip: difficulty layer + climb, streak, situations done. */
 export function ScoreStrip({ p, total }: { p: MiniGameProgress; total: number }) {
-    const lv = levelFor(p.attempts);
+    const layer = p.layer ?? 0;
+    const tier = LAYER_TIERS[layer];
+    const hits = (p.recent ?? []).reduce((a, b) => a + b, 0);
+    const next = layer < TOP_LAYER ? LAYER_TIERS[layer + 1] : null;
     return (
         <div className="flex items-center gap-2 text-[11px] font-orbitron">
-            <span className="px-2 py-1 rounded-lg bg-black/25 border border-white/20 text-white/90">
-                Lv {lv.level} · {lv.name}
+            <span className={`px-2 py-1 rounded-lg bg-black/25 border border-white/20 font-bold ${tier.color}`}>
+                {tier.emoji} {tier.name}
             </span>
+            {next && (
+                <span
+                    className="px-2 py-1 rounded-lg bg-black/25 border border-white/20 text-white/70"
+                    title={`${LAYER_NEED} perfect-or-close in your last 14 unlocks ${next.name}`}
+                >
+                    {Math.min(hits, LAYER_NEED)}/{LAYER_NEED} to {next.emoji}
+                </span>
+            )}
             <span className={`px-2 py-1 rounded-lg border ${
                 p.streak >= 3
                     ? 'bg-orange-500/20 border-orange-400/60 text-orange-200'
@@ -123,6 +135,23 @@ export function ScoreStrip({ p, total }: { p: MiniGameProgress; total: number })
             <span className="px-2 py-1 rounded-lg bg-black/25 border border-white/20 text-white/70 ml-auto">
                 {p.done.length}/{total}
             </span>
+        </div>
+    );
+}
+
+/** The layer-up celebration, shown inside the RevealCard on the answer
+ *  that clinched a promotion. */
+export function LayerUpBanner({ layer }: { layer: number }) {
+    const tier = LAYER_TIERS[Math.min(layer, TOP_LAYER)];
+    return (
+        <div className={`mt-2.5 rounded-lg border border-yellow-400/50 bg-yellow-400/10 px-3 py-2 text-center font-orbitron text-sm font-bold ${tier.color}`}>
+            <span className="material-symbols-outlined text-base align-middle mr-1 text-yellow-300">trending_up</span>
+            LAYER UP — welcome to {tier.emoji} {tier.name}!
+            <div className="text-white/60 text-[10px] font-normal mt-0.5">
+                {layer >= TOP_LAYER
+                    ? 'The summit. These are the hairline calls.'
+                    : 'The situations get trickier from here.'}
+            </div>
         </div>
     );
 }

@@ -17,7 +17,8 @@ import { sortHand } from '@/lib/game/deck';
 import { themeFor, themeForPalette } from '@/components/table/theme';
 import { CardPalette, paletteById } from '@/lib/game/palettes';
 import { useCardPaletteId } from '@/lib/settings';
-import { AllDoneCard, RevealCard, ScoreStrip, TableMap, ValueDial } from '@/components/minigames/shared';
+import { AllDoneCard, LayerUpBanner, RevealCard, ScoreStrip, TableMap, ValueDial } from '@/components/minigames/shared';
+import { layersFor, leadGap, pickNext } from '@/lib/minigames/difficulty';
 import { cardName, critiqueLead, explainLead } from '@/lib/minigames/explain';
 import { Grade, gradeLead } from '@/lib/minigames/scoring';
 import { getProgress, recordAttempt } from '@/lib/minigames/service';
@@ -43,6 +44,8 @@ export default function LeadDrill() {
     const [seat, setSeat] = useState<number>(2);   // partner leads the drill
     const [picked, setPicked] = useState<number | null>(null);
     const [grade, setGrade] = useState<Grade | null>(null);
+    // the layer just unlocked by this answer, for the reveal banner
+    const [promoted, setPromoted] = useState<number | null>(null);
     // held until "next lead" — deriving from the done-set would advance
     // the position mid-reveal (grading marks it done immediately)
     const [itemId, setItemId] = useState<number | null>(null);
@@ -67,14 +70,21 @@ export default function LeadDrill() {
 
     const [paletteId] = useCardPaletteId();
     const doneSet = useMemo(() => new Set(progress.done), [progress.done]);
+    // difficulty layers over the WHOLE bank (percentiles shouldn't shift
+    // with the seat filter); situations then come from your layer
+    const layers = useMemo(
+        () => (bank ? layersFor(bank.items, leadGap) : null),
+        [bank],
+    );
     const pool = useMemo(
         () => (bank ? bank.items.filter((it) => it.buyerRel === seat) : []),
         [bank, seat],
     );
     const item = useMemo(() => {
         if (itemId !== null) return pool.find((it) => it.id === itemId) ?? null;
-        return pool.find((it) => !doneSet.has(it.id)) ?? null;
-    }, [pool, doneSet, itemId]);
+        if (!layers) return null;
+        return pickNext(pool, layers, progress.layer ?? 0, doneSet);
+    }, [pool, layers, doneSet, itemId, progress.layer]);
     // pin the first fresh situation once BOTH loads settle (pinning off
     // the initial empty progress would re-deal an already-done lead)
     useEffect(() => {
@@ -163,9 +173,11 @@ export default function LeadDrill() {
         setPicked(c);
         const g = gradeLead(item, c, palette);
         setGrade(g);
-        setProgress(recordAttempt(user.uid, progress, item.id, g));
+        const next = recordAttempt(user.uid, progress, item.id, g);
+        if ((next.layer ?? 0) > (progress.layer ?? 0)) setPromoted(next.layer);
+        setProgress(next);
     };
-    const nextItem = () => { setPicked(null); setGrade(null); setItemId(null); };
+    const nextItem = () => { setPicked(null); setGrade(null); setPromoted(null); setItemId(null); };
 
     return (
         <main
@@ -222,6 +234,7 @@ export default function LeadDrill() {
                                 </div>
                             );
                         })()}
+                        {promoted !== null && <LayerUpBanner layer={promoted} />}
                     </RevealCard>
                 ) : (
                     <div className="text-white/60 font-orbitron text-xs text-center">

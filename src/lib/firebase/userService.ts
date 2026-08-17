@@ -74,6 +74,15 @@ export interface GameHistoryEntry {
     /** present once the game completed (the Recent Games list keys on it) */
     finishedAt?: number;
     won?: boolean;
+    /** my team's score minus theirs, as of the last recorded hand */
+    margin?: number;
+    /** the table's DayDream toggle — gen26 seats think as 'daydream' */
+    botThink?: boolean;
+    /** AI Trainer on at ANY recorded hand of this game (OR-merged across
+     *  hand writes; the ladder taxes rating gains on assisted games) */
+    assistUsed?: boolean;
+    /** Card Counter up at any recorded hand of this game */
+    counterUsed?: boolean;
 }
 
 /** The player's most recently FINISHED games, newest first. Ordering on
@@ -119,7 +128,10 @@ export const recordGameStats = async (game: GameDoc, uid: string): Promise<void>
                 tx.get(userRef(uid)),
             ]);
             const hist = histSnap.exists()
-                ? (histSnap.data() as { handsRecorded?: number; final?: boolean })
+                ? (histSnap.data() as {
+                    handsRecorded?: number; final?: boolean;
+                    assistUsed?: boolean; counterUsed?: boolean;
+                })
                 : undefined;
             if (hist && hist.handsRecorded === undefined) return; // legacy: recorded whole
             const handsRecorded = hist?.handsRecorded ?? 0;
@@ -134,15 +146,24 @@ export const recordGameStats = async (game: GameDoc, uid: string): Promise<void>
             for (const h of newHands) applyHandStats(stats, h, seat, game.id);
             if (isComplete && !final) applyGameFinalStats(stats, game, seat);
 
+            const myTeam = teamOf(seat);
+            const otherTeam = myTeam === 'A' ? 'B' : 'A';
             tx.set(historyRef, {
                 gameId: game.id,
                 seat,
-                team: teamOf(seat),
+                team: myTeam,
                 scores: game.scores,
                 hands: game.handHistory.length,
                 seats: game.seats,
                 handsRecorded: game.handHistory.length,
                 final: final || isComplete,
+                // ladder inputs (skillService replays these): margin, bot
+                // difficulty context, and whether help was on at ANY hand —
+                // the seat flags are live toggles, so OR across hand writes
+                margin: (game.scores[myTeam] ?? 0) - (game.scores[otherTeam] ?? 0),
+                botThink: game.botThink ?? false,
+                assistUsed: (hist?.assistUsed ?? false) || !!game.seats[seat].assist,
+                counterUsed: (hist?.counterUsed ?? false) || !!game.seats[seat].counter,
                 ...(isComplete ? { finishedAt: game.updatedAt, won: teamOf(seat) === game.winner } : {}),
             }, { merge: true });
             tx.set(userRef(uid), { stats }, { merge: true });

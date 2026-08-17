@@ -86,12 +86,19 @@ export interface MiniGameProgress {
     selTotal: number;
     selMatch: number;
     done: number[];       // completed item ids
+    /** current difficulty layer, an index into difficulty.ts LAYER_TIERS
+     *  (0 Bronze … 6 GrandMaster). Absent on pre-layer docs → 0. */
+    layer: number;
+    /** last LAYER_WINDOW answers in the current layer, 1 = perfect/close;
+     *  cleared on promotion */
+    recent: number[];
     updatedAt: number;
 }
 
 export const emptyProgress = (game: MiniGameKey): MiniGameProgress => ({
     game, attempts: 0, perfect: 0, close: 0, points: 0,
-    streak: 0, bestStreak: 0, selTotal: 0, selMatch: 0, done: [], updatedAt: 0,
+    streak: 0, bestStreak: 0, selTotal: 0, selMatch: 0, done: [],
+    layer: 0, recent: [], updatedAt: 0,
 });
 
 export const loadBank = async <T>(game: MiniGameKey): Promise<Bank<T>> => {

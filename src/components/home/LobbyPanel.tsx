@@ -13,6 +13,7 @@ import { listPlayers, UserProfile } from '@/lib/firebase/userService';
 import { createGame, listMyGames } from '@/lib/firebase/gameService';
 import { sendInvite } from '@/lib/firebase/inviteService';
 import { rankFor, RankInfo } from '@/lib/game/rank';
+import { skillForAll } from '@/lib/firebase/skillService';
 import RankBadge from '@/components/ui/RankBadge';
 
 interface LobbyPanelProps {
@@ -61,11 +62,16 @@ export default function LobbyPanel({ myUid, myName, myPhotoURL }: LobbyPanelProp
     useEffect(() => subscribePresence(setOnline), []);
     useEffect(() => subscribeLobbyChat(setMsgs), []);
 
-    // ladder ranks for everyone we might render (players list is small — family)
+    // ladder ranks for everyone we might render (players list is small —
+    // family; skillForAll replays from history with a per-device cache)
     useEffect(() => {
-        listPlayers().then((players: UserProfile[]) => {
+        listPlayers().then(async (players: UserProfile[]) => {
+            const skills = await skillForAll(players);
             const r: Record<string, RankInfo> = {};
-            for (const p of players) if (p.stats) r[p.uid] = rankFor(p.stats);
+            for (const p of players) {
+                const sk = skills[p.uid];
+                if (sk && !sk.provisional) r[p.uid] = rankFor(sk.rating, p.stats);
+            }
             setRanks(r);
         }).catch(() => {});
     }, [online.length]);

@@ -8,7 +8,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { levelFor, selectionPct } from '@/lib/minigames/scoring';
+import { selectionPct } from '@/lib/minigames/scoring';
+import { LAYER_NEED, LAYER_TIERS, TOP_LAYER } from '@/lib/minigames/difficulty';
 import { listAllProgress } from '@/lib/minigames/service';
 import { Bank, GoDownItem, LeadItem, MiniGameProgress, emptyProgress, loadBank } from '@/lib/minigames/types';
 
@@ -35,11 +36,16 @@ function DrillCard({ href, icon, title, blurb, p, total }: {
             <div className="flex items-center gap-2 mt-3 text-[11px] font-orbitron">
                 {started ? (
                     <>
-                        <span className="px-2 py-0.5 rounded-md bg-white/10 text-white/80">
-                            {p.attempts} played
+                        <span className={`px-2 py-0.5 rounded-md bg-white/10 font-bold ${LAYER_TIERS[p.layer ?? 0].color}`}>
+                            {LAYER_TIERS[p.layer ?? 0].emoji} {LAYER_TIERS[p.layer ?? 0].name}
                         </span>
+                        {(p.layer ?? 0) < TOP_LAYER && (
+                            <span className="px-2 py-0.5 rounded-md bg-white/5 text-white/50">
+                                {Math.min((p.recent ?? []).reduce((a, b) => a + b, 0), LAYER_NEED)}/{LAYER_NEED} to next
+                            </span>
+                        )}
                         <span className="px-2 py-0.5 rounded-md bg-white/5 text-white/50">
-                            best streak {p.bestStreak}
+                            {p.attempts} played
                         </span>
                     </>
                 ) : (
@@ -93,10 +99,11 @@ export default function MiniGamesPage() {
             attempts: acc.attempts + progress[g].attempts,
             selTotal: acc.selTotal + (progress[g].selTotal ?? 0),
             selMatch: acc.selMatch + (progress[g].selMatch ?? 0),
+            best: Math.max(acc.best, progress[g].attempts > 0 ? progress[g].layer ?? 0 : 0),
         }),
-        { attempts: 0, selTotal: 0, selMatch: 0 },
+        { attempts: 0, selTotal: 0, selMatch: 0, best: 0 },
     );
-    const lv = levelFor(combined.attempts);
+    const bestTier = LAYER_TIERS[combined.best];
 
     return (
         <main className="min-h-dvh bg-navy-900">
@@ -121,12 +128,11 @@ export default function MiniGamesPage() {
 
                 {combined.attempts > 0 && (
                     <div className="rounded-xl bg-navy-950/50 border border-white/15 p-3 mb-4 text-center">
-                        <div className="font-orbitron text-2xl font-bold text-fuchsia-300">
-                            LEVEL {lv.level} · {lv.name.toUpperCase()}
+                        <div className={`font-orbitron text-2xl font-bold ${bestTier.color}`}>
+                            {bestTier.emoji} {bestTier.name.toUpperCase()} DRILLER
                         </div>
                         <div className="text-white/60 text-[11px] font-orbitron uppercase tracking-wide">
-                            {combined.attempts} situations played
-                            {lv.next !== null && ` · ${lv.next - combined.attempts} to level ${lv.level + 1}`}
+                            {combined.attempts} situations played · {LAYER_NEED} right of your last 14 unlocks a layer
                         </div>
                         {combined.selTotal > 0 && (
                             <div className="text-white/50 text-[11px] mt-1.5">

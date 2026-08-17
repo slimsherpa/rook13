@@ -19,7 +19,8 @@ import { sortHand } from '@/lib/game/deck';
 import { themeForPalette } from '@/components/table/theme';
 import { paletteById, suitName, textOn } from '@/lib/game/palettes';
 import { useCardPaletteId } from '@/lib/settings';
-import { AllDoneCard, BotDot, RevealCard, ScoreStrip, TableMap } from '@/components/minigames/shared';
+import { AllDoneCard, BotDot, LayerUpBanner, RevealCard, ScoreStrip, TableMap } from '@/components/minigames/shared';
+import { godownGap, layersFor, pickNext } from '@/lib/minigames/difficulty';
 import { explainGoDown } from '@/lib/minigames/explain';
 import { Grade, gradeGoDown } from '@/lib/minigames/scoring';
 import { getProgress, recordAttempt } from '@/lib/minigames/service';
@@ -35,6 +36,8 @@ export default function GoDownDrill() {
     const [picked, setPicked] = useState<number[]>([]);
     const [trumpPick, setTrumpPick] = useState<number | null>(null);
     const [grade, setGrade] = useState<Grade | null>(null);
+    // the layer just unlocked by this answer, for the reveal banner
+    const [promoted, setPromoted] = useState<number | null>(null);
     // the situation on the table is HELD until "next hand" — deriving it
     // from the done-set would advance it mid-reveal (grading marks the
     // item done, and the reveal must keep showing the graded hand)
@@ -60,11 +63,17 @@ export default function GoDownDrill() {
     }, [user]);
 
     const doneSet = useMemo(() => new Set(progress.done), [progress.done]);
+    // difficulty layers, derived from the mill's own value gaps (see
+    // lib/minigames/difficulty.ts) — situations come from your layer
+    const layers = useMemo(
+        () => (bank ? layersFor(bank.items, godownGap) : null),
+        [bank],
+    );
     const item = useMemo(() => {
-        if (!bank) return null;
+        if (!bank || !layers) return null;
         if (itemId !== null) return bank.items.find((it) => it.id === itemId) ?? null;
-        return bank.items.find((it) => !doneSet.has(it.id)) ?? null;
-    }, [bank, doneSet, itemId]);
+        return pickNext(bank.items, layers, progress.layer ?? 0, doneSet);
+    }, [bank, layers, doneSet, itemId, progress.layer]);
     // pin the first fresh situation once BOTH loads settle (pinning off
     // the initial empty progress would re-deal an already-done hand)
     useEffect(() => {
@@ -142,10 +151,12 @@ export default function GoDownDrill() {
         if (!canLock || revealed || trumpPick === null) return;
         const g = gradeGoDown(item, picked, trumpPick);
         setGrade(g);
-        setProgress(recordAttempt(user.uid, progress, item.id, g));
+        const next = recordAttempt(user.uid, progress, item.id, g);
+        if ((next.layer ?? 0) > (progress.layer ?? 0)) setPromoted(next.layer);
+        setProgress(next);
     };
     const nextItem = () => {
-        setPicked([]); setTrumpPick(null); setGrade(null);
+        setPicked([]); setTrumpPick(null); setGrade(null); setPromoted(null);
         setItemId(null);   // un-pin: the effect pins the next fresh one
     };
 
@@ -188,6 +199,7 @@ export default function GoDownDrill() {
                                 {explainGoDown(item, palette)}
                             </div>
                         )}
+                        {promoted !== null && <LayerUpBanner layer={promoted} />}
                     </RevealCard>
                 ) : (
                     <div className="text-white/50 font-orbitron text-xs text-center">

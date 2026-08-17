@@ -10,7 +10,10 @@ import { getUserProfile, listRecentGames, GameHistoryEntry, UserProfile, UserSta
 import { RecordRef } from '@/lib/game/stats';
 import { Seat, SEATS, Team, partnerOf, teamOf } from '@/lib/game/types';
 import { rankFor } from '@/lib/game/rank';
-import { levelFor, selectionPct } from '@/lib/minigames/scoring';
+import { SkillResult } from '@/lib/game/skill';
+import { PLACEMENT_GAMES, skillFor } from '@/lib/firebase/skillService';
+import { selectionPct } from '@/lib/minigames/scoring';
+import { LAYER_TIERS, TOP_LAYER } from '@/lib/minigames/difficulty';
 import { listAllProgress } from '@/lib/minigames/service';
 import { MiniGameProgress } from '@/lib/minigames/types';
 import RankBadge from '@/components/ui/RankBadge';
@@ -312,7 +315,10 @@ function BeatTheBotCase({ uid }: { uid: string }) {
     }), { attempts: 0, perfect: 0, selTotal: 0, selMatch: 0, bestStreak: 0 });
     if (sum.attempts === 0) return null;
 
-    const lv = levelFor(sum.attempts);
+    const played = all.filter((p) => p.attempts > 0);
+    const bestLayer = Math.max(0, ...played.map((p) => p.layer ?? 0));
+    const bestTier = LAYER_TIERS[Math.min(bestLayer, TOP_LAYER)];
+    const drillName: Record<string, string> = { godown: 'Go-Down', lead: 'First Card' };
     const agree = selectionPct(sum);
     const badges: Array<[string, string, boolean]> = [
         ['neurology', 'MIND MELD', sum.perfect >= 25],
@@ -331,7 +337,13 @@ function BeatTheBotCase({ uid }: { uid: string }) {
                     <span className="material-symbols-outlined text-fuchsia-400 text-3xl">sports_esports</span>
                     <div className="flex-1">
                         <div className="font-orbitron text-white text-sm font-bold">
-                            Level {lv.level} — <span className="text-fuchsia-300">{lv.name}</span>
+                            <span className={bestTier.color}>{bestTier.emoji} {bestTier.name}</span> driller
+                        </div>
+                        <div className="text-white/50 text-[11px] mt-0.5">
+                            {played.map((p) => {
+                                const t = LAYER_TIERS[Math.min(p.layer ?? 0, TOP_LAYER)];
+                                return `${drillName[p.game] ?? p.game} ${t.emoji} ${t.name}`;
+                            }).join(' · ')}
                         </div>
                         <div className="text-white/50 text-[11px] mt-0.5">
                             {sum.attempts} situations played · best streak {sum.bestStreak}
@@ -398,6 +410,7 @@ function ProfileInner() {
     const requestedUid = params.get('uid');
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [fetched, setFetched] = useState(false);
+    const [skill, setSkill] = useState<SkillResult | null>(null);
 
     useEffect(() => {
         if (!loading && !user) router.push('/');
@@ -410,7 +423,10 @@ function ProfileInner() {
         if (!user || !uid) return;
         setFetched(false);
         getUserProfile(uid)
-            .then(setProfile)
+            .then((p) => {
+                setProfile(p);
+                if (p) skillFor(p).then(setSkill).catch(() => {});
+            })
             .catch(() => setProfile(null))
             .finally(() => setFetched(true));
     }, [user, uid]);
@@ -449,16 +465,17 @@ function ProfileInner() {
                                 </div>
                             )}
                             <h1 className="font-orbitron text-white text-xl font-bold mt-3">{name}</h1>
-                            {s && s.gamesPlayed > 0 && (() => {
-                                const rank = rankFor(s);
+                            {s && s.gamesPlayed > 0 && skill && (() => {
+                                const rank = rankFor(skill.rating, s);
                                 return (
                                     <div className="text-sm mt-1">
                                         <RankBadge rank={rank} />
-                                        {rank.next && (
-                                            <span className="text-white/40 font-orbitron text-[11px]">
-                                                {' '}· {rank.rating}/{rank.next.min} to {rank.next.name}
-                                            </span>
-                                        )}
+                                        <span className="text-white/40 font-orbitron text-[11px]">
+                                            {' '}· {skill.rating} SR
+                                            {skill.provisional
+                                                ? ` · placements ${skill.ranked}/${PLACEMENT_GAMES}`
+                                                : rank.next ? ` · ${rank.next.min} to ${rank.next.name}` : ''}
+                                        </span>
                                     </div>
                                 );
                             })()}

@@ -11,6 +11,7 @@
 
 import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
+import { advanceLayer } from './difficulty';
 import { Grade } from './scoring';
 import { MiniGameKey, MiniGameProgress, emptyProgress } from './types';
 
@@ -77,6 +78,7 @@ export const recordAttempt = (
     if (prev.done.includes(itemId)) return prev;   // replays don't re-count
     const hit = grade.tier === 'perfect' || grade.tier === 'close';
     const streak = hit ? prev.streak + 1 : 0;
+    const { layer, recent } = advanceLayer(prev, hit);
     const next: MiniGameProgress = {
         ...prev,
         attempts: prev.attempts + 1,
@@ -88,6 +90,8 @@ export const recordAttempt = (
         selTotal: prev.selTotal + grade.selTotal,
         selMatch: prev.selMatch + grade.selMatch,
         done: [...prev.done, itemId],
+        layer,
+        recent,
         updatedAt: Date.now(),
     };
     writeLocal(uid, next);
