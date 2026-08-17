@@ -256,11 +256,15 @@ export default function PlayersPage() {
         const s = p.stats;
         const drill = drillLayers[p.uid];
         const drillTier = drill !== null && drill !== undefined ? RANK_TIERS[drill] : null;
+        const openProfile = () => router.push(isMe ? '/profile' : `/profile?uid=${p.uid}`);
         return (
+            // the WHOLE card opens the trophy case (the name button inside
+            // keeps it keyboard-reachable; Invite stops the bubble)
             <div
                 key={p.uid}
-                className={`rounded-xl bg-navy-950/50 border p-3 flex items-center gap-2.5 ${
-                    isMe ? 'border-yellow-400/40' : 'border-white/15'
+                onClick={openProfile}
+                className={`rounded-xl bg-navy-950/50 border p-3 flex items-center gap-2.5 cursor-pointer transition ${
+                    isMe ? 'border-yellow-400/40 hover:border-yellow-400/70' : 'border-white/15 hover:border-white/35'
                 }`}
             >
                 <span className={`w-7 flex-shrink-0 text-center font-orbitron font-bold text-sm ${
@@ -269,7 +273,7 @@ export default function PlayersPage() {
                     {place ? `#${place}` : '—'}
                 </span>
                 <button
-                    onClick={() => router.push(isMe ? '/profile' : `/profile?uid=${p.uid}`)}
+                    onClick={openProfile}
                     className="flex items-center gap-3 flex-1 min-w-0 text-left"
                 >
                     {p.photoURL ? (
@@ -327,7 +331,7 @@ export default function PlayersPage() {
                 </button>
                 {!isMe && lobbyGame && (
                     <button
-                        onClick={() => invite(p)}
+                        onClick={(e) => { e.stopPropagation(); invite(p); }}
                         disabled={invited.has(p.uid)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-orbitron whitespace-nowrap flex items-center gap-1 ${
                             invited.has(p.uid)
