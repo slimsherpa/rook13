@@ -15,7 +15,7 @@ import { listPlayers, UserProfile } from '@/lib/firebase/userService';
 import { listMyGames } from '@/lib/firebase/gameService';
 import { sendInvite } from '@/lib/firebase/inviteService';
 import { PLACEMENT_GAMES, skillForAll } from '@/lib/firebase/skillService';
-import { SkillResult } from '@/lib/game/skill';
+import { SkillResult, TIER_GATES } from '@/lib/game/skill';
 import { GameDoc } from '@/lib/game/types';
 import { GRANDMASTER, MASTER, RANK_TIERS, RankInfo, gmSeatCount, ladderRank } from '@/lib/game/rank';
 import { listAllProgress } from '@/lib/minigames/service';
@@ -36,6 +36,113 @@ const PLACE_COLOR: Record<number, string> = {
     2: 'text-gray-300',
     3: 'text-amber-600',
 };
+
+// What each badge really means — the ladder maps onto the camp roster
+// (tier floors sit at the bots' anchor ratings), so a badge literally
+// names the strongest camp brain you trade even with.
+const TIER_MEANING: Record<string, string> = {
+    bronze: 'everyone starts here — 3 placement games find your level fast',
+    silver: 'winning games on purpose',
+    gold: 'trades even with Stomper 🦖 — a few good nights gets you here',
+    platinum: 'trades even with Bobcat 🐆',
+    diamond: 'hangs with Puma 🐈‍⬛',
+    master: 'pushes Cougar 🐅 around',
+    grandmaster: 'plays Cosmo 🐾 dead even — the summit',
+};
+
+const GUIDE_KEY = 'rook13-ladder-guide';
+
+/** "How the ladder works" — the family-facing rules of the climb. Open
+ *  by default; remembers when someone tucks it away. */
+function LadderGuide() {
+    const [open, setOpen] = useState(true);
+    useEffect(() => {
+        try { if (localStorage.getItem(GUIDE_KEY) === 'closed') setOpen(false); } catch { /* fine */ }
+    }, []);
+    const toggle = () => setOpen((o) => {
+        try { localStorage.setItem(GUIDE_KEY, o ? 'closed' : 'open'); } catch { /* fine */ }
+        return !o;
+    });
+
+    const law = (icon: string, color: string, title: string, body: React.ReactNode) => (
+        <div className="flex gap-2.5">
+            <span className={`material-symbols-outlined text-lg ${color} flex-shrink-0 mt-px`}>{icon}</span>
+            <span className="text-white/60 text-xs leading-relaxed">
+                <b className="text-white/90 font-orbitron text-[11px]">{title}</b>{' '}{body}
+            </span>
+        </div>
+    );
+
+    return (
+        <div className="rounded-xl border border-yellow-400/25 bg-navy-950/50 mb-4 overflow-hidden">
+            <button
+                onClick={toggle}
+                className="w-full px-3.5 py-2.5 flex items-center gap-2 text-left"
+            >
+                <span className="material-symbols-outlined text-yellow-400 text-lg">menu_book</span>
+                <span className="font-orbitron text-white text-xs font-bold flex-1">
+                    HOW THE LADDER WORKS
+                </span>
+                <span className="material-symbols-outlined text-white/40 text-lg">
+                    {open ? 'expand_less' : 'expand_more'}
+                </span>
+            </button>
+
+            {open && (
+                <div className="px-3.5 pb-3.5 space-y-2.5">
+                    <p className="text-white/70 text-xs leading-relaxed">
+                        Your <b className="text-yellow-300 font-orbitron">SR</b> ={' '}
+                        <b className="text-white">Skill</b> (chess-style rating from every
+                        finished game) + <b className="text-white">Grind</b> (showing up
+                        is real credit). Four laws:
+                    </p>
+                    {law('swords', 'text-red-300', 'PLAY UP.',
+                        <>Bots count at camp strength, family at their real SR. Beating Cosmo
+                        pays big; farming Stomper stops paying once you outrank him.</>)}
+                    {law('scoreboard', 'text-sky-300', 'MARGIN COUNTS.',
+                        <>Winning by 300 beats winning by 30 — and a close loss to a
+                        stronger table barely costs you. Go for every point.</>)}
+                    {law('event_repeat', 'text-green-300', 'GRIND PAYS.',
+                        <>Every finished game banks <b className="text-white">+1.5 SR</b>,
+                        up to 200 games (+300 — about two tiers). Nobody grinds past the
+                        summit, but everybody&apos;s grind counts.</>)}
+                    {law('school', 'text-fuchsia-300', 'HELP IS TAXED.',
+                        <>Trainer games keep 75% of gains, counter games 85%.
+                        Losses always land in full.</>)}
+
+                    <div className="pt-1.5 border-t border-white/10 space-y-1">
+                        {RANK_TIERS.map((t) => (
+                            <div key={t.key} className="flex items-baseline gap-2 text-[11px]">
+                                <span className={`font-orbitron font-bold w-[7.5rem] flex-shrink-0 ${t.color}`}>
+                                    {t.emoji} {t.name}
+                                </span>
+                                <span className="text-white/30 font-orbitron w-11 flex-shrink-0 text-right">
+                                    {t.min > 0 ? t.min : ''}
+                                </span>
+                                <span className="text-white/55 leading-snug">
+                                    {TIER_MEANING[t.key]}
+                                    {TIER_GATES[t.key] && (
+                                        <span className="text-white/35"> · {TIER_GATES[t.key]}+ games</span>
+                                    )}
+                                    {t.key === 'grandmaster' && (
+                                        <span className="text-white/35"> · pure skill only · 1 seat per 8 players</span>
+                                    )}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <p className="text-white/40 text-[10px] leading-relaxed">
+                        A hot streak can out-rate its badge — a 🔒 means the rating is
+                        real but the badge is waiting on a body of games. Beat the Bot
+                        drill tiers ride along as the 🎮 chip. All of it seeds the
+                        monthly JAY CUP.
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function PlayersPage() {
     const { user, loading } = useAuth();
@@ -249,13 +356,8 @@ export default function PlayersPage() {
                     <span className="font-orbitron font-bold text-white">ROOK<span className="text-yellow-400">13</span></span>
                 </div>
 
-                <h1 className="font-orbitron text-white text-lg font-bold mb-1">Leaderboard</h1>
-                <p className="text-white/50 text-xs mb-1">
-                    Skill Rating, StarCraft-style: beat stronger tables (bots at their
-                    anchor, family at their rating) and the margin counts. Every finished
-                    game banks grind SR too — but the top badges also demand a body of
-                    games, and GrandMaster demands pure skill.
-                </p>
+                <h1 className="font-orbitron text-white text-lg font-bold mb-2">Leaderboard</h1>
+                <LadderGuide />
                 <p className="text-white/50 text-xs mb-4">
                     {lobbyGame
                         ? <>Invites go to your table <span className="font-code text-yellow-400">{lobbyGame.joinCode}</span> — they choose whether to join.</>
